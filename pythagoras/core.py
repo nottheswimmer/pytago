@@ -13,7 +13,8 @@ def python_to_go(python: str) -> str:
 if __name__ == '__main__':
     print(python_to_go("""\
 def main():
-    print("hello world")
+    print(2 ** 8)
+
 
 if __name__ == '__main__':
     main()

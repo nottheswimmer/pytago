@@ -20,3 +20,6 @@ class Test(TestCase):
 
     def test_add(self):
         assert_examples_match(self, "add")
+
+    def test_exponents(self):
+        assert_examples_match(self, "exponents")

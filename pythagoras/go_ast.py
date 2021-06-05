@@ -21,6 +21,33 @@ class Unparser(ast._Unparser):
             return
         return super().visit_If(node)
 
+    # Go doesn't have the "**" operator, so use math.Pow
+    def visit_BinOp(self, node):
+        operator = self.binop[node.op.__class__.__name__]
+        operator_precedence = self.binop_precedence[operator]
+        with self.require_parens(operator_precedence, node):
+            if operator in self.binop_rassoc:
+                left_precedence = operator_precedence.next()
+                right_precedence = operator_precedence
+            else:
+                left_precedence = operator_precedence
+                right_precedence = operator_precedence.next()
+
+            if operator == "**":
+                self.write("math.Pow(")
+                self.set_precedence(left_precedence, node.left)
+                self.traverse(node.left)
+                self.write(", ")
+                self.set_precedence(right_precedence, node.right)
+                self.traverse(node.right)
+                self.write(")")
+            else:
+                self.set_precedence(left_precedence, node.left)
+                self.traverse(node.left)
+                self.write(f" {operator} ")
+                self.set_precedence(right_precedence, node.right)
+                self.traverse(node.right)
+
     # Quick hack to get 99% of the string formatting functionality I want
     #   without getting into the dirty stuff for now
     def _write_constant(self, value):
