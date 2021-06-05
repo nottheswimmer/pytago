@@ -35,6 +35,10 @@ class Unparser(ast._Unparser):
         self._extra_precall_params = []
         self._subscripting = None
 
+    # Imports managed by autoimport. For now, let's just ignore Python's imports
+    def visit_Import(self, node):
+        return
+
     # I'd like some simple support to help someone trying to understand how negative
     # indexing translates into Golang, even if it only works for constants
     def visit_Subscript(self, node):
@@ -166,7 +170,9 @@ class Unparser(ast._Unparser):
             self._extra_precall_params.append(node.value)
         else:
             self.write(".")
-            self.write(node.attr)
+            # Some modules (okay, just math afaik) are very similar to Python except it's math.Sin instead of math.sin
+            title_case_the_attribute = isinstance(node.value, ast.Name) and node.value.id == "math"
+            self.write(node.attr.title() if title_case_the_attribute else node.attr)
 
     def visit_Call(self, node):
         self.set_precedence(ast._Precedence.ATOM, node.func)

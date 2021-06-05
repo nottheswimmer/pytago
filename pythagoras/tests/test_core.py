@@ -41,3 +41,6 @@ class Test(TestCase):
 
     def test_logical(self):
         assert_examples_match(self, "logical")
+
+    def test_maths(self):
+        assert_examples_match(self, "maths")

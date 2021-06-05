@@ -12,19 +12,16 @@ def python_to_go(python: str) -> str:
 # Debugging
 if __name__ == '__main__':
     print(python_to_go("""\
+import math
+
 def main():
-    a = True
-    b = False
-    print(a)
-    print(b)
-    print(a and b)
-    print(a or b)
-    print(not a)
-    print(not b)
-    print(a and not b)
-    print(a or not b)
-    
+    print(math.sin(3))
+    print(math.cosh(3))
+    print(math.pi)
+    print(math.acosh(6))
+    print(math.atan2(4, 7))
 
 if __name__ == '__main__':
     main()
+
 """))
