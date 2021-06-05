@@ -8,12 +8,35 @@ from subprocess import Popen, PIPE
 class Unparser(ast._Unparser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._scope = set()
+        self._scope = dict()
         self._assigning = False
+        self._assigned_type = None
+
+    def guess_type(self, node):
+        try:
+            return type(ast.literal_eval(node))
+        except ValueError:
+            pass
+        if isinstance(node, ast.Name) and node.id in self._scope:
+            return self._scope[node.id]
+        if isinstance(node, ast.BinOp):
+            if isinstance(node.op, ast.Div):
+                return float
+            if isinstance(node.op, ast.FloorDiv):
+                return int
+            left_type = self.guess_type(node.left)
+            if left_type == float:
+                return float
+            right_type = self.guess_type(node.right)
+            if right_type == float:
+                return float
+            return left_type or right_type
+        return None
 
     # Go needs := to initialize variables
     def visit_Assign(self, node):
         self.fill()
+        self._assigned_type = self.guess_type(node.value)
         for target in node.targets:
             prev_assigning = self._assigning
             prev_scope_size = len(self._scope)
@@ -38,7 +61,7 @@ class Unparser(ast._Unparser):
         }.get(node.id, node.id)
         self.write(name)
         if self._assigning:
-            self._scope.add(name)
+            self._scope[name] = self._assigned_type
 
     def visit_If(self, node):
         # TODO: Integrate such blocks into the main function
@@ -58,20 +81,55 @@ class Unparser(ast._Unparser):
                 left_precedence = operator_precedence
                 right_precedence = operator_precedence.next()
 
+            left_type = self.guess_type(node.left)
+            right_type = self.guess_type(node.right)
+            left_prefix = ""
+            left_suffix = ""
+            right_prefix = ""
+            right_suffix = ""
+            join_string = f" {operator} "
+
             if operator == "**":
-                self.write("math.Pow(")
-                self.set_precedence(left_precedence, node.left)
-                self.traverse(node.left)
-                self.write(", ")
-                self.set_precedence(right_precedence, node.right)
-                self.traverse(node.right)
-                self.write(")")
+                left_prefix += "math.Pow("
+                right_suffix = ")" + right_suffix
+                join_string = ", "
+
+            if operator == "/":
+                if left_type != float:
+                    left_prefix += "float64("
+                    left_suffix = ")" + left_suffix
+                if right_type != float:
+                    right_prefix += "float64("
+                    right_suffix = ")" + right_suffix
+            elif operator == "//":
+                join_string = " / "
+                either_was_float = float in [left_type, right_type]
+                if left_type != int:
+                    left_prefix += "int("
+                    left_suffix = ")" + left_suffix
+                if right_type != int:
+                    right_prefix += "int("
+                    right_suffix = ")" + right_suffix
+                if either_was_float:
+                    left_prefix += "float64("
+                    right_suffix = ")" + right_suffix
             else:
-                self.set_precedence(left_precedence, node.left)
-                self.traverse(node.left)
-                self.write(f" {operator} ")
-                self.set_precedence(right_precedence, node.right)
-                self.traverse(node.right)
+                if right_type == float and left_type != float:
+                    left_prefix += "float64("
+                    left_suffix = ")" + left_suffix
+                elif left_type == float and right_type != float:
+                    right_prefix += "float64("
+                    right_suffix = ")" + right_suffix
+
+            self.set_precedence(left_precedence, node.left)
+            self.write(left_prefix)
+            self.traverse(node.left)
+            self.write(left_suffix)
+            self.write(join_string)
+            self.set_precedence(right_precedence, node.right)
+            self.write(right_prefix)
+            self.traverse(node.right)
+            self.write(right_suffix)
 
     # Quick hack to get 99% of the string formatting functionality I want
     #   without getting into the dirty stuff for now

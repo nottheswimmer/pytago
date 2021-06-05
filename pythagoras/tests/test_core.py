@@ -26,3 +26,6 @@ class Test(TestCase):
 
     def test_variables(self):
         assert_examples_match(self, "variables")
+
+    def test_floats(self):
+        assert_examples_match(self, "floats")
