@@ -1,8 +1,13 @@
 from unittest import TestCase
 
-from pythagoras import add
+from pythagoras import python_to_go
+
+
+def test_example(test_case: TestCase, example: str):
+    with open(f"examples/{example}.py") as a, open(f"examples/{example}.go") as b:
+        test_case.assertEqual(python_to_go(a.read()), b.read())
 
 
 class Test(TestCase):
-    def test_add(self):
-        self.assertEqual(add(2, 2), 4)
+    def test_hello_world(self):
+        test_example(self, "helloworld")
