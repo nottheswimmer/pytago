@@ -23,3 +23,6 @@ class Test(TestCase):
 
     def test_exponents(self):
         assert_examples_match(self, "exponents")
+
+    def test_variables(self):
+        assert_examples_match(self, "variables")
