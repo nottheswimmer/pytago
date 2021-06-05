@@ -1,0 +1,10 @@
+# Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+venv/
+
+# IDE
+.idea
