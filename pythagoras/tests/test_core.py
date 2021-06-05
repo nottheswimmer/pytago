@@ -35,3 +35,6 @@ class Test(TestCase):
 
     def test_loops(self):
         assert_examples_match(self, "loops")
+
+    def test_strings(self):
+        assert_examples_match(self, "strings")

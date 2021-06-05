@@ -5,8 +5,13 @@ from contextlib import contextmanager
 from subprocess import Popen, PIPE
 
 _PYTHON_TO_GO_TYPE_STRING = {
-    int: 'int'
+    int: 'int',
+    float: 'float64',
+    str: 'string'
 }
+for key, value in list(_PYTHON_TO_GO_TYPE_STRING.items()):
+    if isinstance(key, type):
+        _PYTHON_TO_GO_TYPE_STRING[key.__name__] = value
 
 def _python_to_go_type_string(t):
     return _PYTHON_TO_GO_TYPE_STRING.get(t, t.__name__)
@@ -34,14 +39,18 @@ class Unparser(ast._Unparser):
             )
 
         self.set_precedence(ast._Precedence.ATOM, node.value)
-        self.traverse(node.value)
-        was_subscripting = self._subscripting
-        self._subscripting = node.value
-        with self.delimit("[", "]"):
-            if is_simple_tuple(node.slice):
-                self.items_view(self.traverse, node.slice.elts)
-            else:
-                self.traverse(node.slice)
+        delimiters = "", ""
+        if self.guess_type(node.value) == str and not isinstance(node.slice, ast.Slice):
+            delimiters = "string(", ")"
+        with self.delimit(*delimiters):
+            self.traverse(node.value)
+            was_subscripting = self._subscripting
+            self._subscripting = node.value
+            with self.delimit("[", "]"):
+                if is_simple_tuple(node.slice):
+                    self.items_view(self.traverse, node.slice.elts)
+                else:
+                    self.traverse(node.slice)
         self._subscripting = was_subscripting
 
     def visit_UnaryOp(self, node):
@@ -126,6 +135,7 @@ class Unparser(ast._Unparser):
     def visit_Name(self, node):
         name = {
             'print': 'fmt.Println',
+            **_PYTHON_TO_GO_TYPE_STRING
         }.get(node.id, node.id)
         self.write(name)
         if self._assigning:
