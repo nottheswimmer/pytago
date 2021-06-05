@@ -17,6 +17,16 @@ def _python_to_go_type_string(t):
     return _PYTHON_TO_GO_TYPE_STRING.get(t, t.__name__)
 
 class Unparser(ast._Unparser):
+    unop = {"Invert": "~", "Not": "!", "UAdd": "+", "USub": "-"}
+    unop_precedence = {
+        "!": ast._Precedence.FACTOR,
+        "~": ast._Precedence.FACTOR,
+        "+": ast._Precedence.FACTOR,
+        "-": ast._Precedence.FACTOR,
+    }
+    boolops = {"And": "&&", "Or": "||"}
+    boolop_precedence = {"&&": ast._Precedence.AND, "||": ast._Precedence.OR}
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._scope = dict()

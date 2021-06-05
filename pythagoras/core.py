@@ -13,20 +13,18 @@ def python_to_go(python: str) -> str:
 if __name__ == '__main__':
     print(python_to_go("""\
 def main():
-    a = "hello"
-    b = "world"
-    c = a + " " + b
-    print(c)
-    print(double_it(c))
-    print(c[1])
-    print(c[1:6])
-
-
-def double_it(c: str) -> str:
-    return c + c
-
+    a = True
+    b = False
+    print(a)
+    print(b)
+    print(a and b)
+    print(a or b)
+    print(not a)
+    print(not b)
+    print(a and not b)
+    print(a or not b)
+    
 
 if __name__ == '__main__':
     main()
-
 """))

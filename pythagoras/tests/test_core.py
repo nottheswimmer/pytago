@@ -38,3 +38,6 @@ class Test(TestCase):
 
     def test_strings(self):
         assert_examples_match(self, "strings")
+
+    def test_logical(self):
+        assert_examples_match(self, "logical")
