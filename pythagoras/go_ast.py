@@ -63,8 +63,6 @@ class Unparser(ast._Unparser):
 
     def write(self, text):
         """Append a piece of text"""
-        if '-' in text:
-            print(text)
         self._source.append(text)
 
     def visit_AugAssign(self, node):
@@ -230,13 +228,11 @@ class Unparser(ast._Unparser):
 
             self.set_precedence(left_precedence, node.left)
             with self.delimit(left_prefix, left_suffix):
-                self.write(left_prefix)
-            self.traverse(node.left)
+                self.traverse(node.left)
             self.write(join_string)
             self.set_precedence(right_precedence, node.right)
             with self.delimit(right_prefix, right_suffix):
-                self.write(right_prefix)
-            self.traverse(node.right)
+                self.traverse(node.right)
 
     def visit_List(self, node):
         t = None
