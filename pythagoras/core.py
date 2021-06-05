@@ -13,7 +13,18 @@ def python_to_go(python: str) -> str:
 if __name__ == '__main__':
     print(python_to_go("""\
 def main():
-    print(2 ** 8)
+    a = 3
+    b = 7
+    a = a + b
+    print(a + b)
+    another_scope()
+
+
+def another_scope():
+    a = 1
+    b = 12
+    a = a + b
+    print(a + b)
 
 
 if __name__ == '__main__':

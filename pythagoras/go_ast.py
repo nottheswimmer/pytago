@@ -6,14 +6,39 @@ from subprocess import Popen, PIPE
 
 
 class Unparser(ast._Unparser):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._scope = set()
+        self._assigning = False
+
+    # Go needs := to initialize variables
+    def visit_Assign(self, node):
+        self.fill()
+        for target in node.targets:
+            prev_assigning = self._assigning
+            prev_scope_size = len(self._scope)
+            self._assigning = True
+            self.traverse(target)
+            if len(self._scope) > prev_scope_size:
+                self.write(" := ")
+            else:
+                self.write(" = ")
+            self._assigning = prev_assigning
+        self.traverse(node.value)
+        if type_comment := self.get_type_comment(node):
+            self.write(type_comment)
+
     # Go uses the keyword "func" rather than "def"
     def visit_FunctionDef(self, node):
         self._function_helper(node, "func")
 
     def visit_Name(self, node):
-        self.write({
-                       'print': 'fmt.Println',
-                   }.get(node.id, node.id))
+        name = {
+            'print': 'fmt.Println',
+        }.get(node.id, node.id)
+        self.write(name)
+        if self._assigning:
+            self._scope.add(name)
 
     def visit_If(self, node):
         # TODO: Integrate such blocks into the main function
@@ -157,7 +182,11 @@ class Unparser(ast._Unparser):
         the character '{', increases the indentation on enter and decreases
         the indentation on exit. If *extra* is given, it will be directly
         appended after the colon character. The block is followed with '}'
+
+        We will assume, for now, that this also contains its own scope
         """
+        old_scope = self._scope
+        self._scope = self._scope.copy()
         self.write("{")
         if extra:
             self.write(extra)
@@ -165,6 +194,7 @@ class Unparser(ast._Unparser):
         yield
         self._indent -= 1
         self.write("}")
+        self._scope = old_scope
 
 
 def unparse(ast_obj):
@@ -190,4 +220,3 @@ def _goimport(code: str) -> str:
     if err:
         return code + "\n" + "\n".join("// " + x for x in err.decode().strip().splitlines())
     return out.decode()
-
