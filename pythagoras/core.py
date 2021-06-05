@@ -12,16 +12,13 @@ def python_to_go(python: str) -> str:
 # Debugging
 if __name__ == '__main__':
     print(python_to_go("""\
-import math
+import requests
+
 
 def main():
-    print(math.sin(3))
-    print(math.cosh(3))
-    print(math.pi)
-    print(math.acosh(6))
-    print(math.atan2(4, 7))
+    resp = requests.get("http://tour.golang.org/welcome/1")
+    print(resp.text)
 
 if __name__ == '__main__':
     main()
-
 """))

@@ -4,10 +4,13 @@ from contextlib import contextmanager
 
 from subprocess import Popen, PIPE
 
+_RESPONSE_TYPE = 'response'
 _PYTHON_TO_GO_TYPE_STRING = {
     int: 'int',
     float: 'float64',
-    str: 'string'
+    str: 'string',
+    Exception: 'error.Error',
+    _RESPONSE_TYPE: '*Response',
 }
 for key, value in list(_PYTHON_TO_GO_TYPE_STRING.items()):
     if isinstance(key, type):
@@ -33,6 +36,7 @@ class Unparser(ast._Unparser):
         self._assigning = False
         self._assigned_type = None
         self._extra_precall_params = []
+        self._extra_call_delimiters = "", ""
         self._subscripting = None
 
     # Imports managed by autoimport. For now, let's just ignore Python's imports
@@ -128,27 +132,61 @@ class Unparser(ast._Unparser):
     def visit_Assign(self, node):
         self.fill()
         self._assigned_type = self.guess_type(node.value)
+
+        add_err = False
+        added_defer = None
+        post_defer = None
+        known_type = None
+        try:
+            if node.value.func.value.id in ['requests']:
+                add_err = True
+                added_defer = f"{node.targets[0].id}.Body.Close()"
+                self._assigned_type = known_type = _RESPONSE_TYPE
+                post_defer = f"body, err := ioutil.ReadAll({node.targets[0].id}.Body)\nif err != nil {{ panic(err) }}"
+        except AttributeError:
+            pass
+
         for target in node.targets:
             prev_assigning = self._assigning
             prev_scope_size = len(self._scope)
             self._assigning = True
             self.traverse(target)
+            if add_err:
+                self._scope['err'] = Exception
+                self.write(", err")
             if len(self._scope) > prev_scope_size:
                 self.write(" := ")
             else:
                 self.write(" = ")
             self._assigning = prev_assigning
+            if known_type:
+                self._scope[node.targets[0].id] = known_type
         self.traverse(node.value)
         if type_comment := self.get_type_comment(node):
             self.write(type_comment)
+        if add_err:
+            self.maybe_newline()
+            self.write("if err != nil")
+            with self.block():
+                self.write("panic(err)")
+        if added_defer:
+            self.maybe_newline()
+            self.write(f"defer {added_defer}")
+        if post_defer:
+            self.maybe_newline()
+            self.write(post_defer)
 
     # Go uses the keyword "func" rather than "def"
     def visit_FunctionDef(self, node):
         self._function_helper(node, "func")
 
     def visit_Name(self, node):
+
+        if node.id == 'print' and self._assigned_type == _RESPONSE_TYPE:
+            self._extra_call_delimiters = "string(", ")"
         name = {
             'print': 'fmt.Println',
+            'requests': 'http',
             **_PYTHON_TO_GO_TYPE_STRING
         }.get(node.id, node.id)
         self.write(name)
@@ -157,6 +195,12 @@ class Unparser(ast._Unparser):
 
     def visit_Attribute(self, node):
         self.set_precedence(ast._Precedence.ATOM, node.value)
+
+        visiting_body = self.guess_type(node.value) == _RESPONSE_TYPE and node.attr == 'text'
+        if visiting_body:
+            self.write("body")
+            return
+
         self.traverse(node.value)
         # Special case: 3.__abs__() is a syntax error, so if node.value
         # is an integer literal then we need to either parenthesize
@@ -171,8 +215,9 @@ class Unparser(ast._Unparser):
         else:
             self.write(".")
             # Some modules (okay, just math afaik) are very similar to Python except it's math.Sin instead of math.sin
-            title_case_the_attribute = isinstance(node.value, ast.Name) and node.value.id == "math"
+            title_case_the_attribute = isinstance(node.value, ast.Name) and node.value.id in ["math", "requests"]
             self.write(node.attr.title() if title_case_the_attribute else node.attr)
+
 
     def visit_Call(self, node):
         self.set_precedence(ast._Precedence.ATOM, node.func)
@@ -181,18 +226,20 @@ class Unparser(ast._Unparser):
             comma = False
             args = [*self._extra_precall_params, *node.args]
             self._extra_precall_params.clear()
-            for e in args:
-                if comma:
-                    self.write(", ")
-                else:
-                    comma = True
-                self.traverse(e)
-            for e in node.keywords:
-                if comma:
-                    self.write(", ")
-                else:
-                    comma = True
-                self.traverse(e)
+            with self.delimit(*self._extra_call_delimiters):
+                for e in args:
+                    if comma:
+                        self.write(", ")
+                    else:
+                        comma = True
+                    self.traverse(e)
+                for e in node.keywords:
+                    if comma:
+                        self.write(", ")
+                    else:
+                        comma = True
+                    self.traverse(e)
+            self._extra_call_delimiters = "", ""
 
     def visit_If(self, node):
         # TODO: Integrate such blocks into the main function
