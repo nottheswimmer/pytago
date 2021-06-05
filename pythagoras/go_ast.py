@@ -4,6 +4,12 @@ from contextlib import contextmanager
 
 from subprocess import Popen, PIPE
 
+_PYTHON_TO_GO_TYPE_STRING = {
+    int: 'int'
+}
+
+def _python_to_go_type_string(t):
+    return _PYTHON_TO_GO_TYPE_STRING.get(t, t.__name__)
 
 class Unparser(ast._Unparser):
     def __init__(self, *args, **kwargs):
@@ -11,6 +17,70 @@ class Unparser(ast._Unparser):
         self._scope = dict()
         self._assigning = False
         self._assigned_type = None
+        self._extra_precall_params = []
+        self._subscripting = None
+
+    # I'd like some simple support to help someone trying to understand how negative
+    # indexing translates into Golang, even if it only works for constants
+    def visit_Subscript(self, node):
+        def is_simple_tuple(slice_value):
+            # when unparsing a non-empty tuple, the parentheses can be safely
+            # omitted if there aren't any elements that explicitly requires
+            # parentheses (such as starred expressions).
+            return (
+                isinstance(slice_value, ast.Tuple)
+                and slice_value.elts
+                and not any(isinstance(elt, ast.Starred) for elt in slice_value.elts)
+            )
+
+        self.set_precedence(ast._Precedence.ATOM, node.value)
+        self.traverse(node.value)
+        was_subscripting = self._subscripting
+        self._subscripting = node.value
+        with self.delimit("[", "]"):
+            if is_simple_tuple(node.slice):
+                self.items_view(self.traverse, node.slice.elts)
+            else:
+                self.traverse(node.slice)
+        self._subscripting = was_subscripting
+
+    def visit_UnaryOp(self, node):
+        operator = self.unop[node.op.__class__.__name__]
+        operator_precedence = self.unop_precedence[operator]
+        with self.require_parens(operator_precedence, node):
+            if self._subscripting and isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Constant):
+                self.write(f"len(")
+                self.traverse(self._subscripting)
+                self.write(")")
+
+            self.write(operator)
+            # factor prefixes (+, -, ~) shouldn't be seperated
+            # from the value they belong, (e.g: +1 instead of + 1)
+            if operator_precedence is not ast._Precedence.FACTOR:
+                self.write(" ")
+            self.set_precedence(operator_precedence, node.operand)
+            self.traverse(node.operand)
+
+    def write(self, text):
+        """Append a piece of text"""
+        if '-' in text:
+            print(text)
+        self._source.append(text)
+
+    def visit_AugAssign(self, node):
+        self.fill()
+        list_plus_equals = self.binop[node.op.__class__.__name__] == '+' and \
+                           (self.guess_type(node.target) == list or self.guess_type(node.value) == list)
+        self.traverse(node.target)
+        if list_plus_equals:
+            self.write(" = append(")
+            self.traverse(node.target)
+            self.write(", ")
+            self.traverse(node.value)
+            self.write("...)")
+        else:
+            self.write(" " + self.binop[node.op.__class__.__name__] + "= ")
+            self.traverse(node.value)
 
     def guess_type(self, node):
         try:
@@ -62,6 +132,43 @@ class Unparser(ast._Unparser):
         self.write(name)
         if self._assigning:
             self._scope[name] = self._assigned_type
+
+    def visit_Attribute(self, node):
+        self.set_precedence(ast._Precedence.ATOM, node.value)
+        self.traverse(node.value)
+        # Special case: 3.__abs__() is a syntax error, so if node.value
+        # is an integer literal then we need to either parenthesize
+        # it or add an extra space to get 3 .__abs__().
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, int):
+            self.write(" ")
+
+        if isinstance(node.value, ast.Name) and self.guess_type(node.value) == list and node.attr == 'append':
+            self.write(" = ")
+            self.write(node.attr)
+            self._extra_precall_params.append(node.value)
+        else:
+            self.write(".")
+            self.write(node.attr)
+
+    def visit_Call(self, node):
+        self.set_precedence(ast._Precedence.ATOM, node.func)
+        self.traverse(node.func)
+        with self.delimit("(", ")"):
+            comma = False
+            args = [*self._extra_precall_params, *node.args]
+            self._extra_precall_params.clear()
+            for e in args:
+                if comma:
+                    self.write(", ")
+                else:
+                    comma = True
+                self.traverse(e)
+            for e in node.keywords:
+                if comma:
+                    self.write(", ")
+                else:
+                    comma = True
+                self.traverse(e)
 
     def visit_If(self, node):
         # TODO: Integrate such blocks into the main function
@@ -122,14 +229,28 @@ class Unparser(ast._Unparser):
                     right_suffix = ")" + right_suffix
 
             self.set_precedence(left_precedence, node.left)
-            self.write(left_prefix)
+            with self.delimit(left_prefix, left_suffix):
+                self.write(left_prefix)
             self.traverse(node.left)
-            self.write(left_suffix)
             self.write(join_string)
             self.set_precedence(right_precedence, node.right)
-            self.write(right_prefix)
+            with self.delimit(right_prefix, right_suffix):
+                self.write(right_prefix)
             self.traverse(node.right)
-            self.write(right_suffix)
+
+    def visit_List(self, node):
+        t = None
+        for element in node.elts:
+            t = self.guess_type(element)
+            if t is not None:
+                break
+        if t:
+            type_string = _python_to_go_type_string(t)
+        else:
+            type_string = "struct{}"
+        self.write(f"[]{type_string}")
+        with self.delimit("{", "}"):
+            self.interleave(lambda: self.write(", "), self.traverse, node.elts)
 
     # Quick hack to get 99% of the string formatting functionality I want
     #   without getting into the dirty stuff for now

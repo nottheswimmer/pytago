@@ -1,6 +1,18 @@
 # pythagoras
 
-Transpiles some Python to human-readable Golang.
+Transpiles some Python into human-readable Golang.
+
+## Goals
+
+1. First, if you looked at a Go program and wrote a one-to-one implementation in Python, 
+   I'd like that implementation to translate back into Go using this program.
+2. After that is taken care of, I'd like to look at ways to convert normal Python programs into Go.
+
+What do I mean by this? Well, if you're looking at go code and writing it back into Python, you're not
+going to make a list that [1, "hello", Dog()] (probably). So to start, I'm going to write this assuming
+a list in Python means we want a slice in Go with a single type. After all of that is working dandy,
+maybe we can think about what do to if our list isn't so simple (probably involves wrapping each value in 
+a struct).
 
 ## Differences in output program from input
 

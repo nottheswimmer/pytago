@@ -29,3 +29,6 @@ class Test(TestCase):
 
     def test_floats(self):
         assert_examples_match(self, "floats")
+
+    def test_numlist(self):
+        assert_examples_match(self, "numlist")
