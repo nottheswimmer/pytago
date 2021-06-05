@@ -32,3 +32,6 @@ class Test(TestCase):
 
     def test_numlist(self):
         assert_examples_match(self, "numlist")
+
+    def test_loops(self):
+        assert_examples_match(self, "loops")

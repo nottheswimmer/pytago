@@ -248,6 +248,79 @@ class Unparser(ast._Unparser):
         with self.delimit("{", "}"):
             self.interleave(lambda: self.write(", "), self.traverse, node.elts)
 
+    def _for_helper(self, fill, node):
+        self.fill(fill)
+
+        try:
+            enumeration = node.iter.func.id == 'enumerate'
+        except AttributeError:
+            enumeration = False
+
+        try:
+            is_range = node.iter.func.id == 'range'
+        except AttributeError:
+            is_range = False
+        start, stop, step = 0, None, 1
+        literal_step = None
+        flip_range = False
+        if is_range:
+            if len(node.iter.args) == 1:
+                stop, = node.iter.args
+            elif len(node.iter.args) == 2:
+                start, stop = node.iter.args
+            else:
+                start, stop, step = node.iter.args
+            if step != 1:
+                literal_step = ast.literal_eval(step)
+                flip_range = literal_step < 0
+
+        if enumeration:
+            # Skip over tuple view which at time of writing forces parentheses
+            self.items_view(self.traverse, node.target.elts)
+        elif is_range:
+            self.traverse(node.target)
+        else:
+            self.write("_, ")
+            self.traverse(node.target)
+
+        if is_range:
+            self.write(" := ")
+            if start == 0:
+                self.write("0")
+            else:
+                self.traverse(start)
+            self.write("; ")
+            self.traverse(node.target)
+            self.write(" > " if flip_range else " < ")
+            self.traverse(stop)
+            self.write("; ")
+            self.traverse(node.target)
+            if step == 1:
+                self.write("++")
+            elif literal_step == -1:
+                self.write("--")
+            elif literal_step and literal_step < 0:
+                self.write(f" -= {abs(literal_step)}")
+            else:
+                self.write(" += ")
+                self.traverse(step)
+
+        else:
+            self.write(" := range ")
+            if enumeration:
+                self.traverse(node.iter.args[0])
+            else:
+                self.traverse(node.iter)
+
+
+        with self.block(extra=self.get_type_comment(node)):
+            self.traverse(node.body)
+
+        if node.orelse:
+            self.fill("else")
+            with self.block():
+                self.traverse(node.orelse)
+
     # Quick hack to get 99% of the string formatting functionality I want
     #   without getting into the dirty stuff for now
     def _write_constant(self, value):
