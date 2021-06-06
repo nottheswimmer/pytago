@@ -5,8 +5,9 @@ from subprocess import Popen, PIPE
 from pythagoras.go_ast import dump, GoAST, ALL_TRANSFORMS, FuncDecl, File
 
 
-def unparse(go_tree: GoAST):
-    clean_go_tree(go_tree)
+def unparse(go_tree: GoAST, apply_transformations=True):
+    if apply_transformations:
+        clean_go_tree(go_tree)
     # XXX: Probably vulnerable to RCE if you put this on a server.
     go_tree_string = dump(go_tree)
     compilation_code = """\
@@ -38,14 +39,6 @@ def unparse(go_tree: GoAST):
 
 
 def clean_go_tree(go_tree: File):
-    # Remove orphaned code left in functions titled "_"
-    to_delete = []
-    for decl in go_tree.Decls:
-        if isinstance(decl, FuncDecl) and decl.Name.Name == '_':
-            to_delete.append(decl)
-    for decl in to_delete:
-        go_tree.Decls.remove(decl)
-
     for tsfm in ALL_TRANSFORMS:
         tsfm().visit(go_tree)
 
