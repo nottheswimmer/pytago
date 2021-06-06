@@ -1,6 +1,6 @@
 import ast
 
-from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl
+from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -36,13 +36,24 @@ class CapitalizeMathModuleCalls(ast.NodeTransformer):
     The math module in Go is extremely similar to Python's, save for some capitalization difference
     """
     def visit_SelectorExpr(self, node: SelectorExpr):
+        self.generic_visit(node)
         if isinstance(node.X, Ident) and node.X.Name == "math" and isinstance(node.Sel, Ident):
             node.Sel.Name = node.Sel.Name.title()
         return node
 
 
+class ReplacePowWithMathPow(ast.NodeTransformer):
+    def visit_BinaryExpr(self, node: BinaryExpr):
+        self.generic_visit(node)
+        if node.Op == token.PLACEHOLDER_POW:
+            return CallExpr([node.X, node.Y], 0, SelectorExpr(X=Ident.from_str("math"), Sel=Ident.from_str("Pow")), 0, 0)
+        return node
+
+
+
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
-    CapitalizeMathModuleCalls
+    CapitalizeMathModuleCalls,
+    ReplacePowWithMathPow
 ]

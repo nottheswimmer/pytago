@@ -32,11 +32,18 @@ def unparse(go_tree: GoAST, apply_transformations=True, debugging=True):
     if debugging:
         compilation_code = _gofmt(compilation_code)
     tmp_file = f"tmp_{uuid.uuid4().hex}.go"
+    if debugging:
+        print(f"=== Start Compilation Code ===")
+        print(compilation_code)
+        print(f"=== End Compilation Code ===")
     with open(tmp_file, "w") as f:
         f.write(compilation_code)
     code = _gorun(tmp_file)
-    if not debugging:
-        os.remove(tmp_file)
+    if debugging:
+        print(f"=== Start Code ===")
+        print(code)
+        print(f"=== End Code ===")
+    os.remove(tmp_file)
     return _gofmt(_goimport(code))
 
 
