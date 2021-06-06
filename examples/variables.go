@@ -9,7 +9,6 @@ func main() {
 	fmt.Println(a + b)
 	another_scope()
 }
-
 func another_scope() {
 	a := 1
 	b := 12

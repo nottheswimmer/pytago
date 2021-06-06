@@ -47,3 +47,6 @@ class Test(TestCase):
 
     def test_requestslib(self):
         assert_examples_match(self, "requestslib")
+
+    def test_conditionals(self):
+        assert_examples_match(self, "conditionals")
