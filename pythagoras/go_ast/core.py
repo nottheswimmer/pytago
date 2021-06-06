@@ -219,8 +219,11 @@ class AssignStmt(GoAST):
     """position of Tok"""
     TokPos: int
 
-    def __init__(self, Lhs: List[Expr],
-                 Rhs: List[Expr], Tok: token, TokPos: int, *args,
+    def __init__(self,
+                 Lhs: List[Expr],
+                 Rhs: List[Expr],
+                 Tok: token,
+                 TokPos: int, *args,
                  **kwargs) -> None:
         self.Lhs = Lhs
         set_list_type(self.Lhs, "ast.Expr")
@@ -334,7 +337,7 @@ class BinaryExpr(GoAST):
     """A BinaryExpr node represents a binary expression."""
     _fields = ("Op", "X", "Y")
     """operator"""
-    Op: int
+    Op: token
     """position of Op"""
     OpPos: int
     """left operand"""
@@ -342,7 +345,7 @@ class BinaryExpr(GoAST):
     """right operand"""
     Y: Expr
 
-    def __init__(self, Op: int, OpPos: int, X: Expr,
+    def __init__(self, Op: token, OpPos: int, X: Expr,
                  Y: Expr, *args, **kwargs) -> None:
         self.Op = Op
         self.OpPos = OpPos

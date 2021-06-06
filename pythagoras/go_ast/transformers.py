@@ -1,7 +1,7 @@
 import ast
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
-    CompositeLit, Field, Scope, Object, ObjKind
+    CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -131,6 +131,54 @@ class PreventRepeatDeclarations(ast.NodeTransformer):
             node.Tok = token.ASSIGN
         return node
 
+class RangeRangeToFor(ast.NodeTransformer):
+    def visit_RangeStmt(self, node: RangeStmt):
+        self.generic_visit(node)
+        try:
+            is_range_range = node.X.Fun.Name == "range"
+        except AttributeError:
+            is_range_range = False
+        if is_range_range:
+            args = node.X.Args
+            # len(args) == 1: (stop,)
+            # len(args) == 2: (start, stop)
+            # len(args) == 3: (start, stop, step)
+            if len(args) == 1:
+                start, stop, step = BasicLit(token.INT, 0, 0), args[0], BasicLit(token.INT, 1, 0)
+            elif len(args) == 2:
+                start, stop, step = args[0], args[1], BasicLit(token.INT, 1, 0)
+            elif len(args) == 3:
+                start, stop, step = args
+            else:
+                return node
+
+            init = AssignStmt(Lhs=[node.Value], Tok=token.DEFINE, Rhs=[start], TokPos=0)
+            flipped = False
+            if isinstance(step, BasicLit) and step.Value == "1":
+                post = IncDecStmt(Tok=token.INC, TokPos=0, X=node.Value)
+            elif isinstance(step, UnaryExpr) and step.Op == token.SUB and \
+                    isinstance(step.X, BasicLit) and step.X.Value == "1":
+                post = IncDecStmt(Tok=token.DEC, TokPos=0, X=node.Value)
+                flipped = True
+            elif isinstance(step, UnaryExpr) and step.Op == token.SUB and \
+                    isinstance(step.X, BasicLit):
+                post = AssignStmt(Lhs=[node.Value], Rhs=[step.X], Tok=token.SUB_ASSIGN, TokPos=0)
+                flipped = True
+            else:
+                post = AssignStmt(Lhs=[node.Value], Rhs=[step], Tok=token.ADD_ASSIGN, TokPos=0)
+
+            if flipped:
+                cond = BinaryExpr(X=node.Value, Op=token.GTR, Y=stop, OpPos=0)
+            else:
+                cond = BinaryExpr(X=node.Value, Op=token.LSS, Y=stop, OpPos=0)
+
+            return ForStmt(Body=node.Body,
+                           Cond=cond,
+                           For=0,
+                           Init=init,
+                           Post=post
+                           )
+        return node
 
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
@@ -140,5 +188,6 @@ ALL_TRANSFORMS = [
     ReplacePythonStyleAppends,
     AppendSliceViaUnpacking,
     PythonToGoTypes,
-PreventRepeatDeclarations
+    PreventRepeatDeclarations,
+    RangeRangeToFor
 ]
