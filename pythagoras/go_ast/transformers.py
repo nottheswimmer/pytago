@@ -187,6 +187,18 @@ class RangeRangeToFor(ast.NodeTransformer):
                            )
         return node
 
+class UnpackRangeEnumerate(ast.NodeTransformer):
+    def visit_RangeStmt(self, node: RangeStmt):
+        self.generic_visit(node)
+        try:
+            is_enumerate = node.X.Fun.Name == "enumerate"
+        except AttributeError:
+            is_enumerate = False
+        if is_enumerate:
+            node.X = node.X.Args[0]
+            node.Key = node.Value.Elts[0]
+            node.Value = node.Value.Elts[1]
+        return node
 
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
@@ -197,5 +209,6 @@ ALL_TRANSFORMS = [
     AppendSliceViaUnpacking,
     PythonToGoTypes,
     PreventRepeatDeclarations,
-    RangeRangeToFor
+    RangeRangeToFor,
+    UnpackRangeEnumerate
 ]
