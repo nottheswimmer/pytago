@@ -5,11 +5,11 @@ from subprocess import Popen, PIPE
 from pythagoras.go_ast import dump, GoAST, ALL_TRANSFORMS, FuncDecl, File
 
 
-def unparse(go_tree: GoAST, apply_transformations=True):
+def unparse(go_tree: GoAST, apply_transformations=True, debugging=True):
     if apply_transformations:
         clean_go_tree(go_tree)
     # XXX: Probably vulnerable to RCE if you put this on a server.
-    go_tree_string = dump(go_tree)
+    go_tree_string = dump(go_tree, indent='   ' if debugging else None)
     compilation_code = """\
     package main
 
@@ -29,11 +29,13 @@ def unparse(go_tree: GoAST, apply_transformations=True):
     	}
     }
     """ % go_tree_string
+    if debugging:
+        compilation_code = _gofmt(compilation_code)
     tmp_file = f"tmp_{uuid.uuid4().hex}.go"
     with open(tmp_file, "w") as f:
         f.write(compilation_code)
     code = _gorun(tmp_file)
-    if tmp_file not in code:
+    if not debugging:
         os.remove(tmp_file)
     return _gofmt(_goimport(code))
 

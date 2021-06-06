@@ -31,7 +31,18 @@ class RemoveOrphanedFunctions(ast.NodeTransformer):
         return node
 
 
+class CapitalizeMathModuleCalls(ast.NodeTransformer):
+    """
+    The math module in Go is extremely similar to Python's, save for some capitalization difference
+    """
+    def visit_SelectorExpr(self, node: SelectorExpr):
+        if isinstance(node.X, Ident) and node.X.Name == "math" and isinstance(node.Sel, Ident):
+            node.Sel.Name = node.Sel.Name.title()
+        return node
+
+
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
-    RemoveOrphanedFunctions
+    RemoveOrphanedFunctions,
+    CapitalizeMathModuleCalls
 ]

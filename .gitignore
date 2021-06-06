@@ -8,3 +8,6 @@ venv/
 
 # IDE
 .idea
+
+# tmp go code generation files
+tmp_*.go
