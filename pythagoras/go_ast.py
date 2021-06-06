@@ -121,12 +121,18 @@ def build_expr_list(nodes):
     expr_list = []
     for expr_node in nodes:
         method = from_method(expr_node)
+        errors = []
         for expr_type in _EXPR_TYPES:
             if hasattr(expr_type, method):
-                expr_list.append(getattr(expr_type, method)(expr_node))
+                try:
+                    expr_list.append(getattr(expr_type, method)(expr_node))
+                except NotImplementedError as e:
+                    errors.append(e)
+                    continue
                 break
         else:
-            raise ValueError(f"No Expr type in {_EXPR_TYPES} with {method}: \n```\n{ast.unparse(expr_node) if expr_node else None}\n```")
+            raise ValueError(f"No Expr type in {_EXPR_TYPES} with {method}: "
+                             f"\n```\n{ast.unparse(expr_node) if expr_node else None}\n```") from Exception(errors)
     return expr_list
 
 
@@ -134,12 +140,18 @@ def build_stmt_list(nodes):
     stmt_list = []
     for stmt_node in nodes:
         method = from_method(stmt_node)
+        errors = []
         for stmt_type in _STMT_TYPES:
             if hasattr(stmt_type, method):
-                stmt_list.append(getattr(stmt_type, method)(stmt_node))
+                try:
+                    stmt_list.append(getattr(stmt_type, method)(stmt_node))
+                except NotImplementedError as e:
+                    errors.append(e)
+                    continue
                 break
         else:
-            raise ValueError(f"No Stmt type in {_STMT_TYPES} with {method}: \n```\n{ast.unparse(stmt_node)}\n```")
+            raise ValueError(f"No suitable Stmt type in {_STMT_TYPES} with {method}: "
+                             f"\n```\n{ast.unparse(stmt_node)}\n```") from Exception(errors)
     return stmt_list
 
 
@@ -192,16 +204,9 @@ class AssignStmt(GoAST):
 
     @classmethod
     def from_Assign(cls, node: ast.Assign):
-        expr_list = build_expr_list(node.targets)
-        lhs = expr_list
-        method = from_method(node.value)
-        for expr_type in _EXPR_TYPES:
-            if hasattr(expr_type, method):
-                rhs = getattr(expr_type, method)(node.value)
-                break
-        else:
-            raise ValueError(f"No Expr type in {_EXPR_TYPES} with {method}")
-        return cls(lhs, [rhs], token.DEFINE, 0)
+        lhs = build_expr_list(node.targets)
+        rhs = build_expr_list([node.value])
+        return cls(lhs, rhs, token.DEFINE, 0)
 
 
 class BadDecl(GoAST):
@@ -269,7 +274,6 @@ class BasicLit(GoAST):
 
     @classmethod
     def from_Constant(cls, node: ast.Constant):
-        kind = None
         t = type(node.value)
         if t == int:
             kind = token.INT
@@ -332,6 +336,25 @@ class BinaryExpr(GoAST):
         return cls(op, 0, X, Y)
 
     @classmethod
+    def from_BoolOp(cls, node: ast.BoolOp):
+        if len(node.values) != 2:
+            raise NotImplementedError(f"Currently only supports BoolOps with 2 values")
+        left, right = node.values
+        py_op = node.op
+        if isinstance(py_op, ast.And):
+            op = token.LAND
+        elif isinstance(py_op, ast.Or):
+            op = token.LOR
+        # elif isinstance(py_op, ...):
+        #     op = token.AND_NOT
+        else:
+            raise NotImplementedError(f"Unimplemented boolop: {py_op}")
+
+        X = build_expr_list([left])[0]
+        Y = build_expr_list([right])[0]
+        return cls(op, 0, X, Y)
+
+    @classmethod
     def from_BinOp(cls, node: ast.BinOp):
         py_op = node.op
         if isinstance(py_op, ast.Add):
@@ -340,7 +363,7 @@ class BinaryExpr(GoAST):
             op = token.SUB
         elif isinstance(py_op, ast.Mult):
             op = token.MUL
-        elif isinstance(py_op, ast.Div) or isinstance(ast.FloorDiv):
+        elif isinstance(py_op, ast.Div) or isinstance(py_op, ast.FloorDiv):
             op = token.QUO
         elif isinstance(py_op, ast.Mod):
             op = token.REM
@@ -458,6 +481,12 @@ class Ident(GoAST):
         self.NamePos = NamePos
         self.Obj = Obj
         super().__init__(*args, **kwargs)
+
+    @classmethod
+    def from_Constant(cls, node: ast.Constant):
+        if isinstance(node.value, bool):
+            return cls.from_str(str(node.value).lower())
+        raise NotImplementedError(node)
 
     @classmethod
     def from_Name(cls, name: ast.Name):
@@ -1494,8 +1523,10 @@ class UnaryExpr(GoAST):
             op = token.SUB
         elif isinstance(node.op, ast.UAdd):
             op = token.ADD
+        elif isinstance(node.op, ast.Not):
+            op = token.NOT
         else:
-            raise ValueError(node)
+            raise NotImplementedError((node, node.op))
         X = build_expr_list([node.operand])[0]
         return cls(op, 0, X)
 
@@ -1650,7 +1681,7 @@ def clean_go_tree(go_tree: File):
 
 def unparse(go_tree: GoAST):
     clean_go_tree(go_tree)
-    # XXX: Probably vulnerable to RCE if you put this on a server. Also not thread safe :D
+    # XXX: Probably vulnerable to RCE if you put this on a server.
     go_tree_string = dump(go_tree)
     compilation_code = """\
     package main
