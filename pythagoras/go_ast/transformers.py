@@ -1,6 +1,7 @@
 import ast
 
-from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt
+from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
+    CompositeLit
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -60,13 +61,41 @@ class ReplacePythonStyleAppends(ast.NodeTransformer):
                 is_append = False
             if not is_append:
                 continue
-            block_node.List[i] = AssignStmt([node.X.Fun.X], [CallExpr([node.X.Fun.X, *node.X.Args], 0, Ident.from_str("append"), 0, 0)], token.ASSIGN, 0)
+            block_node.List[i] = AssignStmt([node.X.Fun.X],
+                                            [CallExpr([node.X.Fun.X, *node.X.Args], 0, Ident.from_str("append"), 0, 0)],
+                                            token.ASSIGN, 0)
         return block_node
+
+class AppendSliceViaUnpacking(ast.NodeTransformer):
+    def visit_AssignStmt(self, node: AssignStmt):
+        self.generic_visit(node)
+        try:
+            aug_assign_composite = isinstance(node.Rhs[0], CompositeLit) and node.Tok == token.ADD_ASSIGN
+        except (IndexError, AttributeError):
+            aug_assign_composite = False
+        if aug_assign_composite:
+            node.Rhs[0] = CallExpr(Args=[node.Lhs[0], node.Rhs[0]],
+                                 Ellipsis=1, Fun=Ident.from_str("append"),
+                                 Lparen=0, Rparen=0)
+            node.Tok = token.ASSIGN
+            return node
+        try:
+            assign_composite = node.Rhs[0].Op == token.ADD and isinstance(node.Rhs[0].Y, CompositeLit)
+        except (IndexError, AttributeError):
+            assign_composite = False
+        if assign_composite:
+            node.Rhs[0] = CallExpr(Args=[node.Rhs[0].X, node.Rhs[0].Y],
+                                 Ellipsis=1, Fun=Ident.from_str("append"),
+                                 Lparen=0, Rparen=0)
+
+            return node
+        return node
 
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
     CapitalizeMathModuleCalls,
     ReplacePowWithMathPow,
-    ReplacePythonStyleAppends
+    ReplacePythonStyleAppends,
+    AppendSliceViaUnpacking
 ]

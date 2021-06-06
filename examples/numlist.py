@@ -6,6 +6,7 @@ def main():
     a.append(4)
     print(a[3])
     a += [5, 6, 7]
+    a = a + [8, 9, 10]
     print(a[4])
     print(a[-1])
 

@@ -14,6 +14,9 @@ a list in Python means we want a slice in Go with a single type. After all of th
 maybe we can think about what do to if our list isn't so simple (probably involves wrapping each value in 
 a struct).
 
+## Debugging trees
+- https://github.com/lu4p/astextract
+
 ## Differences in output program from input
 
 There will be countless differences in the behavior of the output go vs the input python, but

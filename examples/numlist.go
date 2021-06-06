@@ -10,6 +10,7 @@ func main() {
 	a = append(a, 4)
 	fmt.Println(a[3])
 	a = append(a, []int{5, 6, 7}...)
+	a = append(a, []int{8, 9, 10}...)
 	fmt.Println(a[4])
 	fmt.Println(a[len(a)-1])
 }
