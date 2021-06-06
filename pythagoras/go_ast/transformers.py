@@ -1,7 +1,7 @@
 import ast
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
-    CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr
+    CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -187,6 +187,7 @@ class RangeRangeToFor(ast.NodeTransformer):
                            )
         return node
 
+
 class UnpackRangeEnumerate(ast.NodeTransformer):
     def visit_RangeStmt(self, node: RangeStmt):
         self.generic_visit(node)
@@ -200,6 +201,22 @@ class UnpackRangeEnumerate(ast.NodeTransformer):
             node.Value = node.Value.Elts[1]
         return node
 
+class NegativeIndexesSubtractFromLen(ast.NodeTransformer):
+    """
+    Will need some sort of type checking to ensure this doesn't affect maps or similar
+    once map support is even a thing
+    """
+    def visit_IndexExpr(self, node: IndexExpr):
+        self.generic_visit(node)
+        if isinstance(node.Index, UnaryExpr) and node.Index.Op == token.SUB and isinstance(node.Index.X, BasicLit):
+            node.Index = BinaryExpr(
+                X=CallExpr(Args=[node.X], Ellipsis=0, Fun=Ident.from_str("len"), Lparen=0, Rparen=0),
+                Op=token.SUB,
+                Y=node.Index.X,
+                OpPos=0,
+            )
+        return node
+
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
@@ -210,5 +227,6 @@ ALL_TRANSFORMS = [
     PythonToGoTypes,
     PreventRepeatDeclarations,
     RangeRangeToFor,
-    UnpackRangeEnumerate
+    UnpackRangeEnumerate,
+    NegativeIndexesSubtractFromLen
 ]
