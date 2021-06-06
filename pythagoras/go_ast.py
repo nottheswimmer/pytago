@@ -192,6 +192,10 @@ class ArrayType(GoAST):
     def from_BasicLit(cls, node: 'BasicLit'):
         return cls(Ident.from_str(token_type_to_go_type(node.Kind)), 0, None)
 
+    @classmethod
+    def from_Ident(cls, node: 'Ident'):
+        return cls(node, 0, None)
+
 class AssignStmt(GoAST):
     _fields = ['Lhs', 'Rhs', 'Tok']
 
@@ -199,12 +203,12 @@ class AssignStmt(GoAST):
     Lhs: List[Expr]
     Rhs: List[Expr]
     """assignment token, DEFINE"""
-    Tok: int
+    Tok: token
     """position of Tok"""
     TokPos: int
 
     def __init__(self, Lhs: List[Expr],
-                 Rhs: List[Expr], Tok: int, TokPos: int, *args,
+                 Rhs: List[Expr], Tok: token, TokPos: int, *args,
                  **kwargs) -> None:
         self.Lhs = Lhs
         set_list_type(self.Lhs, "ast.Expr")
@@ -525,11 +529,11 @@ class BranchStmt(GoAST):
     """label name; or nil"""
     Label: Ident
     """keyword token (BREAK, CONTINUE, GOTO, FALLTHROUGH)"""
-    Tok: int
+    Tok: token
     """position of Tok"""
     TokPos: int
 
-    def __init__(self, Label: Ident, Tok: int, TokPos: int, *args, **kwargs) -> None:
+    def __init__(self, Label: Ident, Tok: token, TokPos: int, *args, **kwargs) -> None:
         self.Label = Label
         self.Tok = Tok
         self.TokPos = TokPos
@@ -690,6 +694,12 @@ class CompositeLit(GoAST):
 
     @classmethod
     def from_List(cls, node: ast.List):
+        elts = build_expr_list(node.elts)
+        typ = from_this(ArrayType, elts[0] if elts else None)
+        return cls(elts, False, 0, 0, typ)
+
+    @classmethod
+    def from_Tuple(cls, node: ast.Tuple):
         elts = build_expr_list(node.elts)
         typ = from_this(ArrayType, elts[0] if elts else None)
         return cls(elts, False, 0, 0, typ)
@@ -977,6 +987,10 @@ class ForStmt(GoAST):
         self.Post = Post
         super().__init__(*args, **kwargs)
 
+    # @classmethod
+    # def from_For(cls, node: ast.For):
+    #     return cls(Body=0, Cond=None, For=0, Init=0, Post=0)
+
 
 class FuncType(GoAST):
     """function signature: parameters, results, and position of 'func' keyword
@@ -1079,12 +1093,12 @@ class GenDecl(GoAST):
     Rparen: int
     Specs: List[Expr]
     """IMPORT, CONST, TYPE, VAR"""
-    Tok: int
+    Tok: token
     """position of Tok"""
     TokPos: int
 
     def __init__(self, Doc: CommentGroup, Lparen: int, Rparen: int,
-                 Specs: List[Expr], Tok: int, TokPos: int,
+                 Specs: List[Expr], Tok: token, TokPos: int,
                  *args, **kwargs) -> None:
         self.Doc = Doc
         self.Lparen = Lparen
@@ -1154,12 +1168,12 @@ class IncDecStmt(GoAST):
     """An IncDecStmt node represents an increment or decrement statement."""
     _fields = ("Tok", "X")
     """INC or DEC"""
-    Tok: int
+    Tok: token
     """position of Tok"""
     TokPos: int
     X: Expr
 
-    def __init__(self, Tok: int, TokPos: int, X: Expr, *args,
+    def __init__(self, Tok: token, TokPos: int, X: Expr, *args,
                  **kwargs) -> None:
         self.Tok = Tok
         self.TokPos = TokPos
@@ -1310,7 +1324,7 @@ class RangeStmt(GoAST):
     For: int
     Key: Expr
     """ILLEGAL if Key == nil, ASSIGN, DEFINE"""
-    Tok: int
+    Tok: token
     """position of Tok; invalid if Key == nil"""
     TokPos: int
     Value: Expr
@@ -1318,7 +1332,7 @@ class RangeStmt(GoAST):
     X: Expr
 
     def __init__(self, Body: BlockStmt, For: int, Key: Expr,
-                 Tok: int, TokPos: int, Value: Expr,
+                 Tok: token, TokPos: int, Value: Expr,
                  X: Expr, *args, **kwargs) -> None:
         self.Body = Body
         self.For = For
@@ -1328,6 +1342,15 @@ class RangeStmt(GoAST):
         self.Value = Value
         self.X = X
         super().__init__(*args, **kwargs)
+
+    @classmethod
+    def from_For(cls, node: ast.For):
+        body = from_this(BlockStmt, node.body)
+        tok = token.DEFINE
+        key = Ident.from_str("_")
+        value = build_expr_list([node.target])[0]
+        x = build_expr_list([node.iter])[0]
+        return cls(Body=body, For=0, Key=key, Tok=tok, TokPos=0, Value=value, X=x)
 
 
 class ReturnStmt(GoAST):
