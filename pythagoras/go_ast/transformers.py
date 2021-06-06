@@ -1,7 +1,7 @@
 import ast
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
-    CompositeLit
+    CompositeLit, Field
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -91,11 +91,21 @@ class AppendSliceViaUnpacking(ast.NodeTransformer):
             return node
         return node
 
+
+class PythonToGoTypes(ast.NodeTransformer):
+    def visit_Field(self, node: Field):
+        self.generic_visit(node)
+        if isinstance(node.Type, Ident):
+            if node.Type.Name == "str":
+                node.Type.Name = "string"
+        return node
+
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
     CapitalizeMathModuleCalls,
     ReplacePowWithMathPow,
     ReplacePythonStyleAppends,
-    AppendSliceViaUnpacking
+    AppendSliceViaUnpacking,
+    PythonToGoTypes
 ]

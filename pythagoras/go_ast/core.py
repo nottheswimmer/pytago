@@ -1462,6 +1462,16 @@ class SliceExpr(GoAST):
         self.X = X
         super().__init__(*args, **kwargs)
 
+    @classmethod
+    def from_Subscript(cls, node: ast.Subscript):
+        if isinstance(node.slice, ast.Slice):
+            low = build_expr_list([node.slice.lower])[0]
+            high = build_expr_list([node.slice.upper])[0]
+        else:
+            raise NotImplementedError((node, node.slice))
+        x = build_expr_list([node.value])[0]
+        return cls(high, 0, low, 0, None, False, x)
+
 
 class StarExpr(GoAST):
     """A StarExpr node represents an expression of the form '*' Expression. Semantically it

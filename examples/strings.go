@@ -11,7 +11,6 @@ func main() {
 	fmt.Println(string(c[1]))
 	fmt.Println(c[1:6])
 }
-
 func double_it(c string) string {
 	return c + c
 }
