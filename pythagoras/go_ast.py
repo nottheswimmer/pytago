@@ -108,6 +108,14 @@ class token(Enum):
     TYPE = "type"
     VAR = "var"
 
+def token_type_to_go_type(t: token):
+    if t == token.INT:
+        return "int"
+    if t == token.FLOAT:
+        return "float32"
+    if t == token.STRING:
+        return "string"
+    raise ValueError(t)
 
 def from_method(node):
     return f"from_{node.__class__.__name__}"
@@ -180,6 +188,10 @@ class ArrayType(GoAST):
         super().__init__(*args, **kwargs)
 
 
+    @classmethod
+    def from_BasicLit(cls, node: 'BasicLit'):
+        return cls(Ident.from_str(token_type_to_go_type(node.Kind)), 0, None)
+
 class AssignStmt(GoAST):
     _fields = ['Lhs', 'Rhs', 'Tok']
 
@@ -205,6 +217,12 @@ class AssignStmt(GoAST):
     @classmethod
     def from_Assign(cls, node: ast.Assign):
         lhs = build_expr_list(node.targets)
+        rhs = build_expr_list([node.value])
+        return cls(lhs, rhs, token.DEFINE, 0)
+
+    @classmethod
+    def from_AugAssign(cls, node: ast.AugAssign):
+        lhs = build_expr_list([node.target])
         rhs = build_expr_list([node.value])
         return cls(lhs, rhs, token.DEFINE, 0)
 
@@ -286,6 +304,10 @@ class BasicLit(GoAST):
         else:
             raise NotImplementedError(node)
         return cls(kind, node.value, 0)
+
+    @classmethod
+    def from_int(cls, node: int):
+        return cls(token.INT, node, 0)
 
 
 class BinaryExpr(GoAST):
@@ -659,11 +681,18 @@ class CompositeLit(GoAST):
                  Lbrace: int, Rbrace: int, Type: Expr, *args,
                  **kwargs) -> None:
         self.Elts = Elts
+        set_list_type(Elts, 'ast.Expr')
         self.Incomplete = Incomplete
         self.Lbrace = Lbrace
         self.Rbrace = Rbrace
         self.Type = Type
         super().__init__(*args, **kwargs)
+
+    @classmethod
+    def from_List(cls, node: ast.List):
+        elts = build_expr_list(node.elts)
+        typ = from_this(ArrayType, elts[0] if elts else None)
+        return cls(elts, False, 0, 0, typ)
 
 
 class DeclStmt(GoAST):
@@ -675,6 +704,7 @@ class DeclStmt(GoAST):
     def __init__(self, Decl: Expr, *args, **kwargs) -> None:
         self.Decl = Decl
         super().__init__(*args, **kwargs)
+
 
 
 class DeferStmt(GoAST):
@@ -1060,9 +1090,14 @@ class GenDecl(GoAST):
         self.Lparen = Lparen
         self.Rparen = Rparen
         self.Specs = Specs
+        set_list_type(Specs, "ast.Spec")
         self.Tok = Tok
         self.TokPos = TokPos
         super().__init__(*args, **kwargs)
+
+    @classmethod
+    def from_Import(cls, node: ast.Import):
+        return cls(None, 0, 0, [ImportSpec(None, None, 0, None, BasicLit(token.STRING, x.name, 0)) for x in node.names], token.IMPORT, 0)
 
 
 class GoStmt(GoAST):
@@ -1152,6 +1187,16 @@ class IndexExpr(GoAST):
         self.X = X
         super().__init__(*args, **kwargs)
 
+    @classmethod
+    def from_Subscript(cls, node: ast.Subscript):
+        if isinstance(node.slice, ast.Constant):
+            index = build_expr_list([node.slice.value])[0]
+        elif isinstance(node.slice, ast.UnaryOp):
+            index = build_expr_list([node.slice])[0]
+        else:
+            raise NotImplementedError((node, node.slice))
+        x = build_expr_list([node.value])[0]
+        return cls(index, 0, 0, x)
 
 class InterfaceType(GoAST):
     """An InterfaceType node represents an interface type."""
@@ -1332,6 +1377,12 @@ class SelectorExpr(GoAST):
         self.Sel = Sel
         self.X = X
         super().__init__(*args, **kwargs)
+
+    @classmethod
+    def from_Attribute(cls, node: ast.Attribute):
+        attr = build_expr_list([node.attr])[0]
+        x = build_expr_list([node.value])[0]
+        return cls(Sel=attr, X=x)
 
 
 class SendStmt(GoAST):
@@ -1706,7 +1757,8 @@ def unparse(go_tree: GoAST):
     with open(tmp_file, "w") as f:
         f.write(compilation_code)
     code = _gorun(tmp_file)
-    os.remove(tmp_file)
+    if tmp_file not in code:
+        os.remove(tmp_file)
     return _gofmt(_goimport(code))
 
 def _gorun(filename: str) -> str:
