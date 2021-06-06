@@ -1,9 +1,6 @@
-import os
-import uuid
 import ast
 import json
 from enum import Enum
-from subprocess import Popen, PIPE
 from typing import List, Any, Dict, Union
 
 Expr = Union[List[Any], bool, float, int, Dict[str, Any], None, str]
@@ -107,6 +104,9 @@ class token(Enum):
     SWITCH = "switch"
     TYPE = "type"
     VAR = "var"
+
+    # Placeholders
+    PLACEHOLDER_POW = "**"
 
 def token_type_to_go_type(t: token):
     if t == token.INT:
@@ -407,6 +407,8 @@ class BinaryExpr(GoAST):
             op = token.SHL
         elif isinstance(py_op, ast.RShift):
             op = token.SHR
+        elif isinstance(py_op, ast.Pow):
+            op = token.PLACEHOLDER_POW
         # elif isinstance(py_op, ...):
         #     op = token.AND_NOT
         else:
@@ -1728,80 +1730,3 @@ def dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
     if indent is not None and not isinstance(indent, str):
         indent = ' ' * indent
     return _format(node)[0]
-
-class PrintToFmtPrintlnTransformer(ast.NodeTransformer):
-    """
-    This should probably add an import, but goimports takes care of that in postprocessing for now.
-    """
-    def visit_CallExpr(self, node: CallExpr):
-        self.generic_visit(node)
-        if isinstance(node.Fun, Ident):
-            if node.Fun.Name == "print":
-                node.Fun = SelectorExpr(X=Ident.from_str("fmt"), Sel=Ident.from_str("Println"))
-        return node
-
-
-def clean_go_tree(go_tree: File):
-    # Remove orphaned code left in functions titled "_"
-    to_delete = []
-    for decl in go_tree.Decls:
-        if isinstance(decl, FuncDecl) and decl.Name.Name == '_':
-            to_delete.append(decl)
-    for decl in to_delete:
-        go_tree.Decls.remove(decl)
-
-    PrintToFmtPrintlnTransformer().visit(go_tree)
-
-
-def unparse(go_tree: GoAST):
-    clean_go_tree(go_tree)
-    # XXX: Probably vulnerable to RCE if you put this on a server.
-    go_tree_string = dump(go_tree)
-    compilation_code = """\
-    package main
-
-    import (
-    	"go/ast"
-    	"go/printer"
-    	"go/token"
-    	"os"
-    )
-
-    func main() {
-    	tree := %s
-    	fset := token.NewFileSet()
-    	err := printer.Fprint(os.Stdout, fset, tree)
-    	if err != nil {
-    		panic(err)
-    	}
-    }
-    """ % go_tree_string
-    tmp_file = f"tmp_{uuid.uuid4().hex}.go"
-    with open(tmp_file, "w") as f:
-        f.write(compilation_code)
-    code = _gorun(tmp_file)
-    if tmp_file not in code:
-        os.remove(tmp_file)
-    return _gofmt(_goimport(code))
-
-def _gorun(filename: str) -> str:
-    p = Popen(["go", "run", filename], stdout=PIPE, stderr=PIPE, stdin=PIPE)
-    out, err = p.communicate()
-    if err:
-        return "\n".join("// " + x for x in err.decode().strip().splitlines())
-    return out.decode()
-
-def _gofmt(code: str) -> str:
-    p = Popen(["gofmt", "-s"], stdout=PIPE, stderr=PIPE, stdin=PIPE)
-    out, err = p.communicate(code.encode())
-    if err:
-        return code + "\n" + "\n".join("// " + x for x in err.decode().strip().splitlines())
-    return out.decode()
-
-
-def _goimport(code: str) -> str:
-    p = Popen(["goimports"], stdout=PIPE, stderr=PIPE, stdin=PIPE)
-    out, err = p.communicate(code.encode())
-    if err:
-        return code + "\n" + "\n".join("// " + x for x in err.decode().strip().splitlines())
-    return out.decode()
