@@ -8,6 +8,7 @@ class PrintToFmtPrintln(ast.NodeTransformer):
     """
     This should probably add an import, but goimports takes care of that in postprocessing for now.
     """
+
     def visit_CallExpr(self, node: CallExpr):
         self.generic_visit(node)
         if isinstance(node.Fun, Ident):
@@ -21,6 +22,7 @@ class RemoveOrphanedFunctions(ast.NodeTransformer):
     Orphaned code is placed in functions titled "_" -- later we may want to try to put such code in the main
     method or elsewhere, but for now we'll remove it.
     """
+
     def visit_File(self, node: File):
         self.generic_visit(node)
         to_delete = []
@@ -36,6 +38,7 @@ class CapitalizeMathModuleCalls(ast.NodeTransformer):
     """
     The math module in Go is extremely similar to Python's, save for some capitalization difference
     """
+
     def visit_SelectorExpr(self, node: SelectorExpr):
         self.generic_visit(node)
         if isinstance(node.X, Ident) and node.X.Name == "math" and isinstance(node.Sel, Ident):
@@ -47,7 +50,8 @@ class ReplacePowWithMathPow(ast.NodeTransformer):
     def visit_BinaryExpr(self, node: BinaryExpr):
         self.generic_visit(node)
         if node.Op == token.PLACEHOLDER_POW:
-            return CallExpr([node.X, node.Y], 0, SelectorExpr(X=Ident.from_str("math"), Sel=Ident.from_str("Pow")), 0, 0)
+            return CallExpr([node.X, node.Y], 0, SelectorExpr(X=Ident.from_str("math"), Sel=Ident.from_str("Pow")), 0,
+                            0)
         return node
 
 
@@ -66,6 +70,7 @@ class ReplacePythonStyleAppends(ast.NodeTransformer):
                                             token.ASSIGN, 0)
         return block_node
 
+
 class AppendSliceViaUnpacking(ast.NodeTransformer):
     def visit_AssignStmt(self, node: AssignStmt):
         self.generic_visit(node)
@@ -75,8 +80,8 @@ class AppendSliceViaUnpacking(ast.NodeTransformer):
             aug_assign_composite = False
         if aug_assign_composite:
             node.Rhs[0] = CallExpr(Args=[node.Lhs[0], node.Rhs[0]],
-                                 Ellipsis=1, Fun=Ident.from_str("append"),
-                                 Lparen=0, Rparen=0)
+                                   Ellipsis=1, Fun=Ident.from_str("append"),
+                                   Lparen=0, Rparen=0)
             node.Tok = token.ASSIGN
             return node
         try:
@@ -85,8 +90,8 @@ class AppendSliceViaUnpacking(ast.NodeTransformer):
             assign_composite = False
         if assign_composite:
             node.Rhs[0] = CallExpr(Args=[node.Rhs[0].X, node.Rhs[0].Y],
-                                 Ellipsis=1, Fun=Ident.from_str("append"),
-                                 Lparen=0, Rparen=0)
+                                   Ellipsis=1, Fun=Ident.from_str("append"),
+                                   Lparen=0, Rparen=0)
 
             return node
         return node
@@ -99,6 +104,7 @@ class PythonToGoTypes(ast.NodeTransformer):
             if node.Type.Name == "str":
                 node.Type.Name = "string"
         return node
+
 
 class PreventRepeatDeclarations(ast.NodeTransformer):
     def __init__(self):
@@ -118,11 +124,11 @@ class PreventRepeatDeclarations(ast.NodeTransformer):
         for expr in node.Lhs:
             if isinstance(expr, Ident):
                 obj = Object(
-                        Data=node.Rhs,
-                        Decl=None,
-                        Kind=ObjKind.Var,
-                        Name=expr.Name,
-                        Type=None,
+                    Data=node.Rhs,
+                    Decl=None,
+                    Kind=ObjKind.Var,
+                    Name=expr.Name,
+                    Type=None,
                 )
                 if not (self.scope._in_scope(obj) or self.scope._in_outer_scope(obj)):
                     self.scope.Insert(obj)
@@ -130,6 +136,7 @@ class PreventRepeatDeclarations(ast.NodeTransformer):
         if not declared:
             node.Tok = token.ASSIGN
         return node
+
 
 class RangeRangeToFor(ast.NodeTransformer):
     def visit_RangeStmt(self, node: RangeStmt):
@@ -179,6 +186,7 @@ class RangeRangeToFor(ast.NodeTransformer):
                            Post=post
                            )
         return node
+
 
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
