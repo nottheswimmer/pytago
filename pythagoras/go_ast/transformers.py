@@ -1,7 +1,7 @@
 import ast
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
-    CompositeLit, Field
+    CompositeLit, Field, Scope, Object, ObjKind
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -100,6 +100,38 @@ class PythonToGoTypes(ast.NodeTransformer):
                 node.Type.Name = "string"
         return node
 
+class PreventRepeatDeclarations(ast.NodeTransformer):
+    def __init__(self):
+        self.scope = Scope({}, None)
+
+    def visit_BlockStmt(self, node: BlockStmt):
+        self.scope = Scope({}, self.scope)
+        self.generic_visit(node)
+        self.scope = self.scope.Outer
+        return node
+
+    def visit_AssignStmt(self, node: AssignStmt):
+        self.generic_visit(node)
+        if node.Tok != token.DEFINE:
+            return node
+        declared = False
+        for expr in node.Lhs:
+            if isinstance(expr, Ident):
+                obj = Object(
+                        Data=node.Rhs,
+                        Decl=None,
+                        Kind=ObjKind.Var,
+                        Name=expr.Name,
+                        Type=None,
+                )
+                if not (self.scope._in_scope(obj) or self.scope._in_outer_scope(obj)):
+                    self.scope.Insert(obj)
+                    declared = True
+        if not declared:
+            node.Tok = token.ASSIGN
+        return node
+
+
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
@@ -107,5 +139,6 @@ ALL_TRANSFORMS = [
     ReplacePowWithMathPow,
     ReplacePythonStyleAppends,
     AppendSliceViaUnpacking,
-    PythonToGoTypes
+    PythonToGoTypes,
+PreventRepeatDeclarations
 ]

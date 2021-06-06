@@ -1,10 +1,21 @@
 import ast
 import json
 from enum import Enum
-from typing import List, Any, Dict, Union
+from typing import List, Any, Dict, Union, Optional
 
 Expr = Union[List[Any], bool, float, int, Dict[str, Any], None, str]
 Stmt = Union[List[Any], bool, float, int, Dict[str, Any], None, str]
+
+
+class ObjKind(Enum):
+    Bad = "for error handling"
+    Pkg = "package"
+    Con = "constant"
+    Typ = "type"
+    Var = "variable"
+    Fun = "function or method"
+    Lbl = "label"
+
 
 class token(Enum):
     ILLEGAL = "ILLEGAL"
@@ -469,14 +480,14 @@ class Object(GoAST):
     Data: Expr
     """corresponding Field, XxxSpec, FuncDecl, LabeledStmt, AssignStmt, Scope; or nil"""
     Decl: Expr
-    Kind: int
+    Kind: ObjKind
     """declared name"""
     Name: str
     """placeholder for type information; may be nil"""
     Type: Expr
 
     def __init__(self, Data: Expr,
-                 Decl: Expr, Kind: int, Name: str,
+                 Decl: Expr, Kind: ObjKind, Name: str,
                  Type: Expr, *args, **kwargs) -> None:
         self.Data = Data
         self.Decl = Decl
@@ -905,6 +916,26 @@ class Scope(GoAST):
         self.Objects = Objects
         self.Outer = Outer
         super().__init__(*args, **kwargs)
+
+    def _in_scope(self, obj: Object) -> bool:
+        return obj.Name in self.Objects
+
+    def _in_outer_scope(self, obj: Object) -> bool:
+        if not self.Outer:
+            return False
+        return obj.Name in self.Outer.Objects or self.Outer._in_outer_scope(obj)
+
+    def Insert(self, obj: Object) -> Optional[Object]:
+        """
+        Insert attempts to insert a named object obj into the scope s.
+        If the scope already contains an object alt with the same name,
+        Insert leaves the scope unchanged and returns alt. Otherwise
+        it inserts obj and returns nil.
+        """
+        alt = self.Objects.get(obj.Name)
+        if alt:
+            return alt
+        self.Objects[obj.Name] = obj
 
 
 class File(GoAST):
