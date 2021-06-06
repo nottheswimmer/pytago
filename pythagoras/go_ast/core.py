@@ -1,10 +1,8 @@
 import ast
+import inspect
 import json
 from enum import Enum
-from typing import List, Any, Dict, Union, Optional
-
-Expr = Union[List[Any], bool, float, int, Dict[str, Any], None, str]
-Stmt = Union[List[Any], bool, float, int, Dict[str, Any], None, str]
+from typing import List, Dict, Optional
 
 
 class ObjKind(Enum):
@@ -15,6 +13,26 @@ class ObjKind(Enum):
     Var = "variable"
     Fun = "function or method"
     Lbl = "label"
+
+
+class GoType(Enum):
+    BOOL = "bool"
+    UINT8 = BYTE = "uint8"
+    UINT16 = "uint16"
+    UINT32 = "uint32"
+    UINT64 = "uint64"
+    INT8 = "int8"
+    INT16 = "int16"
+    INT32 = RUNE = "int32"
+    INT64 = "int64"
+    FLOAT32 = "float32"
+    FLOAT64 = "float64"
+    COMPLEX64 = "complex64"
+    COMPLEX128 = "complex128"
+    STRING = "string"
+    INT = "int"
+    UINT = "uint"
+    UINTPTR = "uintptr"
 
 
 class token(Enum):
@@ -119,6 +137,7 @@ class token(Enum):
     # Placeholders
     PLACEHOLDER_POW = "**"
 
+
 def token_type_to_go_type(t: token):
     if t == token.INT:
         return "int"
@@ -127,6 +146,7 @@ def token_type_to_go_type(t: token):
     if t == token.STRING:
         return "string"
     raise ValueError(t)
+
 
 def from_method(node):
     return f"from_{node.__class__.__name__}"
@@ -150,7 +170,7 @@ def build_expr_list(nodes):
                     continue
                 break
         else:
-            raise ValueError(f"No Expr type in {_EXPR_TYPES} with {method}: "
+            raise ValueError(f"No _Expr type in {_EXPR_TYPES} with {method}: "
                              f"\n```\n{ast.unparse(expr_node) if expr_node else None}\n```") from Exception(errors)
     return expr_list
 
@@ -181,6 +201,19 @@ class GoAST(ast.AST):
         super().__init__(*args, **kwargs)
         self._fields = [f for f in self._fields if getattr(self, f, None)]
 
+
+class Expr(GoAST):
+    ...
+
+
+class Stmt(GoAST):
+    ...
+
+
+class Decl(GoAST):
+    ...
+
+
 class ArrayType(GoAST):
     """An ArrayType node represents an array or slice type."""
     _fields = ('Elt', 'Len')
@@ -198,7 +231,6 @@ class ArrayType(GoAST):
         self.Len = Len
         super().__init__(*args, **kwargs)
 
-
     @classmethod
     def from_BasicLit(cls, node: 'BasicLit'):
         return cls(Ident.from_str(token_type_to_go_type(node.Kind)), 0, None)
@@ -208,7 +240,7 @@ class ArrayType(GoAST):
         return cls(node, 0, None)
 
 
-class AssignStmt(GoAST):
+class AssignStmt(Stmt):
     _fields = ['Lhs', 'Rhs', 'Tok']
 
     """An AssignStmt node represents an assignment or a short variable declaration."""
@@ -250,7 +282,7 @@ class AssignStmt(GoAST):
         return cls(lhs, rhs, op, 0)
 
 
-class BadDecl(GoAST):
+class BadDecl(Decl):
     """A BadDecl node is a placeholder for declarations containing syntax errors for which no
     correct declaration nodes can be created.
     """
@@ -264,7 +296,7 @@ class BadDecl(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class BadExpr(GoAST):
+class BadExpr(Expr):
     """A BadExpr node is a placeholder for expressions containing syntax errors for which no
     correct expression nodes can be created.
     """
@@ -278,7 +310,7 @@ class BadExpr(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class BadStmt(GoAST):
+class BadStmt(Stmt):
     """A BadStmt node is a placeholder for statements containing syntax errors for which no
     correct statement nodes can be created.
     """
@@ -292,7 +324,7 @@ class BadStmt(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class BasicLit(GoAST):
+class BasicLit(Expr):
     """A BasicLit node represents a literal of basic type.
 
     field tag; or nil
@@ -333,7 +365,7 @@ class BasicLit(GoAST):
         return cls(token.INT, node, 0)
 
 
-class BinaryExpr(GoAST):
+class BinaryExpr(Expr):
     """A BinaryExpr node represents a binary expression."""
     _fields = ("Op", "X", "Y")
     """operator"""
@@ -438,7 +470,7 @@ class BinaryExpr(GoAST):
         return cls(op, 0, X, Y)
 
 
-class BlockStmt(GoAST):
+class BlockStmt(Stmt):
     """A BlockStmt node represents a braced statement list.
 
     function body; or nil for external (non-Go) function
@@ -452,11 +484,11 @@ class BlockStmt(GoAST):
     _fields = ("List",)
     """position of '{'"""
     Lbrace: int
-    List: List[Expr]
+    List: List[Stmt]
     """position of '}', if any (may be absent due to syntax error)"""
     Rbrace: int
 
-    def __init__(self, Lbrace: int, List: List[Expr],
+    def __init__(self, Lbrace: int, List: List[Stmt],
                  Rbrace: int, *args, **kwargs) -> None:
         self.Lbrace = Lbrace
         self.List = List
@@ -482,7 +514,7 @@ class Object(GoAST):
     """object-specific data; or nil"""
     Data: Expr
     """corresponding Field, XxxSpec, FuncDecl, LabeledStmt, AssignStmt, Scope; or nil"""
-    Decl: Expr
+    Decl: Decl
     Kind: ObjKind
     """declared name"""
     Name: str
@@ -490,7 +522,7 @@ class Object(GoAST):
     Type: Expr
 
     def __init__(self, Data: Expr,
-                 Decl: Expr, Kind: ObjKind, Name: str,
+                 Decl: Decl, Kind: ObjKind, Name: str,
                  Type: Expr, *args, **kwargs) -> None:
         self.Data = Data
         self.Decl = Decl
@@ -500,7 +532,7 @@ class Object(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class Ident(GoAST):
+class Ident(Expr):
     """label name; or nil
 
     local package name (including '.'); or nil
@@ -544,7 +576,7 @@ class Ident(GoAST):
         return cls(name, 0, None)
 
 
-class BranchStmt(GoAST):
+class BranchStmt(Stmt):
     """A BranchStmt node represents a break, continue, goto, or fallthrough statement."""
     _fields = ("Label", "Tok")
     """label name; or nil"""
@@ -561,7 +593,7 @@ class BranchStmt(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class CallExpr(GoAST):
+class CallExpr(Expr):
     """A CallExpr node represents an expression followed by an argument list."""
     _fields = ('Args', 'Ellipsis', 'Fun')
     """function arguments; or nil"""
@@ -688,7 +720,7 @@ class CommentGroup(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class CompositeLit(GoAST):
+class CompositeLit(Expr):
     """A CompositeLit node represents a composite literal."""
     _fields = ("Elts", "Incomplete", "Type")
     """list of composite elements; or nil"""
@@ -726,19 +758,18 @@ class CompositeLit(GoAST):
         return cls(elts, False, 0, 0, typ)
 
 
-class DeclStmt(GoAST):
+class DeclStmt(Stmt):
     """A DeclStmt node represents a declaration in a statement list."""
     _fields = ("Decl",)
     """*GenDecl with CONST, TYPE, or VAR token"""
-    Decl: Expr
+    Decl: Decl
 
-    def __init__(self, Decl: Expr, *args, **kwargs) -> None:
+    def __init__(self, Decl: Decl, *args, **kwargs) -> None:
         self.Decl = Decl
         super().__init__(*args, **kwargs)
 
 
-
-class DeferStmt(GoAST):
+class DeferStmt(Stmt):
     """A DeferStmt node represents a defer statement."""
     _fields = ("Call",)
     Call: CallExpr
@@ -751,7 +782,7 @@ class DeferStmt(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class Ellipsis(GoAST):
+class Ellipsis(Expr):
     """An Ellipsis node stands for the '...' type in a parameter list or the '...' length in an
     array type.
     """
@@ -768,7 +799,7 @@ class Ellipsis(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class EmptyStmt(GoAST):
+class EmptyStmt(Stmt):
     """An EmptyStmt node represents an empty statement. The 'position' of the empty statement is
     the position of the immediately following (explicit or implicit) semicolon.
     """
@@ -784,7 +815,7 @@ class EmptyStmt(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class ExprStmt(GoAST):
+class ExprStmt(Stmt):
     """An ExprStmt node represents a (stand-alone) expression in a statement list."""
     _fields = ("X",)
     """expression"""
@@ -835,7 +866,6 @@ class Field(GoAST):
     @classmethod
     def from_Name(cls, node: ast.Name):
         return cls(None, None, [], None, from_this(Ident, node))
-
 
 
 class FieldList(GoAST):
@@ -1005,7 +1035,7 @@ class File(GoAST):
         return cls([], decls, None, [], Ident("main", 0, None), 1, None, [])
 
 
-class ForStmt(GoAST):
+class ForStmt(Stmt):
     _fields = ("Body", "Cond", "Init", "Post")
     """A ForStmt represents a for statement."""
     Body: BlockStmt
@@ -1062,7 +1092,7 @@ class FuncType(GoAST):
         return cls(0, params, results)
 
 
-class FuncDecl(GoAST):
+class FuncDecl(Decl):
     """A FuncDecl node represents a function declaration."""
     _fields = ("Body", "Doc", "Name", "Recv", "Type")
     """function body; or nil for external (non-Go) function"""
@@ -1104,7 +1134,7 @@ class FuncDecl(GoAST):
         return cls(body, doc, name, recv, _type)
 
 
-class FuncLit(GoAST):
+class FuncLit(Expr):
     """A FuncLit node represents a function literal."""
     _fields = ("Body", "Type")
     """function body"""
@@ -1118,7 +1148,7 @@ class FuncLit(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class GenDecl(GoAST):
+class GenDecl(Decl):
     """A GenDecl node (generic declaration node) represents an import, constant, type or
     variable declaration. A valid Lparen position (Lparen.IsValid()) indicates a
     parenthesized declaration.  Relationship between Tok value and Specs element type:
@@ -1152,10 +1182,11 @@ class GenDecl(GoAST):
 
     @classmethod
     def from_Import(cls, node: ast.Import):
-        return cls(None, 0, 0, [ImportSpec(None, None, 0, None, BasicLit(token.STRING, x.name, 0)) for x in node.names], token.IMPORT, 0)
+        return cls(None, 0, 0, [ImportSpec(None, None, 0, None, BasicLit(token.STRING, x.name, 0)) for x in node.names],
+                   token.IMPORT, 0)
 
 
-class GoStmt(GoAST):
+class GoStmt(Stmt):
     """A GoStmt node represents a go statement."""
     _fields = ("Call",)
     Call: CallExpr
@@ -1168,7 +1199,7 @@ class GoStmt(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class IfStmt(GoAST):
+class IfStmt(Stmt):
     """An IfStmt node represents an if statement."""
     _fields = ("Body", "Cond", "Else", "Init")
     Body: BlockStmt
@@ -1203,9 +1234,9 @@ class IfStmt(GoAST):
             raise NotImplementedError(f"Multiple else: {node.orelse}")
         init = None
         return cls(body, cond, _else, 0, init)
-        
 
-class IncDecStmt(GoAST):
+
+class IncDecStmt(Stmt):
     """An IncDecStmt node represents an increment or decrement statement."""
     _fields = ("Tok", "X")
     """INC or DEC"""
@@ -1222,7 +1253,7 @@ class IncDecStmt(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class IndexExpr(GoAST):
+class IndexExpr(Expr):
     """An IndexExpr node represents an expression followed by an index."""
     _fields = ("Index", "X")
     """index expression"""
@@ -1253,6 +1284,7 @@ class IndexExpr(GoAST):
         x = build_expr_list([node.value])[0]
         return cls(index, 0, 0, x)
 
+
 class InterfaceType(GoAST):
     """An InterfaceType node represents an interface type."""
     _fields = ("Incomplete", "Methods")
@@ -1270,7 +1302,7 @@ class InterfaceType(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class KeyValueExpr(GoAST):
+class KeyValueExpr(Expr):
     """A KeyValueExpr node represents (key : value) pairs in composite literals."""
     _fields = ("Key", "Value")
     """position of ':'"""
@@ -1286,7 +1318,7 @@ class KeyValueExpr(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class LabeledStmt(GoAST):
+class LabeledStmt(Stmt):
     """A LabeledStmt node represents a labeled statement."""
     _fields = ("Label", "Stmt")
     """position of ':'"""
@@ -1339,7 +1371,7 @@ class Package(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class ParenExpr(GoAST):
+class ParenExpr(Expr):
     """A ParenExpr node represents a parenthesized expression."""
     _fields = ("X",)
     """position of '('"""
@@ -1357,7 +1389,7 @@ class ParenExpr(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class RangeStmt(GoAST):
+class RangeStmt(Stmt):
     """A RangeStmt represents a for statement with a range clause."""
     _fields = ("Body", "Key", "Tok", "Value", "X")
     Body: BlockStmt
@@ -1394,7 +1426,7 @@ class RangeStmt(GoAST):
         return cls(Body=body, For=0, Key=key, Tok=tok, TokPos=0, Value=value, X=x)
 
 
-class ReturnStmt(GoAST):
+class ReturnStmt(Stmt):
     """A ReturnStmt node represents a return statement."""
     _fields = ("Results",)
     """result expressions; or nil"""
@@ -1414,7 +1446,7 @@ class ReturnStmt(GoAST):
         return cls(build_expr_list([node.value]), 0)
 
 
-class SelectStmt(GoAST):
+class SelectStmt(Stmt):
     """A SelectStmt node represents a select statement."""
     _fields = ("Body",)
     """CommClauses only"""
@@ -1428,7 +1460,7 @@ class SelectStmt(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class SelectorExpr(GoAST):
+class SelectorExpr(Expr):
     """A SelectorExpr node represents an expression followed by a selector."""
     _fields = ("Sel", "X",)
     """field selector"""
@@ -1449,7 +1481,7 @@ class SelectorExpr(GoAST):
         return cls(Sel=attr, X=x)
 
 
-class SendStmt(GoAST):
+class SendStmt(Stmt):
     """A SendStmt node represents a send statement."""
     _fields = ("Chan", "Value")
     """position of '<-'"""
@@ -1465,7 +1497,7 @@ class SendStmt(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class SliceExpr(GoAST):
+class SliceExpr(Expr):
     """A SliceExpr node represents an expression followed by slice indices."""
     _fields = ("High", "Low", "Max", "Slice3", "X",)
     """end of slice range; or nil"""
@@ -1507,7 +1539,7 @@ class SliceExpr(GoAST):
         return cls(high, 0, low, 0, None, False, x)
 
 
-class StarExpr(GoAST):
+class StarExpr(Expr):
     """A StarExpr node represents an expression of the form '*' Expression. Semantically it
     could be a unary '*' expression, or a pointer type.
     """
@@ -1541,7 +1573,7 @@ class StructType(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class SwitchStmt(GoAST):
+class SwitchStmt(Stmt):
     """A SwitchStmt node represents an expression switch statement."""
     _fields = ("Body", "Init", "Tag")
     """CaseClauses only"""
@@ -1563,7 +1595,7 @@ class SwitchStmt(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class TypeAssertExpr(GoAST):
+class TypeAssertExpr(Expr):
     """A TypeAssertExpr node represents an expression followed by a type assertion."""
     _fields = ("Type", "X")
     """position of '('"""
@@ -1608,7 +1640,7 @@ class TypeSpec(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class TypeSwitchStmt(GoAST):
+class TypeSwitchStmt(Stmt):
     """A TypeSwitchStmt node represents a type switch statement."""
     _fields = ("Body", "Init")
     """x := y.(type) or y.(type)"""
@@ -1630,7 +1662,7 @@ class TypeSwitchStmt(GoAST):
         super().__init__(*args, **kwargs)
 
 
-class UnaryExpr(GoAST):
+class UnaryExpr(Expr):
     """A UnaryExpr node represents a unary expression. Unary '*' expressions are represented via
     StarExpr nodes.
     """
@@ -1690,9 +1722,13 @@ class ValueSpec(GoAST):
         super().__init__(*args, **kwargs)
 
 
-_DECL_TYPES = [FuncDecl, GenDecl, BadDecl]
-_STMT_TYPES = [globals()[x] for x in globals() if x.endswith('Stmt')]
-_EXPR_TYPES = [globals()[x] for x in globals() if x.endswith('Expr') or x.endswith('Lit') or x in ['Ident', 'Ellipsis']]
+def _get_subclasses_of(parent_type):
+    return [globals()[x] for x in globals() if inspect.isclass(globals()[x]) and issubclass(globals()[x], parent_type)]
+
+
+_DECL_TYPES = _get_subclasses_of(Decl)
+_STMT_TYPES = _get_subclasses_of(Stmt)
+_EXPR_TYPES = _get_subclasses_of(Expr)
 
 # Dumping
 _LIST_TYPES = {}
@@ -1704,4 +1740,3 @@ def get_list_type(li: list):
 
 def set_list_type(li: list, typ: str):
     _LIST_TYPES[id(li)] = typ
-
