@@ -34,7 +34,10 @@ def unparse(go_tree: GoAST, apply_transformations=True, debugging=True):
     tmp_file = f"tmp_{uuid.uuid4().hex}.go"
     if debugging:
         print(f"=== Start Compilation Code ===")
-        print(compilation_code)
+        lines = compilation_code.splitlines()
+        max_i_size = len(str(len(lines)+1))
+        for i, line in enumerate(lines, start=1):
+            print(str(i).rjust(max_i_size), line)
         print(f"=== End Compilation Code ===")
     with open(tmp_file, "w") as f:
         f.write(compilation_code)

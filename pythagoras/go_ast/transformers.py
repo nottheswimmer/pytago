@@ -1,6 +1,6 @@
 import ast
 
-from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token
+from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -50,10 +50,23 @@ class ReplacePowWithMathPow(ast.NodeTransformer):
         return node
 
 
+class ReplacePythonStyleAppends(ast.NodeTransformer):
+    def visit_BlockStmt(self, block_node: BlockStmt):
+        self.generic_visit(block_node)
+        for i, node in enumerate(block_node.List):
+            try:
+                is_append = node.X.Fun.Sel.Name == "append"
+            except AttributeError:
+                is_append = False
+            if not is_append:
+                continue
+            block_node.List[i] = AssignStmt([node.X.Fun.X], [CallExpr([node.X.Fun.X, *node.X.Args], 0, Ident.from_str("append"), 0, 0)], token.ASSIGN, 0)
+        return block_node
 
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
     CapitalizeMathModuleCalls,
-    ReplacePowWithMathPow
+    ReplacePowWithMathPow,
+    ReplacePythonStyleAppends
 ]
