@@ -1020,7 +1020,9 @@ class Scope(GoAST):
             return x._type()
         else:
             raise ValueError(x)
-        return self._from_scope_or_outer(obj_name).Type
+        obj = self._from_scope_or_outer(obj_name)
+        if obj:
+            return obj.Type
 
     def _from_scope_or_outer(self, obj_name: str):
         return self._from_scope(obj_name) or self._from_outer_scope(obj_name)

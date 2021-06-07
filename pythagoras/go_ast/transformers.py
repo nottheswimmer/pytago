@@ -1,8 +1,9 @@
 import ast
+from _ast import AST
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
-    GoBasicType
+    GoBasicType, Stmt
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -110,25 +111,36 @@ class NodeTransformerWithScope(ast.NodeTransformer):
     def __init__(self, scope=None):
         self.scope = Scope({}, scope)
 
-    def visit_BlockStmt(self, node: BlockStmt):
-        """Don't forget to super call this if you override it"""
-        self.scope = Scope({}, self.scope)
-        self.generic_visit(node)
-        self.scope = self.scope.Outer
-        return node
-
-    def visit_ForStmt(self, node: ForStmt):
-        """Don't forget to super call this if you override it"""
-        self.scope = Scope({}, self.scope)
-        self.generic_visit(node)
-        self.scope = self.scope.Outer
-        return node
-
-    def visit_RangeStmt(self, node: RangeStmt):
-        """Don't forget to super call this if you override it"""
-        self.scope = Scope({}, self.scope)
-        self.generic_visit(node)
-        self.scope = self.scope.Outer
+    def generic_visit(self, node):
+        for field, old_value in ast.iter_fields(node):
+            if isinstance(old_value, list):
+                new_values = []
+                for value in old_value:
+                    if isinstance(value, AST):
+                        new_scope = isinstance(value, Stmt) and not isinstance(value, AssignStmt)
+                        if new_scope:
+                            self.scope = Scope({}, self.scope)
+                        value = self.visit(value)
+                        if new_scope:
+                            self.scope = self.scope.Outer
+                        if value is None:
+                            continue
+                        elif not isinstance(value, AST):
+                            new_values.extend(value)
+                            continue
+                    new_values.append(value)
+                old_value[:] = new_values
+            elif isinstance(old_value, AST):
+                new_scope = isinstance(old_value, Stmt) and not isinstance(old_value, AssignStmt)
+                if new_scope:
+                    self.scope = Scope({}, self.scope)
+                new_node = self.visit(old_value)
+                if new_scope:
+                    self.scope = self.scope.Outer
+                if new_node is None:
+                    delattr(node, field)
+                else:
+                    setattr(node, field, new_node)
         return node
 
     def visit_AssignStmt(self, node: AssignStmt):
