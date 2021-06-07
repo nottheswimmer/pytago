@@ -1,7 +1,8 @@
 import ast
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
-    CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr
+    CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
+    GoBasicType
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -105,37 +106,53 @@ class PythonToGoTypes(ast.NodeTransformer):
                 node.Type.Name = "string"
         return node
 
-
-class PreventRepeatDeclarations(ast.NodeTransformer):
-    def __init__(self):
-        self.scope = Scope({}, None)
+class NodeTransformerWithScope(ast.NodeTransformer):
+    def __init__(self, scope=None):
+        self.scope = Scope({}, scope)
 
     def visit_BlockStmt(self, node: BlockStmt):
+        """Don't forget to super call this if you override it"""
+        self.scope = Scope({}, self.scope)
+        self.generic_visit(node)
+        self.scope = self.scope.Outer
+        return node
+
+    def visit_ForStmt(self, node: ForStmt):
+        """Don't forget to super call this if you override it"""
+        self.scope = Scope({}, self.scope)
+        self.generic_visit(node)
+        self.scope = self.scope.Outer
+        return node
+
+    def visit_RangeStmt(self, node: RangeStmt):
+        """Don't forget to super call this if you override it"""
         self.scope = Scope({}, self.scope)
         self.generic_visit(node)
         self.scope = self.scope.Outer
         return node
 
     def visit_AssignStmt(self, node: AssignStmt):
+        """Don't forget to super call this if you override it"""
         self.generic_visit(node)
         if node.Tok != token.DEFINE:
             return node
         declared = False
         for expr in node.Lhs:
-            if isinstance(expr, Ident):
-                obj = Object(
-                    Data=node.Rhs,
-                    Decl=None,
-                    Kind=ObjKind.Var,
-                    Name=expr.Name,
-                    Type=None,
-                )
-                if not (self.scope._in_scope(obj) or self.scope._in_outer_scope(obj)):
-                    self.scope.Insert(obj)
-                    declared = True
+            obj = Object(
+                Data=None,
+                Decl=None,
+                Kind=ObjKind.Var,
+                Name=expr.Name,
+                Type=next((x._type() for x in node.Rhs), None),
+            )
+            if not (self.scope._in_scope(obj) or self.scope._in_outer_scope(obj)):
+                self.scope.Insert(obj)
+                declared = True
         if not declared:
             node.Tok = token.ASSIGN
         return node
+
+
 
 
 class RangeRangeToFor(ast.NodeTransformer):
@@ -201,6 +218,7 @@ class UnpackRangeEnumerate(ast.NodeTransformer):
             node.Value = node.Value.Elts[1]
         return node
 
+
 class NegativeIndexesSubtractFromLen(ast.NodeTransformer):
     """
     Will need some sort of type checking to ensure this doesn't affect maps or similar
@@ -217,6 +235,18 @@ class NegativeIndexesSubtractFromLen(ast.NodeTransformer):
             )
         return node
 
+
+class StringifyStringMember(NodeTransformerWithScope):
+    """
+    "Hello"[0] in Python is "H" but in Go it's a byte. Let's cast those back to string
+    """
+    def visit_IndexExpr(self, node: IndexExpr):
+        self.generic_visit(node)
+        if self.scope._get_type(node.X) == GoBasicType.STRING and self.scope._get_type(node.Index) == GoBasicType.INT:
+            return CallExpr(Args=[node], Ellipsis=0, Fun=Ident.from_str(GoBasicType.STRING.value), Lparen=0, Rparen=0)
+        return node
+
+
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
@@ -225,8 +255,9 @@ ALL_TRANSFORMS = [
     ReplacePythonStyleAppends,
     AppendSliceViaUnpacking,
     PythonToGoTypes,
-    PreventRepeatDeclarations,
+    NodeTransformerWithScope,
     RangeRangeToFor,
     UnpackRangeEnumerate,
-    NegativeIndexesSubtractFromLen
+    NegativeIndexesSubtractFromLen,
+    StringifyStringMember
 ]

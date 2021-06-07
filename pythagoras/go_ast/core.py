@@ -6,16 +6,16 @@ from typing import List, Dict, Optional
 
 
 class ObjKind(Enum):
-    Bad = "for error handling"
+    Bad = "bad"
     Pkg = "package"
-    Con = "constant"
+    Con = "const"
     Typ = "type"
-    Var = "variable"
-    Fun = "function or method"
+    Var = "var"
+    Fun = "func"
     Lbl = "label"
 
 
-class GoType(Enum):
+class GoBasicType(Enum):
     BOOL = "bool"
     UINT8 = BYTE = "uint8"
     UINT16 = "uint16"
@@ -33,6 +33,17 @@ class GoType(Enum):
     INT = "int"
     UINT = "uint"
     UINTPTR = "uintptr"
+
+
+# class GoCompositeType(Enum):
+#     ARRAY = "array"
+#     STRUCT = "struct"
+#     POINTER = "pointer"
+#     FUNCTION = "function"
+#     INTERFACE = "interface"
+#     SLICE = "slice"
+#     MAP = "map"
+#     CHANNEL = "channel"
 
 
 class token(Enum):
@@ -138,13 +149,30 @@ class token(Enum):
     PLACEHOLDER_POW = "**"
 
 
+COMPARISON_OPS = [token.GTR,
+                  token.GEQ,
+                  token.LSS,
+                  token.LEQ,
+                  token.EQL,
+                  token.NEQ]
+BOOL_OPS = [
+    token.LAND,
+    token.OR,
+    token.AND_NOT
+]
+
+
 def token_type_to_go_type(t: token):
     if t == token.INT:
-        return "int"
+        return GoBasicType.INT
     if t == token.FLOAT:
-        return "float32"
+        return GoBasicType.FLOAT32
     if t == token.STRING:
-        return "string"
+        return GoBasicType.STRING
+    if t == token.IMAG:
+        return GoBasicType.COMPLEX64
+    if t == token.CHAR:
+        return GoBasicType.BYTE
     raise ValueError(t)
 
 
@@ -156,7 +184,7 @@ def from_this(cls, node):
     return getattr(cls, from_method(node))(node)
 
 
-def build_expr_list(nodes):
+def build_expr_list(nodes, *args, **kwargs):
     expr_list = []
     for expr_node in nodes:
         method = from_method(expr_node)
@@ -164,7 +192,7 @@ def build_expr_list(nodes):
         for expr_type in _EXPR_TYPES:
             if hasattr(expr_type, method):
                 try:
-                    expr_list.append(getattr(expr_type, method)(expr_node))
+                    expr_list.append(getattr(expr_type, method)(expr_node, *args, **kwargs))
                 except NotImplementedError as e:
                     errors.append(e)
                     continue
@@ -203,7 +231,12 @@ class GoAST(ast.AST):
 
 
 class Expr(GoAST):
-    ...
+    def __init__(self, *args, _type_help=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._type_help = _type_help
+
+    def _type(self):
+        return self._type_help
 
 
 class Stmt(GoAST):
@@ -232,12 +265,12 @@ class ArrayType(GoAST):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_BasicLit(cls, node: 'BasicLit'):
-        return cls(Ident.from_str(token_type_to_go_type(node.Kind)), 0, None)
+    def from_BasicLit(cls, node: 'BasicLit', *args, **kwargs):
+        return cls(Ident.from_str(token_type_to_go_type(node.Kind).value), 0, None, *args, **kwargs)
 
     @classmethod
-    def from_Ident(cls, node: 'Ident'):
-        return cls(node, 0, None)
+    def from_Ident(cls, node: 'Ident', *args, **kwargs):
+        return cls(node, 0, None, *args, **kwargs)
 
 
 class AssignStmt(Stmt):
@@ -266,20 +299,20 @@ class AssignStmt(Stmt):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_Assign(cls, node: ast.Assign):
-        lhs = build_expr_list(node.targets)
+    def from_Assign(cls, node: ast.Assign, *args, **kwargs):
         rhs = build_expr_list([node.value])
-        return cls(lhs, rhs, token.DEFINE, 0)
+        lhs = build_expr_list(node.targets, _type_help=rhs[0]._type())
+        return cls(lhs, rhs, token.DEFINE, 0, *args, **kwargs)
 
     @classmethod
-    def from_AugAssign(cls, node: ast.AugAssign):
+    def from_AugAssign(cls, node: ast.AugAssign, *args, **kwargs):
         lhs = build_expr_list([node.target])
         rhs = build_expr_list([node.value])
         if isinstance(node.op, ast.Add):
             op = token.ADD_ASSIGN
         else:
             raise NotImplementedError(node.op)
-        return cls(lhs, rhs, op, 0)
+        return cls(lhs, rhs, op, 0, *args, **kwargs)
 
 
 class BadDecl(Decl):
@@ -333,20 +366,20 @@ class BasicLit(Expr):
     """
     _fields = ('Kind', 'Value')
     """token.INT, token.FLOAT, token.IMAG, token.CHAR, or token.STRING"""
-    Kind: int
+    Kind: token
     """literal string; e.g. 42, 0x7f, 3.14, 1e-9, 2.4i, 'a', '⧵x7f', 'foo' or '⧵m⧵n⧵o'"""
     Value: str
     """literal position"""
     ValuePos: int
 
-    def __init__(self, Kind: int, Value: str, ValuePos: int, *args, **kwargs) -> None:
+    def __init__(self, Kind: token, Value: str, ValuePos: int, *args, **kwargs) -> None:
         self.Kind = Kind
         self.Value = json.dumps(Value)
         self.ValuePos = ValuePos
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_Constant(cls, node: ast.Constant):
+    def from_Constant(cls, node: ast.Constant, *args, **kwargs):
         t = type(node.value)
         if t == int:
             kind = token.INT
@@ -358,11 +391,14 @@ class BasicLit(Expr):
             kind = token.IMAG
         else:
             raise NotImplementedError(node)
-        return cls(kind, node.value, 0)
+        return cls(kind, node.value, 0, *args, **kwargs)
 
     @classmethod
-    def from_int(cls, node: int):
-        return cls(token.INT, node, 0)
+    def from_int(cls, node: int, *args, **kwargs):
+        return cls(token.INT, node, 0, *args, **kwargs)
+
+    def _type(self):
+        return token_type_to_go_type(self.Kind) or super()._type()
 
 
 class BinaryExpr(Expr):
@@ -386,7 +422,7 @@ class BinaryExpr(Expr):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_Compare(cls, node: ast.Compare):
+    def from_Compare(cls, node: ast.Compare, *args, **kwargs):
         if len(node.ops) != 1:
             raise NotImplementedError("Op count != 1", node.ops)
         if len(node.comparators) != 1:
@@ -410,10 +446,10 @@ class BinaryExpr(Expr):
 
         X = build_expr_list([node.left])[0]
         Y = build_expr_list([node_right])[0]
-        return cls(op, 0, X, Y)
+        return cls(op, 0, X, Y, *args, **kwargs)
 
     @classmethod
-    def from_BoolOp(cls, node: ast.BoolOp):
+    def from_BoolOp(cls, node: ast.BoolOp, *args, **kwargs):
         if len(node.values) != 2:
             raise NotImplementedError(f"Currently only supports BoolOps with 2 values")
         left, right = node.values
@@ -429,10 +465,10 @@ class BinaryExpr(Expr):
 
         X = build_expr_list([left])[0]
         Y = build_expr_list([right])[0]
-        return cls(op, 0, X, Y)
+        return cls(op, 0, X, Y, *args, **kwargs)
 
     @classmethod
-    def from_BinOp(cls, node: ast.BinOp):
+    def from_BinOp(cls, node: ast.BinOp, *args, **kwargs):
         py_op = node.op
         if isinstance(py_op, ast.Add):
             op = token.ADD
@@ -467,7 +503,12 @@ class BinaryExpr(Expr):
 
         X = build_expr_list([node.left])[0]
         Y = build_expr_list([node.right])[0]
-        return cls(op, 0, X, Y)
+        return cls(op, 0, X, Y, *args, **kwargs)
+
+    def _type(self):
+        if self.Op in COMPARISON_OPS or self.Op in BOOL_OPS:
+            return GoBasicType.BOOL
+        return self.X._type() or self.Y._type() or super()._type()
 
 
 class BlockStmt(Stmt):
@@ -497,17 +538,20 @@ class BlockStmt(Stmt):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_list(cls, node_list):
+    def from_list(cls, node_list, *args, **kwargs):
         stmts = build_stmt_list(node_list)
-        return cls(0, stmts, 0)
+        return cls(0, stmts, 0, *args, **kwargs)
 
 
 class Object(GoAST):
     """denoted object; or nil
 
     Objects An Object describes a named language entity such as a package, constant, type,
-    variable, function (incl. methods), or label.  The Data fields contains object-specific
-    data:  Kind    Data type         Data value Pkg     *Scope            package scope
+    variable, function (incl. methods), or label.
+
+    The Data fields contains object-specific data:
+    Kind    Data type         Data value
+    Pkg     *Scope            package scope
     Con     int               iota for the respective declaration
     """
     _fields = ("Data", "Decl", "Kind", "Name", "Type")
@@ -559,21 +603,22 @@ class Ident(Expr):
         self.Name = Name
         self.NamePos = NamePos
         self.Obj = Obj
+
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_Constant(cls, node: ast.Constant):
+    def from_Constant(cls, node: ast.Constant, *args, **kwargs):
         if isinstance(node.value, bool):
-            return cls.from_str(str(node.value).lower())
+            return cls.from_str(str(node.value).lower(), *args, **kwargs)
         raise NotImplementedError(node)
 
     @classmethod
-    def from_Name(cls, name: ast.Name):
-        return cls.from_str(name.id)
+    def from_Name(cls, name: ast.Name, *args, **kwargs):
+        return cls.from_str(name.id, *args, **kwargs)
 
     @classmethod
-    def from_str(cls, name: str):
-        return cls(name, 0, None)
+    def from_str(cls, name: str, *args, **kwargs):
+        return cls(name, 0, None, *args, **kwargs)
 
 
 class BranchStmt(Stmt):
@@ -624,6 +669,14 @@ class CallExpr(Expr):
         ellipsis = None
         fun = build_expr_list([node.func])[0]
         return cls(args, ellipsis, fun, 0, 0)
+
+    def _type(self):
+        if isinstance(self.Fun, Ident):
+            try:
+                return GoBasicType(self.Fun.Name)
+            except ValueError:
+                pass
+        return super()._type()
 
 
 class CaseClause(GoAST):
@@ -864,8 +917,8 @@ class Field(GoAST):
         if node.annotation else Ident.from_str("missing"))
 
     @classmethod
-    def from_Name(cls, node: ast.Name):
-        return cls(None, None, [], None, from_this(Ident, node))
+    def from_Name(cls, node: ast.Name, *args, **kwargs):
+        return cls(None, None, [], None, from_this(Ident, node), *args, **kwargs)
 
 
 class FieldList(GoAST):
@@ -958,6 +1011,28 @@ class Scope(GoAST):
             return False
         return obj.Name in self.Outer.Objects or self.Outer._in_outer_scope(obj)
 
+    def _get_type(self, x):
+        if isinstance(x, Ident):
+            obj_name = x.Name
+        elif isinstance(x, str):
+            obj_name = x
+        elif isinstance(x, Expr):
+            return x._type()
+        else:
+            raise ValueError(x)
+        return self._from_scope_or_outer(obj_name).Type
+
+    def _from_scope_or_outer(self, obj_name: str):
+        return self._from_scope(obj_name) or self._from_outer_scope(obj_name)
+
+    def _from_scope(self, obj_name: str):
+        return self.Objects.get(obj_name)
+
+    def _from_outer_scope(self, obj_name: str):
+        if not self.Outer:
+            return None
+        return self.Outer.Objects.get(obj_name) or self.Outer._from_outer_scope(obj_name)
+
     def Insert(self, obj: Object) -> Optional[Object]:
         """
         Insert attempts to insert a named object obj into the scope s.
@@ -1022,7 +1097,7 @@ class File(GoAST):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_Module(cls, node: ast.Module):
+    def from_Module(cls, node: ast.Module, *args, **kwargs):
         decls = []
         for decl_node in node.body:
             method = from_method(decl_node)
@@ -1032,7 +1107,7 @@ class File(GoAST):
                     break
             else:
                 raise ValueError(f"No Decl type in {_DECL_TYPES} with {method}")
-        return cls([], decls, None, [], Ident("main", 0, None), 1, None, [])
+        return cls([], decls, None, [], Ident("main", 0, None), 1, None, [], *args, **kwargs)
 
 
 class ForStmt(Stmt):
@@ -1086,10 +1161,10 @@ class FuncType(GoAST):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_FunctionDef(cls, node: ast.FunctionDef):
+    def from_FunctionDef(cls, node: ast.FunctionDef, *args, **kwargs):
         params = from_this(FieldList, node.args)
         results = from_this(FieldList, node.returns) if node.returns else None
-        return cls(0, params, results)
+        return cls(0, params, results, *args, **kwargs)
 
 
 class FuncDecl(Decl):
@@ -1116,22 +1191,22 @@ class FuncDecl(Decl):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_FunctionDef(cls, node: ast.FunctionDef):
+    def from_FunctionDef(cls, node: ast.FunctionDef, *args, **kwargs):
         body = from_this(BlockStmt, node.body)
         doc = None
         name = from_this(Ident, node.name)
         recv = None
         _type = from_this(FuncType, node)
-        return cls(body, doc, name, recv, _type)
+        return cls(body, doc, name, recv, _type, *args, **kwargs)
 
     @classmethod
-    def from_If(cls, node: ast.If):
+    def from_If(cls, node: ast.If, *args, **kwargs):
         body = from_this(BlockStmt, [node])
         doc = None
         name = from_this(Ident, "_")
         recv = None
         _type = FuncType(0, FieldList(0, [], 0), FieldList(0, [], 0))
-        return cls(body, doc, name, recv, _type)
+        return cls(body, doc, name, recv, _type, *args, **kwargs)
 
 
 class FuncLit(Expr):
@@ -1181,9 +1256,9 @@ class GenDecl(Decl):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_Import(cls, node: ast.Import):
+    def from_Import(cls, node: ast.Import, *args, **kwargs):
         return cls(None, 0, 0, [ImportSpec(None, None, 0, None, BasicLit(token.STRING, x.name, 0)) for x in node.names],
-                   token.IMPORT, 0)
+                   token.IMPORT, 0, *args, **kwargs)
 
 
 class GoStmt(Stmt):
@@ -1223,7 +1298,7 @@ class IfStmt(Stmt):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_If(cls, node: ast.If):
+    def from_If(cls, node: ast.If, *args, **kwargs):
         body = from_this(BlockStmt, node.body)
         cond = build_expr_list([node.test])[0]
         if len(node.orelse) == 1:
@@ -1233,7 +1308,7 @@ class IfStmt(Stmt):
         else:
             raise NotImplementedError(f"Multiple else: {node.orelse}")
         init = None
-        return cls(body, cond, _else, 0, init)
+        return cls(body, cond, _else, 0, init, *args, **kwargs)
 
 
 class IncDecStmt(Stmt):
@@ -1274,7 +1349,7 @@ class IndexExpr(Expr):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_Subscript(cls, node: ast.Subscript):
+    def from_Subscript(cls, node: ast.Subscript, *args, **kwargs):
         if isinstance(node.slice, ast.Constant):
             index = build_expr_list([node.slice.value])[0]
         elif isinstance(node.slice, ast.UnaryOp):
@@ -1282,7 +1357,18 @@ class IndexExpr(Expr):
         else:
             raise NotImplementedError((node, node.slice))
         x = build_expr_list([node.value])[0]
-        return cls(index, 0, 0, x)
+        return cls(index, 0, 0, x, *args, **kwargs)
+
+    def _type(self):
+        x_type = self.X._type()
+        index_type = self.Index._type()
+        # If we're taking a slice, the type doesn't change
+        if index_type != GoBasicType.INT:
+            return x_type or super()._type()
+        # If X is a string and we're indexing it, it's a byte
+        if x_type == GoBasicType.STRING:
+            return GoBasicType.BYTE
+        return super()._type()
 
 
 class InterfaceType(GoAST):
@@ -1324,9 +1410,9 @@ class LabeledStmt(Stmt):
     """position of ':'"""
     Colon: int
     Label: Ident
-    Stmt: Expr
+    Stmt: Stmt
 
-    def __init__(self, Colon: int, Label: Ident, Stmt: Expr,
+    def __init__(self, Colon: int, Label: Ident, Stmt: Stmt,
                  *args, **kwargs) -> None:
         self.Colon = Colon
         self.Label = Label
@@ -1417,13 +1503,13 @@ class RangeStmt(Stmt):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_For(cls, node: ast.For):
+    def from_For(cls, node: ast.For, *args, **kwargs):
         body = from_this(BlockStmt, node.body)
         tok = token.DEFINE
         key = Ident.from_str("_")
         value = build_expr_list([node.target])[0]
         x = build_expr_list([node.iter])[0]
-        return cls(Body=body, For=0, Key=key, Tok=tok, TokPos=0, Value=value, X=x)
+        return cls(Body=body, For=0, Key=key, Tok=tok, TokPos=0, Value=value, X=x, *args, **kwargs)
 
 
 class ReturnStmt(Stmt):
@@ -1442,8 +1528,8 @@ class ReturnStmt(Stmt):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_Return(cls, node: ast.Return):
-        return cls(build_expr_list([node.value]), 0)
+    def from_Return(cls, node: ast.Return, *args, **kwargs):
+        return cls(build_expr_list([node.value]), 0, *args, **kwargs)
 
 
 class SelectStmt(Stmt):
@@ -1475,10 +1561,10 @@ class SelectorExpr(Expr):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_Attribute(cls, node: ast.Attribute):
+    def from_Attribute(cls, node: ast.Attribute, *args, **kwargs):
         attr = build_expr_list([node.attr])[0]
         x = build_expr_list([node.value])[0]
-        return cls(Sel=attr, X=x)
+        return cls(Sel=attr, X=x, *args, **kwargs)
 
 
 class SendStmt(Stmt):
@@ -1529,14 +1615,14 @@ class SliceExpr(Expr):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_Subscript(cls, node: ast.Subscript):
+    def from_Subscript(cls, node: ast.Subscript, *args, **kwargs):
         if isinstance(node.slice, ast.Slice):
             low = build_expr_list([node.slice.lower])[0]
             high = build_expr_list([node.slice.upper])[0]
         else:
             raise NotImplementedError((node, node.slice))
         x = build_expr_list([node.value])[0]
-        return cls(high, 0, low, 0, None, False, x)
+        return cls(high, 0, low, 0, None, False, x, *args, **kwargs)
 
 
 class StarExpr(Expr):
@@ -1675,7 +1761,7 @@ class UnaryExpr(Expr):
     X: Expr
 
     @classmethod
-    def from_UnaryOp(cls, node: ast.UnaryOp):
+    def from_UnaryOp(cls, node: ast.UnaryOp, *args, **kwargs):
         if isinstance(node.op, ast.USub):
             op = token.SUB
         elif isinstance(node.op, ast.UAdd):
@@ -1685,7 +1771,7 @@ class UnaryExpr(Expr):
         else:
             raise NotImplementedError((node, node.op))
         X = build_expr_list([node.operand])[0]
-        return cls(op, 0, X)
+        return cls(op, 0, X, *args, **kwargs)
 
     def __init__(self, Op: int, OpPos: int, X: Expr, *args,
                  **kwargs) -> None:
@@ -1693,6 +1779,9 @@ class UnaryExpr(Expr):
         self.OpPos = OpPos
         self.X = X
         super().__init__(*args, **kwargs)
+
+    def _type(self):
+        return self.X._type() or super()._type()
 
 
 class ValueSpec(GoAST):
