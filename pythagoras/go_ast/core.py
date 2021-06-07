@@ -147,6 +147,7 @@ class token(Enum):
 
     # Placeholders
     PLACEHOLDER_POW = "**"
+    PLACEHOLDER_FLOOR_DIV = "//"
 
 
 COMPARISON_OPS = [token.GTR,
@@ -166,7 +167,7 @@ def token_type_to_go_type(t: token):
     if t == token.INT:
         return GoBasicType.INT
     if t == token.FLOAT:
-        return GoBasicType.FLOAT32
+        return GoBasicType.FLOAT64
     if t == token.STRING:
         return GoBasicType.STRING
     if t == token.IMAG:
@@ -476,7 +477,7 @@ class BinaryExpr(Expr):
             op = token.SUB
         elif isinstance(py_op, ast.Mult):
             op = token.MUL
-        elif isinstance(py_op, ast.Div) or isinstance(py_op, ast.FloorDiv):
+        elif isinstance(py_op, ast.Div):
             op = token.QUO
         elif isinstance(py_op, ast.Mod):
             op = token.REM
@@ -496,6 +497,8 @@ class BinaryExpr(Expr):
             op = token.SHR
         elif isinstance(py_op, ast.Pow):
             op = token.PLACEHOLDER_POW
+        elif isinstance(py_op, ast.FloorDiv):
+            op = token.PLACEHOLDER_FLOOR_DIV
         # elif isinstance(py_op, ...):
         #     op = token.AND_NOT
         else:

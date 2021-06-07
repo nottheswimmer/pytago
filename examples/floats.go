@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 func main() {
 	a := 7
@@ -9,7 +12,7 @@ func main() {
 	fmt.Println(float64(a) / float64(b))
 	fmt.Println(a / b)
 	fmt.Println(float64(a) / c)
-	fmt.Println(float64(a / int(c)))
+	fmt.Println(math.Floor(float64(a) / c))
 	fmt.Println(a + b)
 	fmt.Println(float64(a) + c)
 }

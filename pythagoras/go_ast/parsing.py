@@ -9,7 +9,7 @@ from pythagoras.go_ast import GoAST, ALL_TRANSFORMS, File, get_list_type
 def unparse(go_tree: GoAST, apply_transformations=True, debugging=True):
     if apply_transformations:
         clean_go_tree(go_tree)
-    # XXX: Probably vulnerable to RCE if you put this on a server.
+    # XXX: I can't promise this isn't vulnerable to RCE if you put this on a server.
     go_tree_string = dump(go_tree, indent='   ' if debugging else None)
     compilation_code = """\
     package main
@@ -52,13 +52,12 @@ def unparse(go_tree: GoAST, apply_transformations=True, debugging=True):
 
 def dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
     """
-    Return a formatted dump of the tree in node.  This is mainly useful for
-    debugging purposes.  If annotate_fields is true (by default),
+    Return a formatted dump of the tree in node. If annotate_fields is true (by default),
     the returned string will show the names and the values for fields.
     If annotate_fields is false, the result string will be more compact by
     omitting unambiguous field names.  Attributes such as line
     numbers and column offsets are not dumped by default.  If this is wanted,
-    include_attributes can be set to true.  If indent is a non-negative
+    include_attributes can be set to true. If indent is a non-negative
     integer or string, then the tree will be pretty-printed with that indent
     level. None (the default) selects the single line representation.
     """

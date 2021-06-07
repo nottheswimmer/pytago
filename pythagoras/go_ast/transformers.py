@@ -155,7 +155,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                 Decl=None,
                 Kind=ObjKind.Var,
                 Name=expr.Name,
-                Type=next((x._type() for x in node.Rhs), None),
+                Type=next((self.scope._get_type(x) for x in node.Rhs), None),
             )
             if not (self.scope._in_scope(obj) or self.scope._in_outer_scope(obj)):
                 self.scope.Insert(obj)
@@ -163,9 +163,6 @@ class NodeTransformerWithScope(ast.NodeTransformer):
         if not declared:
             node.Tok = token.ASSIGN
         return node
-
-
-
 
 class RangeRangeToFor(ast.NodeTransformer):
     def visit_RangeStmt(self, node: RangeStmt):
@@ -247,6 +244,16 @@ class NegativeIndexesSubtractFromLen(ast.NodeTransformer):
             )
         return node
 
+def wrap_with_call_to(args, wrap_with):
+    if not isinstance(args, list):  # args must be an iterable but if it's not a list convert it to one
+        args = list(args)
+    if "." in wrap_with:
+        x, sel = wrap_with.split(".")
+        func = SelectorExpr(X=Ident.from_str(x), Sel=Ident.from_str(sel))
+    else:
+        func = Ident.from_str(wrap_with)
+    return CallExpr(Args=args, Ellipsis=0, Fun=func, Lparen=0, Rparen=0)
+
 
 class StringifyStringMember(NodeTransformerWithScope):
     """
@@ -255,7 +262,58 @@ class StringifyStringMember(NodeTransformerWithScope):
     def visit_IndexExpr(self, node: IndexExpr):
         self.generic_visit(node)
         if self.scope._get_type(node.X) == GoBasicType.STRING and self.scope._get_type(node.Index) == GoBasicType.INT:
-            return CallExpr(Args=[node], Ellipsis=0, Fun=Ident.from_str(GoBasicType.STRING.value), Lparen=0, Rparen=0)
+            return wrap_with_call_to([node], GoBasicType.STRING.value)
+        return node
+
+def _type_score(typ):
+    return [
+        "uint",
+        "uintptr",
+        "bool",
+        "uint8",
+        "uint16",
+        "uint32",
+        "uint64",
+        "int8",
+        "int16",
+        "int32",
+        "int",
+        "int64",
+        "float32",
+        "float64",
+        "complex64",
+        "complex128",
+    ].index(str(typ).lower())
+
+def get_dominant_type(type_a, type_b):
+    # Pick a type to coerce things to
+    return max((type_a, type_b), key=_type_score)
+
+class HandleTypeCoercion(NodeTransformerWithScope):
+    def visit_BinaryExpr(self, node: BinaryExpr):
+        self.generic_visit(node)
+        x_type, y_type = self.scope._get_type(node.X), self.scope._get_type(node.Y)
+        if node.Op == token.PLACEHOLDER_FLOOR_DIV:
+            node.Op = token.QUO
+            if x_type != GoBasicType.INT or y_type != GoBasicType.INT:
+                if x_type == GoBasicType.INT:
+                    node.X = wrap_with_call_to([node.X], GoBasicType.FLOAT64.value)
+                if y_type == GoBasicType.INT:
+                    node.Y = wrap_with_call_to([node.Y], GoBasicType.FLOAT64.value)
+                return wrap_with_call_to([node], "math.Floor")
+        elif node.Op == token.QUO:
+            if x_type == GoBasicType.INT:
+                node.X = wrap_with_call_to([node.X], GoBasicType.FLOAT64.value)
+                x_type = GoBasicType.FLOAT64
+            if y_type == GoBasicType.INT:
+                node.Y = wrap_with_call_to([node.Y], GoBasicType.FLOAT64.value)
+                y_type = GoBasicType.FLOAT64
+        if x_type != y_type and x_type and y_type:
+            dominant_type = get_dominant_type(x_type, y_type)
+            if x_type != dominant_type:
+                node.X = wrap_with_call_to([node.X], dominant_type.value)
+            if y_type != dominant_type:
+                node.Y = wrap_with_call_to([node.Y], dominant_type.value)
         return node
 
 
@@ -271,5 +329,6 @@ ALL_TRANSFORMS = [
     RangeRangeToFor,
     UnpackRangeEnumerate,
     NegativeIndexesSubtractFromLen,
-    StringifyStringMember
+    StringifyStringMember,
+    HandleTypeCoercion
 ]
