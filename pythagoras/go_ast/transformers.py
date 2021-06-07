@@ -3,7 +3,7 @@ from _ast import AST
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
-    GoBasicType, Stmt
+    GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -316,6 +316,99 @@ class HandleTypeCoercion(NodeTransformerWithScope):
                 node.Y = wrap_with_call_to([node.Y], dominant_type.value)
         return node
 
+class RequestsToHTTP(NodeTransformerWithScope):
+    def visit_CallExpr(self, node: CallExpr):
+        self.generic_visit(node)
+        if isinstance(node.Fun, SelectorExpr):
+            if node.Fun.X.Name == "requests":
+                node.Fun.X.Name = "http"
+                node.Fun.Sel.Name = node.Fun.Sel.Name.title()
+        return node
+
+UNHANDLED_ERROR = 'UNHANDLED_ERROR'
+UNHANDLED_HTTP_ERROR = 'UNHANDLED_HTTP_ERROR'
+UNHANDLED_ERRORS = [UNHANDLED_ERROR, UNHANDLED_HTTP_ERROR]
+
+HTTP_RESPONSE_TYPE = "HTTP_RESPONSE_TYPE"
+class HTTPErrors(NodeTransformerWithScope):
+    def __init__(self):
+        super().__init__()
+
+    def visit_AssignStmt(self, node: AssignStmt):
+        node = super().visit_AssignStmt(node)
+        if len(node.Rhs) != 1:
+            return node
+        rhn = node.Rhs[0]
+        if isinstance(rhn, CallExpr) and \
+            isinstance(rhn.Fun, SelectorExpr) and \
+                isinstance(rhn.Fun.X, Ident) and rhn.Fun.X.Name == "http":
+            node.Lhs.append(Ident.from_str(UNHANDLED_HTTP_ERROR))
+            self.scope.Objects[node.Lhs[0].Name].Type = HTTP_RESPONSE_TYPE
+        self.generic_visit(node)
+        return node
+
+    def visit_SelectorExpr(self, node: SelectorExpr):
+        if self.scope._get_type(node.X) == HTTP_RESPONSE_TYPE:
+            if node.Sel.Name == "text":
+                return CallExpr([], 0, FuncLit(
+                    Body=BlockStmt(
+                        0, [
+                            AssignStmt([Ident.from_str("body"), Ident.from_str(UNHANDLED_ERROR)], [
+                                _call_from_name("ioutil.ReadAll", [_selector_from_name(f"{node.X.Name}.Body")])
+                            ], token.DEFINE, 0),
+                            ReturnStmt([wrap_with_call_to([Ident.from_str("body")], GoBasicType.STRING.value)], 0)
+                        ], 0
+                    ),
+                    Type=FuncType(Func=0,
+                                  Params=FieldList(0, [], 0),
+                                  Results=FieldList(0, [Field(None, None, None, None, Ident.from_str(GoBasicType.STRING.value))], 0),
+                    )
+                ), 0, 0)
+        return node
+
+def _selector_from_name(name: str):
+    parts = reversed(name.split("."))
+    parts = [Ident.from_str(x) for x in parts]
+    while len(parts) > 1:
+        X, Sel = parts.pop(), parts.pop()
+        parts.append(SelectorExpr(Sel=Sel, X=X))
+    return parts[0]
+
+def _call_from_name(name: str, args=tuple()):
+    args = list(args)
+    return CallExpr(Args=args, Fun=_selector_from_name(name),
+                    Ellipsis=0, Rparen=0, Lparen=0)
+
+class HandleUnhandledErrorsAndDefers(NodeTransformerWithScope):
+    def visit_BlockStmt(self, block_node: BlockStmt):
+        self.generic_visit(block_node)
+        for i, node in enumerate(block_node.List.copy()):
+            if not isinstance(node, AssignStmt):
+                continue
+            unhandled_error = False
+            unhandled_defers = []
+            for lhn in node.Lhs:
+                if isinstance(lhn, Ident) and lhn.Name in UNHANDLED_ERRORS:
+                    if lhn.Name == UNHANDLED_HTTP_ERROR:
+                        unhandled_defers.append(_call_from_name(f"{node.Lhs[0].Name}.Body.Close"))
+                    lhn.Name = "err"
+                    unhandled_error = True
+            pos = i
+            if unhandled_error:
+                pos += 1
+                block_node.List.insert(pos,
+                IfStmt(
+                    Body=BlockStmt(0, [ExprStmt(X=wrap_with_call_to([Ident.from_str("err")], "panic")) ], 0),
+                    Cond=BinaryExpr(X=Ident.from_str("err"), Op=token.NEQ, Y=Ident.from_str("nil"), OpPos=0),
+                    Else=None,
+                    If=0,
+                    Init=None,
+                ))
+            for j, deferred_call in enumerate(unhandled_defers):
+                pos += 1
+                block_node.List.insert(pos, DeferStmt(deferred_call, 0))
+
+        return block_node
 
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
@@ -330,5 +423,8 @@ ALL_TRANSFORMS = [
     UnpackRangeEnumerate,
     NegativeIndexesSubtractFromLen,
     StringifyStringMember,
-    HandleTypeCoercion
+    HandleTypeCoercion,
+    RequestsToHTTP,
+    HTTPErrors,
+    HandleUnhandledErrorsAndDefers
 ]
