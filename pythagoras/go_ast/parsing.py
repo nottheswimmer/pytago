@@ -48,7 +48,12 @@ def unparse(go_tree: GoAST, apply_transformations=True, debugging=True):
         print(code)
         print(f"=== End Code ===")
     os.remove(tmp_file)
-    return _gofmt(_goimport(code))
+    externally_formatted_code = _gofmt(_goimport(code))
+    if debugging:
+        print(f"=== Start Externally Formatted Code ===")
+        print(externally_formatted_code)
+        print(f"=== End Externally Formatted Code ===")
+    return externally_formatted_code
 
 def dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
     """

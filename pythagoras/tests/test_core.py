@@ -50,3 +50,9 @@ class Test(TestCase):
 
     def test_conditionals(self):
         assert_examples_match(self, "conditionals")
+
+    def test_ast(self):
+        assert_examples_match(self, "ast")
+
+    def test_fstrings(self):
+        assert_examples_match(self, "fstrings")

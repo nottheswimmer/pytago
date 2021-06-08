@@ -4,6 +4,8 @@ import json
 from enum import Enum
 from typing import List, Dict, Optional
 
+from pythagoras.go_ast import ast_snippets
+
 
 class ObjKind(Enum):
     Bad = "bad"
@@ -148,6 +150,8 @@ class token(Enum):
     # Placeholders
     PLACEHOLDER_POW = "**"
     PLACEHOLDER_FLOOR_DIV = "//"
+    PLACEHOLDER_IS = "is"
+    PLACEHOLDER_IS_NOT = "is not"
 
 
 COMPARISON_OPS = [token.GTR,
@@ -185,42 +189,35 @@ def from_this(cls, node):
     return getattr(cls, from_method(node))(node)
 
 
-def build_expr_list(nodes, *args, **kwargs):
-    expr_list = []
-    for expr_node in nodes:
-        method = from_method(expr_node)
+def _build_x_list(x_types: list, x_name: str, nodes, *args, **kwargs):
+    li = []
+    for x_node in nodes:
+        method = from_method(x_node)
         errors = []
-        for expr_type in _EXPR_TYPES:
-            if hasattr(expr_type, method):
+        for x_type in x_types:
+            if hasattr(x_type, method):
                 try:
-                    expr_list.append(getattr(expr_type, method)(expr_node, *args, **kwargs))
+                    li.append(getattr(x_type, method)(x_node, *args, **kwargs))
                 except NotImplementedError as e:
                     errors.append(e)
                     continue
                 break
         else:
-            raise ValueError(f"No _Expr type in {_EXPR_TYPES} with {method}: "
-                             f"\n```\n{ast.unparse(expr_node) if expr_node else None}\n```") from Exception(errors)
-    return expr_list
+            raise ValueError(f"No {x_name} type in {x_types} with {method}: "
+                             f"\n```\n{ast.unparse(x_node) if x_node else None}\n```") from Exception(errors)
+    return li
+
+
+def build_expr_list(nodes, *args, **kwargs):
+    return _build_x_list(_EXPR_TYPES, "Expr", nodes, *args, **kwargs)
 
 
 def build_stmt_list(nodes):
-    stmt_list = []
-    for stmt_node in nodes:
-        method = from_method(stmt_node)
-        errors = []
-        for stmt_type in _STMT_TYPES:
-            if hasattr(stmt_type, method):
-                try:
-                    stmt_list.append(getattr(stmt_type, method)(stmt_node))
-                except NotImplementedError as e:
-                    errors.append(e)
-                    continue
-                break
-        else:
-            raise ValueError(f"No suitable Stmt type in {_STMT_TYPES} with {method}: "
-                             f"\n```\n{ast.unparse(stmt_node)}\n```") from Exception(errors)
-    return stmt_list
+    return _build_x_list(_STMT_TYPES, "Stmt", nodes)
+
+
+def build_decl_list(nodes):
+    return _build_x_list(_DECL_TYPES, "Decl", nodes)
 
 
 class GoAST(ast.AST):
@@ -258,8 +255,11 @@ class ArrayType(GoAST):
     """Ellipsis node for [...]T array types, nil for slice types"""
     Len: Expr
 
-    def __init__(self, Elt: Expr, Lbrack: int,
-                 Len: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Elt: Expr = None,
+                 Lbrack: int = 0,
+                 Len: Expr = None,
+                 *args, **kwargs) -> None:
         self.Elt = Elt
         self.Lbrack = Lbrack
         self.Len = Len
@@ -286,14 +286,14 @@ class AssignStmt(Stmt):
     TokPos: int
 
     def __init__(self,
-                 Lhs: List[Expr],
-                 Rhs: List[Expr],
-                 Tok: token,
-                 TokPos: int, *args,
-                 **kwargs) -> None:
-        self.Lhs = Lhs
+                 Lhs: List[Expr] = None,
+                 Rhs: List[Expr] = None,
+                 Tok: token = None,
+                 TokPos: int = 0,
+                 *args, **kwargs) -> None:
+        self.Lhs = Lhs or []
         set_list_type(self.Lhs, "ast.Expr")
-        self.Rhs = Rhs
+        self.Rhs = Rhs or []
         set_list_type(self.Rhs, "ast.Expr")
         self.Tok = Tok
         self.TokPos = TokPos
@@ -311,9 +311,39 @@ class AssignStmt(Stmt):
         rhs = build_expr_list([node.value])
         if isinstance(node.op, ast.Add):
             op = token.ADD_ASSIGN
+        elif isinstance(node.op, ast.Sub):
+            op = token.SUB_ASSIGN
+        elif isinstance(node.op, ast.Mult):
+            op = token.MUL_ASSIGN
+        elif isinstance(node.op, ast.Div):
+            op = token.QUO_ASSIGN
+        elif isinstance(node.op, ast.Mod):
+            op = token.REM_ASSIGN
+        elif isinstance(node.op, ast.BitAnd):
+            op = token.AND_ASSIGN
+        elif isinstance(node.op, ast.BitOr):
+            op = token.OR_ASSIGN
+        elif isinstance(node.op, ast.BitXor):
+            op = token.XOR_ASSIGN
+        elif isinstance(node.op, ast.LShift):
+            op = token.SHL_ASSIGN
+        elif isinstance(node.op, ast.RShift):
+            op = token.SHR_ASSIGN
+        # elif isinstance(node.op, ast.FloorDiv):  # TODO
+        #     ...
+        # elif isinstance(node.op, ast.Pow):  # TODO
+        #     ...
+        # elif isinstance(node.op, ...):
+        #     op = token.AND_NOT_ASSIGN = "&^="
         else:
             raise NotImplementedError(node.op)
         return cls(lhs, rhs, op, 0, *args, **kwargs)
+
+    @classmethod
+    def from_FunctionDef(cls, node: ast.FunctionDef, *args, **kwargs):
+        rhs = build_expr_list([node])
+        lhs = build_expr_list([node.name], _type_help=rhs[0]._type())
+        return cls(lhs, rhs, token.DEFINE, 0, *args, **kwargs)
 
 
 class BadDecl(Decl):
@@ -324,7 +354,10 @@ class BadDecl(Decl):
     From: int
     To: int
 
-    def __init__(self, From: int, To: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 From: int = 0,
+                 To: int = 0,
+                 *args, **kwargs) -> None:
         self.From = From
         self.To = To
         super().__init__(*args, **kwargs)
@@ -338,7 +371,10 @@ class BadExpr(Expr):
     From: int
     To: int
 
-    def __init__(self, From: int, To: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 From: int = 0,
+                 To: int = 0,
+                 *args, **kwargs) -> None:
         self.From = From
         self.To = To
         super().__init__(*args, **kwargs)
@@ -352,7 +388,10 @@ class BadStmt(Stmt):
     From: int
     To: int
 
-    def __init__(self, From: int, To: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 From: int = 0,
+                 To: int = 0,
+                 *args, **kwargs) -> None:
         self.From = From
         self.To = To
         super().__init__(*args, **kwargs)
@@ -373,7 +412,11 @@ class BasicLit(Expr):
     """literal position"""
     ValuePos: int
 
-    def __init__(self, Kind: token, Value: str, ValuePos: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 Kind: token = None,
+                 Value: str = None,
+                 ValuePos: int = 0,
+                 *args, **kwargs) -> None:
         self.Kind = Kind
         self.Value = json.dumps(Value)
         self.ValuePos = ValuePos
@@ -414,8 +457,12 @@ class BinaryExpr(Expr):
     """right operand"""
     Y: Expr
 
-    def __init__(self, Op: token, OpPos: int, X: Expr,
-                 Y: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Op: token = None,
+                 OpPos: int = 0,
+                 X: Expr = None,
+                 Y: Expr = None,
+                 *args, **kwargs) -> None:
         self.Op = Op
         self.OpPos = OpPos
         self.X = X
@@ -442,6 +489,10 @@ class BinaryExpr(Expr):
             op = token.EQL
         elif isinstance(py_op, ast.NotEq):
             op = token.NEQ
+        elif isinstance(py_op, ast.Is):
+            op = token.PLACEHOLDER_IS
+        elif isinstance(py_op, ast.IsNot):
+            op = token.PLACEHOLDER_IS_NOT
         else:
             raise NotImplementedError(f"Unimplemented comparator: {py_op}")
 
@@ -532,10 +583,13 @@ class BlockStmt(Stmt):
     """position of '}', if any (may be absent due to syntax error)"""
     Rbrace: int
 
-    def __init__(self, Lbrace: int, List: List[Stmt],
-                 Rbrace: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 Lbrace: int = 0,
+                 List: List[Stmt] = None,
+                 Rbrace: int = 0,
+                 *args, **kwargs) -> None:
         self.Lbrace = Lbrace
-        self.List = List
+        self.List = List or []
         set_list_type(self.List, "ast.Stmt")
         self.Rbrace = Rbrace
         super().__init__(*args, **kwargs)
@@ -568,9 +622,13 @@ class Object(GoAST):
     """placeholder for type information; may be nil"""
     Type: Expr
 
-    def __init__(self, Data: Expr,
-                 Decl: Decl, Kind: ObjKind, Name: str,
-                 Type: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Data: Expr = None,
+                 Decl: Decl = None,
+                 Kind: ObjKind = None,
+                 Name: str = None,
+                 Type: Expr = None,
+                 *args, **kwargs) -> None:
         self.Data = Data
         self.Decl = Decl
         self.Kind = Kind
@@ -602,7 +660,11 @@ class Ident(Expr):
     """denoted object; or nil"""
     Obj: Object
 
-    def __init__(self, Name: str, NamePos: int, Obj: Object, *args, **kwargs) -> None:
+    def __init__(self,
+                 Name: str = None,
+                 NamePos: int = 0,
+                 Obj: Object = None,
+                 *args, **kwargs) -> None:
         self.Name = Name
         self.NamePos = NamePos
         self.Obj = Obj
@@ -613,6 +675,8 @@ class Ident(Expr):
     def from_Constant(cls, node: ast.Constant, *args, **kwargs):
         if isinstance(node.value, bool):
             return cls.from_str(str(node.value).lower(), *args, **kwargs)
+        if node.value is None:
+            return cls.from_str("nil", *args, **kwargs)
         raise NotImplementedError(node)
 
     @classmethod
@@ -634,7 +698,11 @@ class BranchStmt(Stmt):
     """position of Tok"""
     TokPos: int
 
-    def __init__(self, Label: Ident, Tok: token, TokPos: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 Label: Ident = None,
+                 Tok: token = None,
+                 TokPos: int = 0,
+                 *args, **kwargs) -> None:
         self.Label = Label
         self.Tok = Tok
         self.TokPos = TokPos
@@ -655,10 +723,14 @@ class CallExpr(Expr):
     """position of ')'"""
     Rparen: int
 
-    def __init__(self, Args: List[Expr], Ellipsis: int,
-                 Fun: Expr, Lparen: int, Rparen: int, *args,
-                 **kwargs) -> None:
-        self.Args = Args
+    def __init__(self,
+                 Args: List[Expr] = None,
+                 Ellipsis: int = 0,
+                 Fun: Expr = None,
+                 Lparen: int = 0,
+                 Rparen: int = 0,
+                 *args, **kwargs) -> None:
+        self.Args = Args or []
         set_list_type(Args, "ast.Expr")
         self.Ellipsis = Ellipsis
         self.Fun = Fun
@@ -671,7 +743,33 @@ class CallExpr(Expr):
         args = build_expr_list(node.args)
         ellipsis = None
         fun = build_expr_list([node.func])[0]
-        return cls(args, ellipsis, fun, 0, 0)
+        return cls(args, ellipsis, fun)
+
+    @classmethod
+    def from_JoinedStr(cls, node: ast.JoinedStr):
+        template_string = ""
+        value_elements: list[KeyValueExpr] = []
+        used_keys = set()
+        expr_num = 1
+        for value in node.values:
+            if isinstance(value, ast.Constant):
+                template_string += value.value
+            elif isinstance(value, ast.FormattedValue):
+                # TODO: Technically, there's still a name collision here if a value like "expr1" exists later
+                fval = build_expr_list([value.value])[0]
+                if isinstance(fval, Ident):
+                    key = fval.Name
+                else:
+                    key = f"expr{expr_num}"
+                    while key in used_keys:
+                        expr_num += 1
+                        f"expr{expr_num}"
+                template_string += "{{.%s}}" % key
+                used_keys.add(key)
+                value_elements.append(KeyValueExpr(Key=BasicLit(token.STRING, key), Value=fval))
+            else:
+                raise NotImplementedError(value)
+        return ast_snippets.fstring(template_string, value_elements)
 
     def _type(self):
         if isinstance(self.Fun, Ident):
@@ -694,12 +792,16 @@ class CaseClause(GoAST):
     """list of expressions or types; nil means default case"""
     List: List[Expr]
 
-    def __init__(self, Body: List[Expr], Case: int, Colon: int,
-                 List: List[Expr], *args, **kwargs) -> None:
-        self.Body = Body
+    def __init__(self,
+                 Body: List[Expr] = None,
+                 Case: int = 0,
+                 Colon: int = 0,
+                 List: List[Expr] = None,
+                 *args, **kwargs) -> None:
+        self.Body = Body or []
         self.Case = Case
         self.Colon = Colon
-        self.List = List
+        self.List = List or []
         super().__init__(*args, **kwargs)
 
 
@@ -715,8 +817,12 @@ class ChanType(GoAST):
     """value type"""
     Value: Expr
 
-    def __init__(self, Arrow: int, Begin: int, Dir: int,
-                 Value: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Arrow: int = 0,
+                 Begin: int = 0,
+                 Dir: int = 0,
+                 Value: Expr = None,
+                 *args, **kwargs) -> None:
         self.Arrow = Arrow
         self.Begin = Begin
         self.Dir = Dir
@@ -736,9 +842,13 @@ class CommClause(GoAST):
     """send or receive statement; nil means default case"""
     Comm: Expr
 
-    def __init__(self, Body: List[Expr], Case: int, Colon: int,
-                 Comm: Expr, *args, **kwargs) -> None:
-        self.Body = Body
+    def __init__(self,
+                 Body: List[Expr] = None,
+                 Case: int = 0,
+                 Colon: int = 0,
+                 Comm: Expr = None,
+                 *args, **kwargs) -> None:
+        self.Body = Body or []
         self.Case = Case
         self.Colon = Colon
         self.Comm = Comm
@@ -753,7 +863,10 @@ class Comment(GoAST):
     """comment text (excluding '⧵n' for //-style comments)"""
     Text: str
 
-    def __init__(self, Slash: int, Text: str, *args, **kwargs) -> None:
+    def __init__(self,
+                 Slash: int = 0,
+                 Text: str = None,
+                 *args, **kwargs) -> None:
         self.Slash = Slash
         self.Text = Text
         super().__init__(*args, **kwargs)
@@ -771,8 +884,10 @@ class CommentGroup(GoAST):
     """len(List) > 0"""
     List: List[Comment]
 
-    def __init__(self, List: List[Comment], *args, **kwargs) -> None:
-        self.List = List
+    def __init__(self,
+                 List: List[Comment] = None,
+                 *args, **kwargs) -> None:
+        self.List = List or []
         super().__init__(*args, **kwargs)
 
 
@@ -790,10 +905,14 @@ class CompositeLit(Expr):
     """literal type; or nil"""
     Type: Expr
 
-    def __init__(self, Elts: List[Expr], Incomplete: bool,
-                 Lbrace: int, Rbrace: int, Type: Expr, *args,
-                 **kwargs) -> None:
-        self.Elts = Elts
+    def __init__(self,
+                 Elts: List[Expr] = None,
+                 Incomplete: bool = False,
+                 Lbrace: int = 0,
+                 Rbrace: int = 0,
+                 Type: Expr = None,
+                 *args, **kwargs) -> None:
+        self.Elts = Elts or []
         set_list_type(Elts, 'ast.Expr')
         self.Incomplete = Incomplete
         self.Lbrace = Lbrace
@@ -802,16 +921,16 @@ class CompositeLit(Expr):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_List(cls, node: ast.List):
+    def from_List(cls, node: ast.List, *args, **kwargs):
         elts = build_expr_list(node.elts)
         typ = from_this(ArrayType, elts[0] if elts else None)
-        return cls(elts, False, 0, 0, typ)
+        return cls(elts, False, 0, 0, typ, *args, **kwargs)
 
     @classmethod
-    def from_Tuple(cls, node: ast.Tuple):
+    def from_Tuple(cls, node: ast.Tuple, *args, **kwargs):
         elts = build_expr_list(node.elts)
         typ = from_this(ArrayType, elts[0] if elts else None)
-        return cls(elts, False, 0, 0, typ)
+        return cls(elts, False, 0, 0, typ, *args, **kwargs)
 
 
 class DeclStmt(Stmt):
@@ -820,7 +939,9 @@ class DeclStmt(Stmt):
     """*GenDecl with CONST, TYPE, or VAR token"""
     Decl: Decl
 
-    def __init__(self, Decl: Decl, *args, **kwargs) -> None:
+    def __init__(self,
+                 Decl: Decl = None,
+                 *args, **kwargs) -> None:
         self.Decl = Decl
         super().__init__(*args, **kwargs)
 
@@ -832,7 +953,10 @@ class DeferStmt(Stmt):
     """position of 'defer' keyword"""
     Defer: int
 
-    def __init__(self, Call: CallExpr, Defer: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 Call: CallExpr = None,
+                 Defer: int = 0,
+                 *args, **kwargs) -> None:
         self.Call = Call
         self.Defer = Defer
         super().__init__(*args, **kwargs)
@@ -848,9 +972,11 @@ class Ellipsis(Expr):
     """ellipsis element type (parameter lists only); or nil"""
     Elt: Expr
 
-    def __init__(self, _Ellipsis: int, Elt: Expr, *args,
-                 **kwargs) -> None:
-        self.Ellipsis = _Ellipsis
+    def __init__(self,
+                 Ellipsis: int = None,
+                 Elt: Expr = None,
+                 *args, **kwargs) -> None:
+        self.Ellipsis = Ellipsis
         self.Elt = Elt
         super().__init__(*args, **kwargs)
 
@@ -865,7 +991,10 @@ class EmptyStmt(Stmt):
     """position of following ';'"""
     Semicolon: int
 
-    def __init__(self, Implicit: bool, Semicolon: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 Implicit: bool = False,
+                 Semicolon: int = 0,
+                 *args, **kwargs) -> None:
         self.Implicit = Implicit
         self.Semicolon = Semicolon
         super().__init__(*args, **kwargs)
@@ -877,7 +1006,9 @@ class ExprStmt(Stmt):
     """expression"""
     X: Expr
 
-    def __init__(self, X: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 X: Expr = None,
+                 *args, **kwargs) -> None:
         self.X = X
         super().__init__(*args, **kwargs)
 
@@ -904,12 +1035,17 @@ class Field(GoAST):
     """field/method/parameter type"""
     Type: Expr
 
-    def __init__(self, Comment: CommentGroup, Doc: CommentGroup, Names: List[Ident], Tag: BasicLit,
-                 Type: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Comment: CommentGroup = None,
+                 Doc: CommentGroup = None,
+                 Names: List[Ident] = None,
+                 Tag: BasicLit = None,
+                 Type: Expr = None,
+                 *args, **kwargs) -> None:
         self.Comment = Comment
         self.Doc = Doc
-        self.Names = Names
-        set_list_type(Names, "*ast.Ident")
+        self.Names = Names or []
+        set_list_type(Names, '*ast.Ident')
         self.Tag = Tag
         self.Type = Type
         super().__init__(*args, **kwargs)
@@ -945,9 +1081,13 @@ class FieldList(GoAST):
     """position of opening parenthesis/brace, if any"""
     Opening: int
 
-    def __init__(self, Closing: int, List: List[Field], Opening: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 Closing: int = 0,
+                 List: List[Field] = None,
+                 Opening: int = 0,
+                 *args, **kwargs) -> None:
         self.Closing = Closing
-        self.List = List
+        self.List = List or []
         set_list_type(self.List, "*ast.Field")
         self.Opening = Opening
         super().__init__(*args, **kwargs)
@@ -957,11 +1097,11 @@ class FieldList(GoAST):
         fields = []
         for arg in node.args:
             fields.append(from_this(Field, arg))
-        return cls(0, fields, 0)
+        return cls(0, fields)
 
     @classmethod
     def from_Name(cls, node: ast.Name):
-        return cls(0, [from_this(Field, node)], 0)
+        return cls(0, [from_this(Field, node)])
 
 
 class ImportSpec(GoAST):
@@ -978,8 +1118,13 @@ class ImportSpec(GoAST):
     """import path"""
     Path: BasicLit
 
-    def __init__(self, Comment: CommentGroup, Doc: CommentGroup, EndPos: int, Name: Ident, Path: BasicLit, *args,
-                 **kwargs) -> None:
+    def __init__(self,
+                 Comment: CommentGroup = None,
+                 Doc: CommentGroup = None,
+                 EndPos: int = 0,
+                 Name: Ident = None,
+                 Path: BasicLit = None,
+                 *args, **kwargs) -> None:
         self.Comment = Comment
         self.Doc = Doc
         self.EndPos = EndPos
@@ -1001,8 +1146,11 @@ class Scope(GoAST):
     Objects: Dict[str, Object]
     Outer: 'Scope'
 
-    def __init__(self, Objects: Dict[str, Object], Outer: 'Scope', *args, **kwargs) -> None:
-        self.Objects = Objects
+    def __init__(self,
+                 Objects: Dict[str, Object] = None,
+                 Outer: 'Scope' = None,
+                 *args, **kwargs) -> None:
+        self.Objects = Objects or {}
         self.Outer = Outer
         super().__init__(*args, **kwargs)
 
@@ -1083,36 +1231,34 @@ class File(GoAST):
     """unresolved identifiers in this file"""
     Unresolved: List[Ident]
 
-    def __init__(self, Comments: List[CommentGroup],
-                 Decls: List[Expr], Doc: CommentGroup,
-                 Imports: List[ImportSpec], Name: Ident, Package: int, Scope: Scope, Unresolved: List[Ident], *args,
-                 **kwargs) -> None:
-        self.Comments = Comments
+    def __init__(self,
+                 Comments: List[CommentGroup] = None,
+                 Decls: List[Expr] = None,
+                 Doc: CommentGroup = None,
+                 Imports: List[ImportSpec] = None,
+                 Name: Ident = None,
+                 Package: int = 1,
+                 Scope: Scope = None,
+                 Unresolved: List[Ident] = None,
+                 *args, **kwargs) -> None:
+        self.Comments = Comments or []
         set_list_type(self.Comments, "ast.CommentGroup")
-        self.Decls = Decls
+        self.Decls = Decls or []
         set_list_type(self.Decls, "ast.Decl")
         self.Doc = Doc
-        self.Imports = Imports
+        self.Imports = Imports or []
         set_list_type(self.Imports, "*ast.ImportSpec")
         self.Name = Name
         self.Package = Package
         self.Scope = Scope
-        self.Unresolved = Unresolved
+        self.Unresolved = Unresolved or []
         set_list_type(self.Unresolved, "ast.Ident")
         super().__init__(*args, **kwargs)
 
     @classmethod
     def from_Module(cls, node: ast.Module, *args, **kwargs):
-        decls = []
-        for decl_node in node.body:
-            method = from_method(decl_node)
-            for decl_type in _DECL_TYPES:
-                if hasattr(decl_type, method):
-                    decls.append(getattr(decl_type, method)(decl_node))
-                    break
-            else:
-                raise ValueError(f"No Decl type in {_DECL_TYPES} with {method}")
-        return cls([], decls, None, [], Ident("main", 0, None), 1, None, [], *args, **kwargs)
+        decls = build_decl_list(node.body)
+        return cls([], decls, None, [], Ident("main"), 1, None, [], *args, **kwargs)
 
 
 class ForStmt(Stmt):
@@ -1128,19 +1274,19 @@ class ForStmt(Stmt):
     """post iteration statement; or nil"""
     Post: Expr
 
-    def __init__(self, Body: BlockStmt, Cond: Expr, For: int,
-                 Init: Expr,
-                 Post: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Body: BlockStmt = None,
+                 Cond: Expr = None,
+                 For: int = 0,
+                 Init: Expr = None,
+                 Post: Expr = None,
+                 *args, **kwargs) -> None:
         self.Body = Body
         self.Cond = Cond
         self.For = For
         self.Init = Init
         self.Post = Post
         super().__init__(*args, **kwargs)
-
-    # @classmethod
-    # def from_For(cls, node: ast.For):
-    #     return cls(Body=0, Cond=None, For=0, Init=0, Post=0)
 
 
 class FuncType(GoAST):
@@ -1159,7 +1305,11 @@ class FuncType(GoAST):
     """(outgoing) results; or nil"""
     Results: FieldList
 
-    def __init__(self, Func: int, Params: FieldList, Results: FieldList, *args, **kwargs) -> None:
+    def __init__(self,
+                 Func: int = 0,
+                 Params: FieldList = None,
+                 Results: FieldList = None,
+                 *args, **kwargs) -> None:
         self.Func = Func
         self.Params = Params
         self.Results = Results
@@ -1186,8 +1336,13 @@ class FuncDecl(Decl):
     """function signature: parameters, results, and position of 'func' keyword"""
     Type: FuncType
 
-    def __init__(self, Body: BlockStmt, Doc: CommentGroup, Name: Ident, Recv: FieldList, Type: FuncType, *args,
-                 **kwargs) -> None:
+    def __init__(self,
+                 Body: BlockStmt = None,
+                 Doc: CommentGroup = None,
+                 Name: Ident = None,
+                 Recv: FieldList = None,
+                 Type: FuncType = None,
+                 *args, **kwargs) -> None:
         self.Body = Body
         self.Doc = Doc
         self.Name = Name
@@ -1204,14 +1359,23 @@ class FuncDecl(Decl):
         _type = from_this(FuncType, node)
         return cls(body, doc, name, recv, _type, *args, **kwargs)
 
+    # All of these simply throw the code in a function titled _ to be swept up later
     @classmethod
-    def from_If(cls, node: ast.If, *args, **kwargs):
+    def from_BadDecl(cls, node: ast.AST, *args, **kwargs):
         body = from_this(BlockStmt, [node])
         doc = None
         name = from_this(Ident, "_")
         recv = None
-        _type = FuncType(0, FieldList(0, [], 0), FieldList(0, [], 0))
+        _type = FuncType(0, FieldList(0, []), FieldList(0, []))
         return cls(body, doc, name, recv, _type, *args, **kwargs)
+
+    @classmethod
+    def from_If(cls, node: ast.If, *args, **kwargs):
+        return cls.from_BadDecl(node, *args, **kwargs)
+
+    @classmethod
+    def from_Expr(cls, node: ast.If, *args, **kwargs):
+        return cls.from_BadDecl(node, *args, **kwargs)
 
 
 class FuncLit(Expr):
@@ -1222,10 +1386,19 @@ class FuncLit(Expr):
     """function type"""
     Type: FuncType
 
-    def __init__(self, Body: BlockStmt, Type: FuncType, *args, **kwargs) -> None:
+    def __init__(self,
+                 Body: BlockStmt = None,
+                 Type: FuncType = None,
+                 *args, **kwargs) -> None:
         self.Body = Body
         self.Type = Type
         super().__init__(*args, **kwargs)
+
+    @classmethod
+    def from_FunctionDef(cls, node: ast.FunctionDef, *args, **kwargs):
+        body = from_this(BlockStmt, node.body)
+        _type = from_this(FuncType, node)
+        return cls(body, _type, *args, **kwargs)
 
 
 class GenDecl(Decl):
@@ -1248,13 +1421,18 @@ class GenDecl(Decl):
     """position of Tok"""
     TokPos: int
 
-    def __init__(self, Doc: CommentGroup, Lparen: int, Rparen: int,
-                 Specs: List[Expr], Tok: token, TokPos: int,
+    def __init__(self,
+                 Doc: CommentGroup = None,
+                 Lparen: int = 0,
+                 Rparen: int = 0,
+                 Specs: List[Expr] = None,
+                 Tok: token = 0,
+                 TokPos: int = 0,
                  *args, **kwargs) -> None:
         self.Doc = Doc
         self.Lparen = Lparen
         self.Rparen = Rparen
-        self.Specs = Specs
+        self.Specs = Specs or []
         set_list_type(Specs, "ast.Spec")
         self.Tok = Tok
         self.TokPos = TokPos
@@ -1262,8 +1440,23 @@ class GenDecl(Decl):
 
     @classmethod
     def from_Import(cls, node: ast.Import, *args, **kwargs):
-        return cls(None, 0, 0, [ImportSpec(None, None, 0, None, BasicLit(token.STRING, x.name, 0)) for x in node.names],
+
+        return cls(None, 0, 0, [ImportSpec(None, None, 0, from_this(Ident, x.asname) if x.asname else None,
+                                           BasicLit(token.STRING, x.name, 0)) for x in node.names],
                    token.IMPORT, 0, *args, **kwargs)
+
+    @classmethod
+    def from_ImportFrom(cls, node: ast.ImportFrom, *args, **kwargs):
+        specs = []
+        for x in node.names:
+            name = "." if x.name == "*" else x.asname
+            name = from_this(Ident, name) if name else None
+            if x.name == "*":
+                path_str = '/'.join([node.module, x.name])
+            else:
+                path_str = node.module
+            specs.append(ImportSpec(None, None, 0, name, Path=BasicLit(token.STRING, path_str, 0)))
+        return cls(None, 0, 0, specs, token.IMPORT, 0, *args, **kwargs)
 
 
 class GoStmt(Stmt):
@@ -1273,7 +1466,10 @@ class GoStmt(Stmt):
     """position of 'go' keyword"""
     Go: int
 
-    def __init__(self, Call: CallExpr, Go: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 Call: CallExpr = None,
+                 Go: int = 0,
+                 *args, **kwargs) -> None:
         self.Call = Call
         self.Go = Go
         super().__init__(*args, **kwargs)
@@ -1292,9 +1488,13 @@ class IfStmt(Stmt):
     """initialization statement; or nil"""
     Init: Expr
 
-    def __init__(self, Body: BlockStmt, Cond: Expr,
-                 Else: Stmt, If: int,
-                 Init: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Body: BlockStmt = None,
+                 Cond: Expr = None,
+                 Else: Stmt = None,
+                 If: int = 0,
+                 Init: Expr = None,
+                 *args, **kwargs) -> None:
         self.Body = Body
         self.Cond = Cond
         self.Else = Else
@@ -1315,6 +1515,15 @@ class IfStmt(Stmt):
         init = None
         return cls(body, cond, _else, 0, init, *args, **kwargs)
 
+    @classmethod
+    def from_Assert(cls, node: ast.Assert, *args, **kwargs):
+        body = BlockStmt(List=[
+            ExprStmt(CallExpr(Args=[BasicLit(Kind=token.STRING, Value=node.msg or "AssertionError")], Fun=Ident.from_str("panic")))])
+        cond = build_expr_list([node.test])[0]
+        _else = None
+        init = None
+        return cls(body, cond, _else, 0, init, *args, **kwargs)
+
 
 class IncDecStmt(Stmt):
     """An IncDecStmt node represents an increment or decrement statement."""
@@ -1325,8 +1534,11 @@ class IncDecStmt(Stmt):
     TokPos: int
     X: Expr
 
-    def __init__(self, Tok: token, TokPos: int, X: Expr, *args,
-                 **kwargs) -> None:
+    def __init__(self,
+                 Tok: token = None,
+                 TokPos: int = 0,
+                 X: Expr = None,
+                 *args, **kwargs) -> None:
         self.Tok = Tok
         self.TokPos = TokPos
         self.X = X
@@ -1345,8 +1557,12 @@ class IndexExpr(Expr):
     """expression"""
     X: Expr
 
-    def __init__(self, Index: Expr, Lbrack: int, Rbrack: int,
-                 X: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Index: Expr = None,
+                 Lbrack: int = 0,
+                 Rbrack: int = 0,
+                 X: Expr = None,
+                 *args, **kwargs) -> None:
         self.Index = Index
         self.Lbrack = Lbrack
         self.Rbrack = Rbrack
@@ -1386,7 +1602,11 @@ class InterfaceType(GoAST):
     """list of methods"""
     Methods: FieldList
 
-    def __init__(self, Incomplete: bool, Interface: int, Methods: FieldList, *args, **kwargs) -> None:
+    def __init__(self,
+                 Incomplete: bool=False,
+                 Interface: int=0,
+                 Methods: FieldList=None,
+                 *args, **kwargs) -> None:
         self.Incomplete = Incomplete
         self.Interface = Interface
         self.Methods = Methods
@@ -1401,8 +1621,11 @@ class KeyValueExpr(Expr):
     Key: Expr
     Value: Expr
 
-    def __init__(self, Colon: int, Key: Expr,
-                 Value: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Colon: int = 0,
+                 Key: Expr = None,
+                 Value: Expr = None,
+                 *args, **kwargs) -> None:
         self.Colon = Colon
         self.Key = Key
         self.Value = Value
@@ -1417,7 +1640,10 @@ class LabeledStmt(Stmt):
     Label: Ident
     Stmt: Stmt
 
-    def __init__(self, Colon: int, Label: Ident, Stmt: Stmt,
+    def __init__(self,
+                 Colon: int = 0,
+                 Label: Ident = None,
+                 Stmt: Stmt = None,
                  *args, **kwargs) -> None:
         self.Colon = Colon
         self.Label = Label
@@ -1433,8 +1659,11 @@ class MapType(GoAST):
     Map: int
     Value: Expr
 
-    def __init__(self, Key: Expr, Map: int,
-                 Value: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Key: Expr = None,
+                 Map: int = 0,
+                 Value: Expr = None,
+                 *args, **kwargs) -> None:
         self.Key = Key
         self.Map = Map
         self.Value = Value
@@ -1453,10 +1682,14 @@ class Package(GoAST):
     """package scope across all files"""
     Scope: Scope
 
-    def __init__(self, Files: Dict[str, File], Imports: Dict[str, Object], Name: str, Scope: Scope, *args,
-                 **kwargs) -> None:
-        self.Files = Files
-        self.Imports = Imports
+    def __init__(self,
+                 Files: Dict[str, File] = None,
+                 Imports: Dict[str, Object] = None,
+                 Name: str = None,
+                 Scope: Scope = None,
+                 *args, **kwargs) -> None:
+        self.Files = Files or {}
+        self.Imports = Imports or {}
         self.Name = Name
         self.Scope = Scope
         super().__init__(*args, **kwargs)
@@ -1472,7 +1705,10 @@ class ParenExpr(Expr):
     """parenthesized expression"""
     X: Expr
 
-    def __init__(self, Lparen: int, Rparen: int, X: Expr,
+    def __init__(self,
+                 Lparen: int = 0,
+                 Rparen: int = 0,
+                 X: Expr = None,
                  *args, **kwargs) -> None:
         self.Lparen = Lparen
         self.Rparen = Rparen
@@ -1495,9 +1731,15 @@ class RangeStmt(Stmt):
     """value to range over"""
     X: Expr
 
-    def __init__(self, Body: BlockStmt, For: int, Key: Expr,
-                 Tok: token, TokPos: int, Value: Expr,
-                 X: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Body: BlockStmt = None,
+                 For: int = 0,
+                 Key: Expr = None,
+                 Tok: token = None,
+                 TokPos: int = 0,
+                 Value: Expr = None,
+                 X: Expr = None,
+                 *args, **kwargs) -> None:
         self.Body = Body
         self.For = For
         self.Key = Key
@@ -1508,13 +1750,13 @@ class RangeStmt(Stmt):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_For(cls, node: ast.For, *args, **kwargs):
+    def from_For(cls, node: ast.For, **kwargs):
         body = from_this(BlockStmt, node.body)
         tok = token.DEFINE
         key = Ident.from_str("_")
         value = build_expr_list([node.target])[0]
         x = build_expr_list([node.iter])[0]
-        return cls(Body=body, For=0, Key=key, Tok=tok, TokPos=0, Value=value, X=x, *args, **kwargs)
+        return cls(Body=body, Key=key, Tok=tok, Value=value, X=x, **kwargs)
 
 
 class ReturnStmt(Stmt):
@@ -1525,9 +1767,11 @@ class ReturnStmt(Stmt):
     """position of 'return' keyword"""
     Return: int
 
-    def __init__(self, Results: List[Expr], Return: int, *args,
-                 **kwargs) -> None:
-        self.Results = Results
+    def __init__(self,
+                 Results: List[Expr] = None,
+                 Return: int = 0,
+                 *args, **kwargs) -> None:
+        self.Results = Results or []
         set_list_type(Results, "ast.Expr")
         self.Return = Return
         super().__init__(*args, **kwargs)
@@ -1545,7 +1789,10 @@ class SelectStmt(Stmt):
     """position of 'select' keyword"""
     Select: int
 
-    def __init__(self, Body: BlockStmt, Select: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 Body: BlockStmt = None,
+                 Select: int = 0,
+                 *args, **kwargs) -> None:
         self.Body = Body
         self.Select = Select
         super().__init__(*args, **kwargs)
@@ -1559,8 +1806,10 @@ class SelectorExpr(Expr):
     """expression"""
     X: Expr
 
-    def __init__(self, Sel: Ident, X: Expr, *args,
-                 **kwargs) -> None:
+    def __init__(self,
+                 Sel: Ident = None,
+                 X: Expr = None,
+                 *args, **kwargs) -> None:
         self.Sel = Sel
         self.X = X
         super().__init__(*args, **kwargs)
@@ -1580,8 +1829,11 @@ class SendStmt(Stmt):
     Chan: Expr
     Value: Expr
 
-    def __init__(self, Arrow: int, Chan: Expr,
-                 Value: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Arrow: int = 0,
+                 Chan: Expr = None,
+                 Value: Expr = None,
+                 *args, **kwargs) -> None:
         self.Arrow = Arrow
         self.Chan = Chan
         self.Value = Value
@@ -1606,10 +1858,15 @@ class SliceExpr(Expr):
     """expression"""
     X: Expr
 
-    def __init__(self, High: Expr, Lbrack: int,
-                 Low: Expr,
-                 Max: Expr, Rbrack: int, Slice3: bool,
-                 X: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 High: Expr = None,
+                 Lbrack: int = 0,
+                 Low: Expr = None,
+                 Max: Expr = None,
+                 Rbrack: int = 0,
+                 Slice3: bool = None,
+                 X: Expr = None,
+                 *args, **kwargs) -> None:
         self.High = High
         self.Lbrack = Lbrack
         self.Low = Low
@@ -1657,7 +1914,12 @@ class StructType(GoAST):
     """position of 'struct' keyword"""
     Struct: int
 
-    def __init__(self, Fields: FieldList, Incomplete: bool, Struct: int, *args, **kwargs) -> None:
+    def __init__(self,
+                 Fields: FieldList = None,
+                 Incomplete: bool = False,
+                 Struct: int = 0,
+                 *args,
+                 **kwargs) -> None:
         self.Fields = Fields
         self.Incomplete = Incomplete
         self.Struct = Struct
@@ -1676,9 +1938,12 @@ class SwitchStmt(Stmt):
     """tag expression; or nil"""
     Tag: Expr
 
-    def __init__(self, Body: BlockStmt, Init: Expr,
-                 Switch: int, Tag: Expr, *args,
-                 **kwargs) -> None:
+    def __init__(self,
+                 Body: BlockStmt = None,
+                 Init: Expr = None,
+                 Switch: int = 0,
+                 Tag: Expr = None,
+                 *args, **kwargs) -> None:
         self.Body = Body
         self.Init = Init
         self.Switch = Switch
@@ -1698,8 +1963,12 @@ class TypeAssertExpr(Expr):
     """expression"""
     X: Expr
 
-    def __init__(self, Lparen: int, Rparen: int, Type: Expr,
-                 X: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Lparen: int = 0,
+                 Rparen: int = 0,
+                 Type: Expr = None,
+                 X: Expr = None,
+                 *args, **kwargs) -> None:
         self.Lparen = Lparen
         self.Rparen = Rparen
         self.Type = Type
@@ -1721,8 +1990,13 @@ class TypeSpec(GoAST):
     """*Ident, *ParenExpr, *SelectorExpr, *StarExpr, or any of the *XxxTypes"""
     Type: Expr
 
-    def __init__(self, Assign: int, Comment: CommentGroup, Doc: CommentGroup, Name: Ident,
-                 Type: Expr, *args, **kwargs) -> None:
+    def __init__(self,
+                 Assign: int = 0,
+                 Comment: CommentGroup = None,
+                 Doc: CommentGroup = None,
+                 Name: Ident = None,
+                 Type: Expr = None,
+                 *args, **kwargs) -> None:
         self.Assign = Assign
         self.Comment = Comment
         self.Doc = Doc
@@ -1743,9 +2017,12 @@ class TypeSwitchStmt(Stmt):
     """position of 'switch' keyword"""
     Switch: int
 
-    def __init__(self, Assign: Expr, Body: BlockStmt,
-                 Init: Expr, Switch: int, *args,
-                 **kwargs) -> None:
+    def __init__(self,
+                 Assign: Expr = None,
+                 Body: BlockStmt = None,
+                 Init: Expr = None,
+                 Switch: int = 0,
+                 *args, **kwargs) -> None:
         self.Assign = Assign
         self.Body = Body
         self.Init = Init
@@ -1766,7 +2043,9 @@ class UnaryExpr(Expr):
     X: Expr
 
     @classmethod
-    def from_UnaryOp(cls, node: ast.UnaryOp, *args, **kwargs):
+    def from_UnaryOp(cls,
+                     node: ast.UnaryOp = None,
+                     *args, **kwargs):
         if isinstance(node.op, ast.USub):
             op = token.SUB
         elif isinstance(node.op, ast.UAdd):
@@ -1778,8 +2057,11 @@ class UnaryExpr(Expr):
         X = build_expr_list([node.operand])[0]
         return cls(op, 0, X, *args, **kwargs)
 
-    def __init__(self, Op: int, OpPos: int, X: Expr, *args,
-                 **kwargs) -> None:
+    def __init__(self,
+                 Op: int = 0,
+                 OpPos: int = 0,
+                 X: Expr = None,
+                 *args, **kwargs) -> None:
         self.Op = Op
         self.OpPos = OpPos
         self.X = X
@@ -1805,14 +2087,19 @@ class ValueSpec(GoAST):
     """initial values; or nil"""
     Values: List[Expr]
 
-    def __init__(self, Comment: CommentGroup, Doc: CommentGroup, Names: List[Ident],
-                 Type: Expr,
-                 Values: List[Expr], *args, **kwargs) -> None:
+    def __init__(self,
+                 Comment: CommentGroup = None,
+                 Doc: CommentGroup = None,
+                 Names: List[Ident] = None,
+                 Type: Expr = None,
+                 Values: List[Expr] = None,
+                 *args, **kwargs) -> None:
         self.Comment = Comment
         self.Doc = Doc
-        self.Names = Names
+        self.Names = Names or []
+        set_list_type(Names, '*ast.Ident')
         self.Type = Type
-        self.Values = Values
+        self.Values = Values or []
         super().__init__(*args, **kwargs)
 
 

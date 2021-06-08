@@ -319,7 +319,7 @@ class HandleTypeCoercion(NodeTransformerWithScope):
 class RequestsToHTTP(NodeTransformerWithScope):
     def visit_CallExpr(self, node: CallExpr):
         self.generic_visit(node)
-        if isinstance(node.Fun, SelectorExpr):
+        if isinstance(node.Fun, SelectorExpr) and isinstance(node.Fun.X, Ident):
             if node.Fun.X.Name == "requests":
                 node.Fun.X.Name = "http"
                 node.Fun.Sel.Name = node.Fun.Sel.Name.title()
