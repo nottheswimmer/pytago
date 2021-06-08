@@ -344,7 +344,6 @@ class HTTPErrors(NodeTransformerWithScope):
                 isinstance(rhn.Fun.X, Ident) and rhn.Fun.X.Name == "http":
             node.Lhs.append(Ident.from_str(UNHANDLED_HTTP_ERROR))
             self.scope.Objects[node.Lhs[0].Name].Type = HTTP_RESPONSE_TYPE
-        self.generic_visit(node)
         return node
 
     def visit_SelectorExpr(self, node: SelectorExpr):

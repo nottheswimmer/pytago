@@ -13,18 +13,6 @@ def fstring(template_str: str, key_value_elements=list['ast.KeyValueExpr']) -> '
 	}()
     """
     token = ast.token
-    # key_value_elements = [
-    #     ast.KeyValueExpr(
-    #         Key=ast.BasicLit(
-    #             Kind=token.STRING,
-    #             Value="\"myvar\"",
-    #         ),
-    #         Value=ast.Ident(
-    #             Name="myvar",
-    #         ),
-    #     ),
-    # ]
-    # template_string = "\"I am {{.myvar}}\""
     return ast.CallExpr(
   Fun=ast.FuncLit(
     Type=ast.FuncType(
