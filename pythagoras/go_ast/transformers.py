@@ -3,7 +3,7 @@ from _ast import AST
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
-    GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt
+    GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -409,6 +409,32 @@ class HandleUnhandledErrorsAndDefers(NodeTransformerWithScope):
 
         return block_node
 
+
+class AddTextTemplateImportForFStrings(ast.NodeTransformer):
+    """
+    Usually goimports makes these sorts of things unnecessary,
+    but this one was getting confused with html/template sometimes
+    """
+    def __init__(self):
+        self.visited_fstring = False
+
+    def visit_File(self, node: File):
+        self.generic_visit(node)
+        if self.visited_fstring:
+            node.Imports.append(ImportSpec(Path=BasicLit(token.String, "text/template")))
+        return node
+
+    def visit_CallExpr(self, node: CallExpr):
+        self.generic_visit(node)
+        try:
+            if node.Fun.X.Fun.X.Name == "template" and \
+                    node.Fun.Sel.Name == "New" and \
+                        node.Args[0].Value == "f":
+                self.visited_fstring = True
+        except:
+            pass
+        return node
+
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
@@ -425,5 +451,6 @@ ALL_TRANSFORMS = [
     HandleTypeCoercion,
     RequestsToHTTP,
     HTTPErrors,
-    HandleUnhandledErrorsAndDefers
+    HandleUnhandledErrorsAndDefers,
+    AddTextTemplateImportForFStrings
 ]
