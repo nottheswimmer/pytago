@@ -311,41 +311,29 @@ class AssignStmt(Stmt):
     def from_AugAssign(cls, node: ast.AugAssign, **kwargs):
         lhs = build_expr_list([node.target])
         rhs = build_expr_list([node.value])
-        if isinstance(node.op, ast.Add):
-            op = token.ADD_ASSIGN
-        elif isinstance(node.op, ast.Sub):
-            op = token.SUB_ASSIGN
-        elif isinstance(node.op, ast.Mult):
-            op = token.MUL_ASSIGN
-        elif isinstance(node.op, ast.Div):
-            op = token.QUO_ASSIGN
-        elif isinstance(node.op, ast.Mod):
-            op = token.REM_ASSIGN
-        elif isinstance(node.op, ast.BitAnd):
-            op = token.AND_ASSIGN
-        elif isinstance(node.op, ast.BitOr):
-            op = token.OR_ASSIGN
-        elif isinstance(node.op, ast.BitXor):
-            op = token.XOR_ASSIGN
-        elif isinstance(node.op, ast.LShift):
-            op = token.SHL_ASSIGN
-        elif isinstance(node.op, ast.RShift):
-            op = token.SHR_ASSIGN
-        # elif isinstance(node.op, ast.FloorDiv):  # TODO
-        #     ...
-        # elif isinstance(node.op, ast.Pow):  # TODO
-        #     ...
-        # elif isinstance(node.op, ...):
-        #     op = token.AND_NOT_ASSIGN = "&^="
-        else:
-            raise NotImplementedError(node.op)
-        return cls(lhs, rhs, op, 0, **kwargs)
+
+        match node.op:
+            case ast.Add(): op = token.ADD_ASSIGN
+            case ast.Sub(): op = token.SUB_ASSIGN
+            case ast.Mult(): op = token.MUL_ASSIGN
+            case ast.Div(): op = token.QUO_ASSIGN
+            case ast.Mod(): op = token.REM_ASSIGN
+            case ast.BitAnd(): op = token.AND_ASSIGN
+            case ast.BitOr(): op = token.OR_ASSIGN
+            case ast.BitXor(): op = token.XOR_ASSIGN
+            case ast.LShift(): op = token.SHL_ASSIGN
+            case ast.RShift(): op = token.SHR_ASSIGN
+            # case ast.FloorDiv() | ast.Pow():  # TODO
+            #     ...
+            case _:
+                raise NotImplementedError(node.op)
+        return cls(lhs, rhs, op, **kwargs)
 
     @classmethod
     def from_FunctionDef(cls, node: ast.FunctionDef, **kwargs):
         rhs = build_expr_list([node])
         lhs = build_expr_list([node.name], _type_help=rhs[0]._type())
-        return cls(lhs, rhs, token.DEFINE, 0, **kwargs)
+        return cls(lhs, rhs, token.DEFINE, **kwargs)
 
 
 class BadDecl(Decl):
@@ -479,25 +467,17 @@ class BinaryExpr(Expr):
             raise NotImplementedError("Comparator count != 1", node.comparators)
         py_op = node.ops[0]
         node_right = node.comparators[0]
-        if isinstance(py_op, ast.Gt):
-            op = token.GTR
-        elif isinstance(py_op, ast.GtE):
-            op = token.GEQ
-        elif isinstance(py_op, ast.Lt):
-            op = token.LSS
-        elif isinstance(py_op, ast.LtE):
-            op = token.LEQ
-        elif isinstance(py_op, ast.Eq):
-            op = token.EQL
-        elif isinstance(py_op, ast.NotEq):
-            op = token.NEQ
-        elif isinstance(py_op, ast.Is):
-            op = token.PLACEHOLDER_IS
-        elif isinstance(py_op, ast.IsNot):
-            op = token.PLACEHOLDER_IS_NOT
-        else:
-            raise NotImplementedError(f"Unimplemented comparator: {py_op}")
-
+        match py_op:
+            case ast.Gt(): op = token.GTR
+            case ast.GtE(): op = token.GEQ
+            case ast.Lt(): op = token.LSS
+            case ast.LtE(): op = token.LEQ
+            case ast.Eq(): op = token.EQL
+            case ast.NotEq(): op = token.NEQ
+            case ast.Is(): op = token.PLACEHOLDER_IS
+            case ast.IsNot(): op = token.PLACEHOLDER_IS_NOT
+            case _:
+                raise NotImplementedError(f"Unimplemented comparator: {py_op}")
         X = build_expr_list([node.left])[0]
         Y = build_expr_list([node_right])[0]
         return cls(op, 0, X, Y, **kwargs)
@@ -508,15 +488,11 @@ class BinaryExpr(Expr):
             raise NotImplementedError(f"Currently only supports BoolOps with 2 values")
         left, right = node.values
         py_op = node.op
-        if isinstance(py_op, ast.And):
-            op = token.LAND
-        elif isinstance(py_op, ast.Or):
-            op = token.LOR
-        # elif isinstance(py_op, ...):
-        #     op = token.AND_NOT
-        else:
-            raise NotImplementedError(f"Unimplemented boolop: {py_op}")
-
+        match py_op:
+            case ast.And(): op = token.LAND
+            case ast.Or():  op = token.LOR
+            case _:
+                raise NotImplementedError(f"Unimplemented boolop: {py_op}")
         X = build_expr_list([left])[0]
         Y = build_expr_list([right])[0]
         return cls(op, 0, X, Y, **kwargs)
@@ -524,39 +500,25 @@ class BinaryExpr(Expr):
     @classmethod
     def from_BinOp(cls, node: ast.BinOp, **kwargs):
         py_op = node.op
-        if isinstance(py_op, ast.Add):
-            op = token.ADD
-        elif isinstance(py_op, ast.Sub):
-            op = token.SUB
-        elif isinstance(py_op, ast.Mult):
-            op = token.MUL
-        elif isinstance(py_op, ast.Div):
-            op = token.QUO
-        elif isinstance(py_op, ast.Mod):
-            op = token.REM
-        elif isinstance(py_op, ast.And):
-            op = token.LAND
-        elif isinstance(py_op, ast.BitAnd):
-            op = token.AND
-        elif isinstance(py_op, ast.Or):
-            op = token.LOR
-        elif isinstance(py_op, ast.BitOr):
-            op = token.OR
-        elif isinstance(py_op, ast.BitXor):
-            op = token.XOR
-        elif isinstance(py_op, ast.LShift):
-            op = token.SHL
-        elif isinstance(py_op, ast.RShift):
-            op = token.SHR
-        elif isinstance(py_op, ast.Pow):
-            op = token.PLACEHOLDER_POW
-        elif isinstance(py_op, ast.FloorDiv):
-            op = token.PLACEHOLDER_FLOOR_DIV
-        # elif isinstance(py_op, ...):
-        #     op = token.AND_NOT
-        else:
-            raise NotImplementedError(f"Unimplemented binop: {py_op}")
-
+        match py_op:
+            case ast.Add(): op = token.ADD
+            case ast.Sub(): op = token.SUB
+            case ast.Mult(): op = token.MUL
+            case ast.Div(): op = token.QUO
+            case ast.Mod(): op = token.REM
+            case ast.And(): op = token.LAND
+            case ast.BitAnd(): op = token.AND
+            case ast.Or(): op = token.LOR
+            case ast.BitOr(): op = token.OR
+            case ast.BitXor(): op = token.XOR
+            case ast.LShift(): op = token.SHL
+            case ast.RShift(): op = token.SHR
+            case ast.Pow(): op = token.PLACEHOLDER_POW
+            case ast.FloorDiv(): op = token.PLACEHOLDER_FLOOR_DIV
+            # case ...:
+            #     op = token.AND_NOT
+            case _:
+                raise NotImplementedError(f"Unimplemented binop: {py_op}")
         X = build_expr_list([node.left])[0]
         Y = build_expr_list([node.right])[0]
         return cls(op, 0, X, Y, **kwargs)
@@ -675,10 +637,11 @@ class Ident(Expr):
 
     @classmethod
     def from_Constant(cls, node: ast.Constant, **kwargs):
-        if isinstance(node.value, bool):
-            return cls.from_str(str(node.value).lower(), **kwargs)
-        if node.value is None:
-            return cls.from_str("nil", **kwargs)
+        match node.value:
+            case bool():
+               return cls.from_str(str(node.value).lower(), **kwargs)
+            case None:
+                return cls.from_str("nil", **kwargs)
         raise NotImplementedError(node)
 
     @classmethod
@@ -754,23 +717,24 @@ class CallExpr(Expr):
         used_keys = set()
         expr_num = 1
         for value in node.values:
-            if isinstance(value, ast.Constant):
-                template_string += value.value
-            elif isinstance(value, ast.FormattedValue):
-                # TODO: Technically, there's still a name collision here if a value like "expr1" exists later
-                fval = build_expr_list([value.value])[0]
-                if isinstance(fval, Ident):
-                    key = fval.Name
-                else:
-                    key = f"expr{expr_num}"
-                    while key in used_keys:
-                        expr_num += 1
-                        f"expr{expr_num}"
-                template_string += "{{.%s}}" % key
-                used_keys.add(key)
-                value_elements.append(KeyValueExpr(Key=BasicLit(token.STRING, key), Value=fval))
-            else:
-                raise NotImplementedError(value)
+            match value:
+                case ast.Constant():
+                    template_string += value.value
+                case ast.FormattedValue():
+                    # TODO: Technically, there's still a name collision here if a value like "expr1" exists later
+                    fval = build_expr_list([value.value])[0]
+                    if isinstance(fval, Ident):
+                        key = fval.Name
+                    else:
+                        key = f"expr{expr_num}"
+                        while key in used_keys:
+                            expr_num += 1
+                            f"expr{expr_num}"
+                    template_string += "{{.%s}}" % key
+                    used_keys.add(key)
+                    value_elements.append(KeyValueExpr(Key=BasicLit(token.STRING, key), Value=fval))
+                case _:
+                    raise NotImplementedError(value)
         return ast_snippets.fstring(template_string, value_elements)
 
     @classmethod
@@ -1181,16 +1145,16 @@ class Scope(GoAST):
         return obj.Name in self.Outer.Objects or self.Outer._in_outer_scope(obj)
 
     def _get_type(self, x):
-        if isinstance(x, Ident):
-            obj_name = x.Name
-        elif isinstance(x, str):
-            obj_name = x
-        elif isinstance(x, Expr):
-            return x._type()
-        else:
-            raise ValueError(x)
-        obj = self._from_scope_or_outer(obj_name)
-        if obj:
+        match x:
+            case Ident():
+              obj_name = x.Name
+            case str():
+              obj_name = x
+            case Expr():
+                return x._type()
+            case _:
+                raise ValueError(x)
+        if obj := self._from_scope_or_outer(obj_name):
             return obj.Type
 
     def _from_scope_or_outer(self, obj_name: str):
@@ -1597,12 +1561,13 @@ class IndexExpr(Expr):
 
     @classmethod
     def from_Subscript(cls, node: ast.Subscript, **kwargs):
-        if isinstance(node.slice, ast.Constant):
-            index = build_expr_list([node.slice])[0]
-        elif isinstance(node.slice, ast.UnaryOp):
-            index = build_expr_list([node.slice])[0]
-        else:
-            raise NotImplementedError((node, node.slice))
+        match node.slice:
+            case ast.Constant():
+                index = build_expr_list([node.slice])[0]
+            case ast.UnaryOp():
+                index = build_expr_list([node.slice])[0]
+            case _:
+                raise NotImplementedError((node, node.slice))
         x = build_expr_list([node.value])[0]
         return cls(index, X=x, **kwargs)
 
@@ -1904,13 +1869,14 @@ class SliceExpr(Expr):
 
     @classmethod
     def from_Subscript(cls, node: ast.Subscript, **kwargs):
-        if isinstance(node.slice, ast.Slice):
-            low = build_expr_list([node.slice.lower])[0]
-            high = build_expr_list([node.slice.upper])[0]
-        else:
-            raise NotImplementedError((node, node.slice))
+        match node.slice:
+            case ast.Slice():
+                low = build_expr_list([node.slice.lower])[0]
+                high = build_expr_list([node.slice.upper])[0]
+            case _:
+                raise NotImplementedError((node, node.slice))
         x = build_expr_list([node.value])[0]
-        return cls(high, 0, low, 0, None, False, x, **kwargs)
+        return cls(High=high, Low=low, X=x, **kwargs)
 
 
 class StarExpr(Expr):
@@ -2072,14 +2038,11 @@ class UnaryExpr(Expr):
     def from_UnaryOp(cls,
                      node: ast.UnaryOp = None,
                      **kwargs):
-        if isinstance(node.op, ast.USub):
-            op = token.SUB
-        elif isinstance(node.op, ast.UAdd):
-            op = token.ADD
-        elif isinstance(node.op, ast.Not):
-            op = token.NOT
-        else:
-            raise NotImplementedError((node, node.op))
+        match node.op:
+            case ast.USub(): op = token.SUB
+            case ast.UAdd(): op = ast.UAdd
+            case ast.Not(): op = token.NOT
+            case _: raise NotImplementedError((node, node.op))
         X = build_expr_list([node.operand])[0]
         return cls(op, 0, X, **kwargs)
 
