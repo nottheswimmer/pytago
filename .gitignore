@@ -11,3 +11,6 @@ venv/
 
 # tmp go code generation files
 tmp_*.go
+
+# Other temporary files
+*.tmp

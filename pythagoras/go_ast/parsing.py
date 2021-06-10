@@ -31,29 +31,32 @@ def unparse(go_tree: GoAST, apply_transformations=True, debugging=True):
     }
     """ % go_tree_string
     if debugging:
-        compilation_code = _gofmt(compilation_code)
+        compilation_code = _gofumpt(compilation_code)
     tmp_file = f"tmp_{uuid.uuid4().hex}.go"
     if debugging:
         print(f"=== Start Compilation Code ===")
         lines = compilation_code.splitlines()
-        max_i_size = len(str(len(lines)+1))
+        max_i_size = len(str(len(lines) + 1))
         for i, line in enumerate(lines, start=1):
             print(str(i).rjust(max_i_size), line)
         print(f"=== End Compilation Code ===")
-    with open(tmp_file, "w") as f:
-        f.write(compilation_code)
-    code = _gorun(tmp_file)
-    if debugging:
-        print(f"=== Start Code ===")
-        print(code)
-        print(f"=== End Code ===")
-    os.remove(tmp_file)
-    externally_formatted_code = _gofmt(_goimport(code))
+    try:
+        with open(tmp_file, "w") as f:
+            f.write(compilation_code)
+        code = _gorun(tmp_file)
+        if debugging:
+            print(f"=== Start Code ===")
+            print(code)
+            print(f"=== End Code ===")
+    finally:
+        os.remove(tmp_file)
+    externally_formatted_code = _gofumpt(_goimport(code))
     if debugging:
         print(f"=== Start Externally Formatted Code ===")
         print(externally_formatted_code)
         print(f"=== End Externally Formatted Code ===")
     return externally_formatted_code
+
 
 def dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
     """
@@ -78,6 +81,7 @@ def dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
         class_name = getattr(node, "_prefix", "") + node.__class__.__name__
 
         if isinstance(node, GoAST):
+            node.remove_falsy_fields()
             cls = type(node)
             args = []
             allsimple = True
@@ -142,8 +146,8 @@ def _gorun(filename: str) -> str:
     return out.decode()
 
 
-def _gofmt(code: str) -> str:
-    p = Popen(["gofmt", "-s"], stdout=PIPE, stderr=PIPE, stdin=PIPE)
+def _gofumpt(code: str) -> str:
+    p = Popen(["gofumpt", "-s"], stdout=PIPE, stderr=PIPE, stdin=PIPE)
     out, err = p.communicate(code.encode())
     if err:
         return code + "\n" + "\n".join("// " + x for x in err.decode().strip().splitlines())

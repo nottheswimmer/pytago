@@ -13,6 +13,7 @@ func main() {
 		fmt.Println("It's smaller")
 	}
 }
+
 func add(a int, b int) int {
 	return a + b
 }

@@ -56,3 +56,9 @@ class Test(TestCase):
 
     def test_nestedfstrings(self):
         assert_examples_match(self, "nestedfstrings")
+
+    def test_dictionary(self):
+        assert_examples_match(self, "dictionary")
+
+    def test_writefile(self):
+        assert_examples_match(self, "writefile")
