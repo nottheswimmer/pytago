@@ -21,6 +21,8 @@ jobs:
         go-version: 1.16.x
     - name: Install goimports
       run: go get golang.org/x/tools/cmd/goimports
+    - name: Install gofumpt
+      run: go get mvdan.cc/gofumpt
     - uses: actions/checkout@v2
     - name: Set up Python 3.10
       uses: actions/setup-python@v2
