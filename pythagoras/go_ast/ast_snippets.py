@@ -246,3 +246,56 @@ def with_encloser(assignment_statements: list['ast.Stmt'],
                 *body_statements,
                 *closing_statements,
             ]
+
+
+def wrap_err(err: 'ast.Expr'):
+    token = ast.token
+    return ast.CallExpr(
+        Fun=ast.FuncLit(
+            Type=ast.FuncType(
+                Params=ast.FieldList(),
+            ),
+            Body=ast.BlockStmt(
+                List=[
+                    ast.IfStmt(
+                        Init=ast.AssignStmt(
+                            Lhs=[
+                                ast.Ident(
+                                    Name="err",
+                                ),
+                            ],
+                            Tok=token.DEFINE,
+                            Rhs=[
+                                err,
+                            ]
+                        ),
+                        Cond=ast.BinaryExpr(
+                            X=ast.Ident(
+                                Name="err",
+                            ),
+                            Op=token.NEQ,
+                            Y=ast.Ident(
+                                Name="nil",
+                            ),
+                        ),
+                        Body=ast.BlockStmt(
+                            List=[
+                                ast.ExprStmt(
+                                    X=ast.CallExpr(
+                                        Fun=ast.Ident(
+                                            Name="panic",
+                                        ),
+                                        Args=[
+                                            ast.Ident(
+                                                Name="err",
+                                            ),
+                                        ],
+                                    ),
+                                ),
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+        ),
+    )

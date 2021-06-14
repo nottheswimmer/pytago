@@ -2,7 +2,7 @@ import ast
 import inspect
 import json
 from enum import Enum
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 from pythagoras.go_ast import ast_snippets
 
@@ -19,13 +19,15 @@ class ObjKind(Enum):
 
 class GoBasicType(Enum):
     BOOL = "bool"
-    UINT8 = BYTE = "uint8"
+    UINT8 = "uint8"
+    BYTE = "byte"  # Alias for UINT8
     UINT16 = "uint16"
     UINT32 = "uint32"
     UINT64 = "uint64"
     INT8 = "int8"
     INT16 = "int16"
-    INT32 = RUNE = "int32"
+    INT32 = "int32"
+    RUNE = "rune"  # Alias for INT32
     INT64 = "int64"
     FLOAT32 = "float32"
     FLOAT64 = "float64"
@@ -231,9 +233,25 @@ class GoAST(ast.AST):
 
 
 class Expr(GoAST):
-    def __init__(self, *args, _type_help=None, **kwargs):
+    def __init__(self, *args, _type_help=None, _py_context=None, **kwargs):
         super().__init__(**kwargs)
         self._type_help = _type_help
+        self._py_context = _py_context or {}
+
+    def __or__(self, Y: 'Expr') -> 'BinaryExpr':
+        """
+        Shorthand way to describe the binary expression self | Y
+        """
+        return BinaryExpr(Op=token.OR, X=self, Y=Y)
+
+    def sel(self, sel, **kwargs) -> 'SelectorExpr':
+        """
+        Shorthand way to describe the attribute access self.{{ sel }}
+        """
+        return SelectorExpr(X=self, Sel=from_this(Ident, sel), **kwargs)
+
+    def call(self, *args, **kwargs) -> 'CallExpr':
+        return CallExpr(Args=list(args), Fun=self, **kwargs)
 
     def _type(self):
         return self._type_help
@@ -247,7 +265,7 @@ class Decl(GoAST):
     ...
 
 
-class ArrayType(GoAST):
+class ArrayType(Expr):
     """An ArrayType node represents an array or slice type."""
     _fields = ('Elt', 'Len')
     """element type"""
@@ -304,7 +322,19 @@ class AssignStmt(Stmt):
     @classmethod
     def from_Assign(cls, node: ast.Assign, **kwargs):
         rhs = build_expr_list([node.value])
-        lhs = build_expr_list(node.targets, _type_help=rhs[0]._type())
+        ctx = {}
+        for rh_expr in rhs:
+            ctx.update(rh_expr._py_context)
+        lhs = build_expr_list(node.targets, _type_help=rhs[0]._type(), _py_context=ctx)
+        return cls(lhs, rhs, token.DEFINE, 0, **kwargs)
+
+    @classmethod
+    def from_withitem(cls, node: ast.withitem, **kwargs):
+        rhs = build_expr_list([node.context_expr])
+        ctx = {}
+        for rh_expr in rhs:
+            ctx.update(rh_expr._py_context)
+        lhs = build_expr_list([node.optional_vars], _type_help=rhs[0]._type(), _py_context=ctx)
         return cls(lhs, rhs, token.DEFINE, 0, **kwargs)
 
     @classmethod
@@ -430,6 +460,17 @@ class BasicLit(Expr):
     @classmethod
     def from_int(cls, node: int, **kwargs):
         return cls(token.INT, node, 0, **kwargs)
+
+    @classmethod
+    def from_value(cls, node: Any, t: token, **kwargs):
+        """
+        Hack because I decided the constructor should json.dumps everything by default,
+        so now I need a way around that. Cleaner to probably stop doing that and delete this method.
+        """
+        obj = cls(t, None, **kwargs)
+        obj.Value = node
+        return obj
+
 
     def _type(self):
         return token_type_to_go_type(self.Kind) or super()._type()
@@ -592,12 +633,14 @@ class Object(GoAST):
                  Kind: ObjKind = None,
                  Name: str = None,
                  Type: Expr = None,
+                 _py_context: dict = None,
                  **kwargs) -> None:
         self.Data = Data
         self.Decl = Decl
         self.Kind = Kind
         self.Name = Name
         self.Type = Type
+        self._py_context = _py_context or {}
         super().__init__(**kwargs)
 
 
@@ -705,10 +748,41 @@ class CallExpr(Expr):
 
     @classmethod
     def from_Call(cls, node: ast.Call):
-        args = build_expr_list(node.args)
-        ellipsis = None
-        fun = build_expr_list([node.func])[0]
-        return cls(args, ellipsis, fun)
+        _type_help = None
+        _py_context = None
+        match node:
+            # Special case to calls to the open function
+            case ast.Call(func=ast.Name(id='open'), args=[filename_expr, ast.Constant(value=mode)]):
+                args = build_expr_list([filename_expr])
+                os = Ident.from_str('os')
+                perm = os.sel('O_RDONLY')
+                _py_context = {'text_mode': 'b' not in mode}  # TODO: Care about text mode
+                mode = mode.replace('b', '').replace('t', '')
+                mode = ''.join(sorted(mode, reverse=True))
+                match mode:
+                    case 'r':
+                        perm = os.sel('O_RDONLY')
+                    case 'r+':
+                        perm = os.sel('O_RDWR')
+                    case 'w':
+                        perm = os.sel('O_WRONLY') | os.sel('O_TRUNC')
+                    case 'w+':
+                        perm = os.sel('O_RDWR') | os.sel('O_TRUNC') | os.sel('O_CREATE')
+                    case 'a':
+                        perm = os.sel('O_WRONLY') | os.sel('O_APPEND') | os.sel('O_CREATE')
+                    case 'a+':
+                        perm = os.sel('O_RDWR') | os.sel('O_APPEND') | os.sel('O_CREATE')
+                    case 'x':
+                        perm = os.sel('O_WRONLY') | os.sel('O_EXCL') | os.sel('O_CREATE')
+                    case 'x+':
+                        perm = os.sel('O_RDWR') | os.sel('O_EXCL') | os.sel('O_CREATE')
+                args += [perm, BasicLit.from_value("0o777", token.INT)]
+                fun = os.sel("OpenFile")
+                _type_help=StarExpr(X=os.sel("File"))
+            case _:
+                args = build_expr_list(node.args)
+                fun = build_expr_list([node.func])[0]
+        return cls(Args=args, Fun=fun, _type_help=_type_help, _py_context=_py_context)
 
     @classmethod
     def from_JoinedStr(cls, node: ast.JoinedStr):
@@ -736,6 +810,14 @@ class CallExpr(Expr):
                 case _:
                     raise NotImplementedError(value)
         return ast_snippets.fstring(template_string, value_elements)
+
+    @classmethod
+    def from_Constant(cls, node: ast.Constant):
+        match node.value:
+            case bytes():
+                return cls(Fun=ArrayType(Elt=Ident.from_str(GoBasicType.BYTE.value)), Args=[BasicLit(Kind=token.STRING, Value=node.value.decode())])
+            case _:
+                raise NotImplementedError(node, type(node.value))
 
     @classmethod
     def from_Delete(cls, node: ast.Delete):
@@ -998,6 +1080,27 @@ class ExprStmt(Stmt):
     def from_Delete(cls, node: ast.Delete):
         return cls(build_expr_list([node])[0])
 
+    @classmethod
+    def from_With(cls, node: ast.With):
+        body = []
+        for with_item in node.items:
+            body += build_stmt_list([with_item])
+            # TODO: What if there is no optional vars?
+            match with_item:
+                case ast.withitem(optional_vars=ast.Name()):
+                    body.append(DeferStmt(Call=ast_snippets.wrap_err(CallExpr(Args=[], Fun=SelectorExpr(Sel=Ident.from_str("Close"), X=Ident.from_Name(with_item.optional_vars))))))
+        body += build_stmt_list(node.body)
+        return cls(
+            X=CallExpr(
+                Args=[],
+                Fun=FuncLit(
+                    Body=BlockStmt(
+                        List=body
+                    )
+                )
+            )
+        )
+
 
 class Field(GoAST):
     """Expressions and types A Field represents a Field declaration list in a struct type, a
@@ -1156,6 +1259,19 @@ class Scope(GoAST):
                 raise ValueError(x)
         if obj := self._from_scope_or_outer(obj_name):
             return obj.Type
+
+    def _get_ctx(self, x):
+        match x:
+            case Ident():
+              obj_name = x.Name
+            case str():
+              obj_name = x
+            case Expr():
+                return x._type()
+            case _:
+                raise ValueError(x)
+        if obj := self._from_scope_or_outer(obj_name):
+            return obj._py_context
 
     def _from_scope_or_outer(self, obj_name: str):
         return self._from_scope(obj_name) or self._from_outer_scope(obj_name)
@@ -1377,7 +1493,7 @@ class FuncLit(Expr):
                  Type: FuncType = None,
                  **kwargs) -> None:
         self.Body = Body
-        self.Type = Type
+        self.Type = Type or FuncType()
         super().__init__(**kwargs)
 
     @classmethod
@@ -1889,7 +2005,9 @@ class StarExpr(Expr):
     """operand"""
     X: Expr
 
-    def __init__(self, Star: int, X: Expr, *args,
+    def __init__(self,
+                 Star: int = 0,
+                 X: Expr = None,
                  **kwargs) -> None:
         self.Star = Star
         self.X = X

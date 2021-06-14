@@ -60,5 +60,5 @@ class Test(TestCase):
     def test_dictionary(self):
         assert_examples_match(self, "dictionary")
 
-    # def test_writefile(self):
-    #     assert_examples_match(self, "writefile")
+    def test_writefile(self):
+        assert_examples_match(self, "writefile")

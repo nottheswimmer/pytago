@@ -3,7 +3,7 @@ from _ast import AST
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
-    GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec
+    GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec, ArrayType
 
 
 class PrintToFmtPrintln(ast.NodeTransformer):
@@ -134,7 +134,19 @@ class NodeTransformerWithScope(ast.NodeTransformer):
 
     def visit_AssignStmt(self, node: AssignStmt):
         """Don't forget to super call this if you override it"""
+        eager_type_hint = next((self.scope._get_type(x) for x in node.Rhs), None)
+        eager_context = {}
+        for x in node.Rhs:
+            eager_context.update(x._py_context)
+        for expr in node.Lhs:
+            if not expr._type_help:
+                expr._type_help = eager_type_hint
+            if eager_context:
+                expr._py_context = {**eager_context, **expr._py_context}
         self.generic_visit(node)
+        ctx = {}
+        for x in node.Rhs:
+            ctx.update(x._py_context)
         if node.Tok != token.DEFINE:
             return node
         declared = False
@@ -147,6 +159,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                 Kind=ObjKind.Var,
                 Name=expr.Name,
                 Type=next((self.scope._get_type(x) for x in node.Rhs), None),
+                _py_context=ctx
             )
             if not (self.scope._in_scope(obj) or self.scope._in_outer_scope(obj)):
                 self.scope.Insert(obj)
@@ -238,6 +251,71 @@ class StringifyStringMember(NodeTransformerWithScope):
         self.generic_visit(node)
         if self.scope._get_type(node.X) == GoBasicType.STRING and self.scope._get_type(node.Index) == GoBasicType.INT:
             return wrap_with_call_to([node], GoBasicType.STRING.value)
+        return node
+
+
+class FileWritesAndErrors(NodeTransformerWithScope):
+    def __init__(self):
+        super().__init__()
+        self.stack = []
+
+    def generic_visit(self, node):
+        self.stack.append(node)
+        return_val = super().generic_visit(node)
+        self.stack.pop()
+        return return_val
+
+    def visit_CallExpr(self, node: CallExpr):
+        self.generic_visit(node)
+        match node:
+            case CallExpr(Fun=SelectorExpr(X=Ident(Name="os"), Sel=Ident(Name="OpenFile"))):
+                f = Ident.from_str("f", _type_help=node._type(), _py_context=node._py_context)
+                assignment = AssignStmt([f, Ident.from_str(UNHANDLED_ERROR)], [node], token.DEFINE)
+                return CallExpr(Args=[], Fun=FuncLit(
+                    Body=BlockStmt(
+                        List=[
+                            assignment,
+                            ReturnStmt([f])
+                        ],
+                    ),
+                    Type=FuncType(Results=FieldList(List=[Field(Type=node._type())]))
+                ), _py_context=node._py_context)
+            case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="write"))):
+                n = Ident.from_str("n")
+                selector = "WriteString" if self.scope._get_ctx(node.Fun.X)['text_mode'] else "Write"
+                return CallExpr(Args=[], Fun=FuncLit(
+                    Body=BlockStmt(
+                        List=[
+                            AssignStmt([n, Ident.from_str(UNHANDLED_ERROR)], [
+                                CallExpr(Args=node.Args, Fun=node.Fun.X.sel(selector))
+                            ], token.DEFINE),
+                            ReturnStmt([n])
+                        ],
+                    ),
+                    Type=FuncType(Results=FieldList(List=[Field(Type=Ident.from_str(GoBasicType.INT.value))]))
+                ))
+            case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="read"))):
+                content = Ident.from_str("content")
+                text_mode = self.scope._get_ctx(node.Fun.X)['text_mode']
+                expr = CallExpr(Args=[], Fun=FuncLit(
+                    Body=BlockStmt(
+                        List=[
+                            AssignStmt(Lhs=[content, Ident.from_str(UNHANDLED_ERROR)], Rhs=[
+                                Ident.from_str("ioutil").sel("ReadAll").call(node.Fun.X)
+                            ], Tok=token.DEFINE),
+                            ReturnStmt(Results=[CallExpr(Fun=Ident.from_str(GoBasicType.STRING.value), Args=[content]) if text_mode else content])
+                        ],
+                    ),
+                    Type=FuncType(Results=FieldList(List=[
+                        Field(Type=Ident.from_str(GoBasicType.STRING.value) if text_mode else ArrayType.from_Ident(Ident.from_str(GoBasicType.BYTE.value)))]))
+                ))
+                return expr
+            case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="decode"))):
+                string = Ident.from_str(GoBasicType.STRING.value)
+                return string.call(node.Fun.X)
+            case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="encode"))):
+                bytes_array = ArrayType(Elt=Ident.from_str(GoBasicType.BYTE.value))
+                return bytes_array.call(node.Fun.X)
         return node
 
 
@@ -436,6 +514,7 @@ ALL_TRANSFORMS = [
     HandleTypeCoercion,
     RequestsToHTTP,
     HTTPErrors,
+    FileWritesAndErrors,
     HandleUnhandledErrorsAndDefers,
     AddTextTemplateImportForFStrings
 ]
