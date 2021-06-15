@@ -81,3 +81,9 @@ class Test(TestCase):
     def test_whileloop(self):
         assert_examples_match(self, "whileloop")
 
+    def test_sets(self):
+        assert_examples_match(self, "sets")
+
+    def test_contains(self):
+        assert_examples_match(self, "contains")
+

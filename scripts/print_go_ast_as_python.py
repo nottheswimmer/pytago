@@ -4,53 +4,135 @@ Paste go code into https://lu4p.github.io/astextract/ and then the AST here.
 """
 
 AST = r"""
-&ast.CallExpr {
-  Fun: &ast.FuncLit {
-    Type: &ast.FuncType {
-      Params: &ast.FieldList {},
-    },
-    Body: &ast.BlockStmt {
-      List: []ast.Stmt {
-        &ast.IfStmt {
-          Init: &ast.AssignStmt {
+&ast.File {
+  Package: 1,
+  Name: &ast.Ident {
+    Name: "main",
+  },
+  Decls: []ast.Decl {
+    &ast.FuncDecl {
+      Name: &ast.Ident {
+        Name: "main",
+      },
+      Type: &ast.FuncType {
+        Params: &ast.FieldList {},
+      },
+      Body: &ast.BlockStmt {
+        List: []ast.Stmt {
+          &ast.AssignStmt {
             Lhs: []ast.Expr {
               &ast.Ident {
-                Name: "err",
+                Name: "a",
               },
             },
             Tok: token.DEFINE,
             Rhs: []ast.Expr {
-              &ast.CallExpr {
-                Fun: &ast.SelectorExpr {
-                  X: &ast.Ident {
-                    Name: "f",
+              &ast.CompositeLit {
+                Type: &ast.ArrayType {
+                  Elt: &ast.Ident {
+                    Name: "int",
                   },
-                  Sel: &ast.Ident {
-                    Name: "Close",
+                },
+                Elts: []ast.Expr {
+                  &ast.BasicLit {
+                    Kind: token.INT,
+                    Value: "1",
+                  },
+                  &ast.BasicLit {
+                    Kind: token.INT,
+                    Value: "2",
+                  },
+                  &ast.BasicLit {
+                    Kind: token.INT,
+                    Value: "3",
                   },
                 },
               },
             },
           },
-          Cond: &ast.BinaryExpr {
-            X: &ast.Ident {
-              Name: "err",
-            },
-            Op: token.NEQ,
-            Y: &ast.Ident {
-              Name: "nil",
-            },
-          },
-          Body: &ast.BlockStmt {
-            List: []ast.Stmt {
-              &ast.ExprStmt {
-                X: &ast.CallExpr {
-                  Fun: &ast.Ident {
-                    Name: "panic",
+          &ast.ExprStmt {
+            X: &ast.CallExpr {
+              Fun: &ast.Ident {
+                Name: "print",
+              },
+              Args: []ast.Expr {
+                &ast.BinaryExpr {
+                  X: &ast.CallExpr {
+                    Fun: &ast.FuncLit {
+                      Type: &ast.FuncType {
+                        Params: &ast.FieldList {},
+                        Results: &ast.FieldList {
+                          List: []*ast.Field {
+                            &ast.Field {
+                              Type: &ast.Ident {
+                                Name: "int",
+                              },
+                            },
+                          },
+                        },
+                      },
+                      Body: &ast.BlockStmt {
+                        List: []ast.Stmt {
+                          &ast.RangeStmt {
+                            Key: &ast.Ident {
+                              Name: "i",
+                            },
+                            Value: &ast.Ident {
+                              Name: "v",
+                            },
+                            Tok: token.DEFINE,
+                            X: &ast.Ident {
+                              Name: "a",
+                            },
+                            Body: &ast.BlockStmt {
+                              List: []ast.Stmt {
+                                &ast.IfStmt {
+                                  Cond: &ast.BinaryExpr {
+                                    X: &ast.Ident {
+                                      Name: "v",
+                                    },
+                                    Op: token.EQL,
+                                    Y: &ast.BasicLit {
+                                      Kind: token.INT,
+                                      Value: "1",
+                                    },
+                                  },
+                                  Body: &ast.BlockStmt {
+                                    List: []ast.Stmt {
+                                      &ast.ReturnStmt {
+                                        Results: []ast.Expr {
+                                          &ast.Ident {
+                                            Name: "i",
+                                          },
+                                        },
+                                      },
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                          &ast.ReturnStmt {
+                            Results: []ast.Expr {
+                              &ast.UnaryExpr {
+                                Op: token.SUB,
+                                X: &ast.BasicLit {
+                                  Kind: token.INT,
+                                  Value: "1",
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
                   },
-                  Args: []ast.Expr {
-                    &ast.Ident {
-                      Name: "err",
+                  Op: token.NEQ,
+                  Y: &ast.UnaryExpr {
+                    Op: token.SUB,
+                    X: &ast.BasicLit {
+                      Kind: token.INT,
+                      Value: "1",
                     },
                   },
                 },

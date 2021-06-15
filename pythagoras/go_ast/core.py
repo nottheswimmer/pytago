@@ -154,6 +154,8 @@ class token(Enum):
     PLACEHOLDER_FLOOR_DIV = "//"
     PLACEHOLDER_IS = "is"
     PLACEHOLDER_IS_NOT = "is not"
+    PLACEHOLDER_IN = "in"
+    PLACEHOLDER_NOT_IN = "not in"
 
 
 COMPARISON_OPS = [token.GTR,
@@ -252,6 +254,19 @@ class Expr(GoAST):
 
     def call(self, *args, **kwargs) -> 'CallExpr':
         return CallExpr(Args=list(args), Fun=self, **kwargs)
+
+    def __getitem__(self, item):
+        # Convenience function to let me cleanly represent subscripts in transformation
+        if isinstance(item, slice):
+            raise NotImplementedError("This shortcut isn't implemented for slices")
+        if isinstance(item, bool):
+            return IndexExpr(X=self, Index=Ident.from_str(str(item).lower()))
+        if isinstance(item, int):
+            return IndexExpr(X=self, Index=BasicLit.from_int(item))
+        if isinstance(item, str):
+            return IndexExpr(X=self, Index=BasicLit(Value=item, Kind=token.STRING))
+        return IndexExpr(X=self, Index=item)
+
 
     def _type(self):
         return self._type_help
@@ -517,6 +532,8 @@ class BinaryExpr(Expr):
             case ast.NotEq(): op = token.NEQ
             case ast.Is(): op = token.PLACEHOLDER_IS
             case ast.IsNot(): op = token.PLACEHOLDER_IS_NOT
+            case ast.In(): op = token.PLACEHOLDER_IN
+            case ast.NotIn(): op = token.PLACEHOLDER_NOT_IN
             case _:
                 raise NotImplementedError(f"Unimplemented comparator: {py_op}")
         X = build_expr_list([node.left])[0]
@@ -611,7 +628,7 @@ class Object(GoAST):
     Objects An Object describes a named language entity such as a package, constant, type,
     variable, function (incl. methods), or label.
 
-    The Data fields contains object-specific data:
+    The Data fields index object-specific data:
     Kind    Data type         Data value
     Pkg     *Scope            package scope
     Con     int               iota for the respective declaration
@@ -794,7 +811,7 @@ class CallExpr(Expr):
         return cls(Args=args, Fun=fun, _type_help=_type_help, _py_context=_py_context)
 
     @classmethod
-    def from_JoinedStr(cls, node: ast.JoinedStr):
+    def from_JoinedStr(cls, node: ast.JoinedStr, **kwargs):
         template_string = ""
         value_elements: list[KeyValueExpr] = []
         used_keys = set()
@@ -818,13 +835,15 @@ class CallExpr(Expr):
                     value_elements.append(KeyValueExpr(Key=BasicLit(token.STRING, key), Value=fval))
                 case _:
                     raise NotImplementedError(value)
-        return ast_snippets.fstring(template_string, value_elements)
+        return ast_snippets.fstring(template_string, value_elements, **kwargs)
 
     @classmethod
-    def from_Constant(cls, node: ast.Constant):
+    def from_Constant(cls, node: ast.Constant, **kwargs):
         match node.value:
             case bytes():
-                return cls(Fun=ArrayType(Elt=Ident.from_str(GoBasicType.BYTE.value)), Args=[BasicLit(Kind=token.STRING, Value=node.value.decode())])
+                return cls(
+                    Fun=ArrayType(Elt=Ident.from_str(GoBasicType.BYTE.value)),
+                    Args=[BasicLit(Kind=token.STRING, Value=node.value.decode())], **kwargs)
             case _:
                 raise NotImplementedError(node, type(node.value))
 
@@ -839,6 +858,19 @@ class CallExpr(Expr):
                 return GoBasicType(self.Fun.Name)
             except ValueError:
                 pass
+        return super()._type()
+
+    def _type(self):
+        match self.Fun:
+            # Maps and arrays
+            case MapType() | ArrayType():
+                return self.Fun or super()._type()
+            # Basic types
+            case Ident(Name=x):
+                try:
+                    return GoBasicType(x) or super()._type()
+                except ValueError:
+                    pass
         return super()._type()
 
 
@@ -1000,6 +1032,16 @@ class CompositeLit(Expr):
         value_elts = build_expr_list(node.values)  # TODO: Implement type hints
         elts = [KeyValueExpr(Key=key, Value=value) for key, value in zip(key_elts, value_elts)]
         return cls(elts, **kwargs)
+
+    @classmethod
+    def from_Set(cls, node: ast.Set, **kwargs):
+        key_elts = build_expr_list(node.elts) # TODO: Implement type hints
+        value_elts = [CompositeLit(Type=StructType()) for _ in key_elts]
+        elts = [KeyValueExpr(Key=key, Value=value) for key, value in zip(key_elts, value_elts)]
+        return cls(elts, Type=MapType(Value=StructType()), **kwargs)
+
+    def _type(self):
+        return self.Type or super()._type()
 
 
 class DeclStmt(Stmt):
@@ -1171,6 +1213,9 @@ class Field(GoAST):
     def from_GoBasicType(cls, node: GoBasicType, **kwargs):
         return cls(Type=from_this(Ident, node.value), **kwargs)
 
+    def _type(self):
+        return self.Type or super()._type()
+
 
 class FieldList(GoAST):
     """A FieldList represents a list of Fields, enclosed by parentheses or braces.
@@ -1314,7 +1359,7 @@ class Scope(GoAST):
     def Insert(self, obj: Object) -> Optional[Object]:
         """
         Insert attempts to insert a named object obj into the scope s.
-        If the scope already contains an object alt with the same name,
+        If the scope already index an object alt with the same name,
         Insert leaves the scope unchanged and returns alt. Otherwise
         it inserts obj and returns nil.
         """
@@ -1325,7 +1370,7 @@ class Scope(GoAST):
 
 
 class File(GoAST):
-    """Files and packages A File node represents a Go source file. The Comments list contains
+    """Files and packages A File node represents a Go source file. The Comments list index
     all comments in the source file in order of appearance, including the comments that are
     pointed to from other nodes via Doc and Comment fields.  For correct printing of source
     code containing comments (using packages go/format and go/printer), special care must be
@@ -1813,7 +1858,7 @@ class LabeledStmt(Stmt):
         super().__init__(**kwargs)
 
 
-class MapType(GoAST):
+class MapType(Expr):
     """A MapType node represents a map type."""
     _fields = ("Key", "Value")
     Key: Expr
@@ -2069,7 +2114,7 @@ class StarExpr(Expr):
         super().__init__(**kwargs)
 
 
-class StructType(GoAST):
+class StructType(Expr):
     """A StructType node represents a struct type."""
     _fields = ("Fields", "Incomplete")
     """list of field declarations"""
@@ -2201,7 +2246,7 @@ class UnaryExpr(Expr):
     """
     _fields = ("Op", "X")
     """operator"""
-    Op: int
+    Op: token
     """position of Op"""
     OpPos: int
     """operand"""
@@ -2220,7 +2265,7 @@ class UnaryExpr(Expr):
         return cls(op, 0, X, **kwargs)
 
     def __init__(self,
-                 Op: int = 0,
+                 Op: token = None,
                  OpPos: int = 0,
                  X: Expr = None,
                  **kwargs) -> None:

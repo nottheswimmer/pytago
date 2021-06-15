@@ -3,8 +3,11 @@ from _ast import AST
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
-    GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec, ArrayType
+    GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec, ArrayType, \
+    ast_snippets, MapType
 
+# Shortcuts
+v = Ident.from_str
 
 class PrintToFmtPrintln(ast.NodeTransformer):
     """
@@ -15,7 +18,7 @@ class PrintToFmtPrintln(ast.NodeTransformer):
         self.generic_visit(node)
         match node.Fun:
             case Ident(Name="print"):
-                node.Fun = SelectorExpr(X=Ident.from_str("fmt"), Sel=Ident.from_str("Println"))
+                node.Fun = SelectorExpr(X=v("fmt"), Sel=v("Println"))
         return node
 
 
@@ -56,7 +59,7 @@ class ReplacePowWithMathPow(ast.NodeTransformer):
         match node:
             case BinaryExpr(Op=token.PLACEHOLDER_POW):
                 return CallExpr(Args=[node.X, node.Y],
-                                Fun=SelectorExpr(X=Ident.from_str("math"), Sel=Ident.from_str("Pow")))
+                                Fun=SelectorExpr(X=v("math"), Sel=v("Pow")))
         return node
 
 
@@ -67,7 +70,7 @@ class ReplacePythonStyleAppends(ast.NodeTransformer):
             match node:
                 case ExprStmt(X=CallExpr(Fun=SelectorExpr(Sel=Ident(Name="append")))):
                     block_node.List[i] = AssignStmt(
-                        [node.X.Fun.X], [CallExpr(Args=[node.X.Fun.X, *node.X.Args], Fun=Ident.from_str("append"))],
+                        [node.X.Fun.X], [CallExpr(Args=[node.X.Fun.X, *node.X.Args], Fun=v("append"))],
                         token.ASSIGN)
         return block_node
 
@@ -78,11 +81,11 @@ class AppendSliceViaUnpacking(ast.NodeTransformer):
         match node:
             case AssignStmt(Rhs=[CompositeLit(), * ignored], Tok=token.ADD_ASSIGN):
                 node.Rhs[0] = CallExpr(Args=[node.Lhs[0], node.Rhs[0]],
-                                       Ellipsis=1, Fun=Ident.from_str("append"))
+                                       Ellipsis=1, Fun=v("append"))
                 node.Tok = token.ASSIGN
             case AssignStmt(Rhs=[BinaryExpr(Op=token.ADD, Y=CompositeLit()), * ignored]):
                 node.Rhs[0] = CallExpr(Args=[node.Rhs[0].X, node.Rhs[0].Y],
-                                       Ellipsis=1, Fun=Ident.from_str("append"))
+                                       Ellipsis=1, Fun=v("append"))
 
         return node
 
@@ -226,7 +229,7 @@ class NegativeIndexesSubtractFromLen(ast.NodeTransformer):
         self.generic_visit(node)
         match node.Index:
             case UnaryExpr(Op=token.SUB, X=BasicLit()):
-                node.Index = BinaryExpr(X=CallExpr(Args=[node.X], Fun=Ident.from_str("len")),
+                node.Index = BinaryExpr(X=CallExpr(Args=[node.X], Fun=v("len")),
                                         Op=token.SUB, Y=node.Index.X)
         return node
 
@@ -236,9 +239,9 @@ def wrap_with_call_to(args, wrap_with):
         args = list(args)
     if "." in wrap_with:
         x, sel = wrap_with.split(".")
-        func = SelectorExpr(X=Ident.from_str(x), Sel=Ident.from_str(sel))
+        func = SelectorExpr(X=v(x), Sel=v(sel))
     else:
-        func = Ident.from_str(wrap_with)
+        func = v(wrap_with)
     return CallExpr(Args=args, Ellipsis=0, Fun=func, Lparen=0, Rparen=0)
 
 
@@ -255,22 +258,13 @@ class StringifyStringMember(NodeTransformerWithScope):
 
 
 class FileWritesAndErrors(NodeTransformerWithScope):
-    def __init__(self):
-        super().__init__()
-        self.stack = []
-
-    def generic_visit(self, node):
-        self.stack.append(node)
-        return_val = super().generic_visit(node)
-        self.stack.pop()
-        return return_val
 
     def visit_CallExpr(self, node: CallExpr):
         self.generic_visit(node)
         match node:
             case CallExpr(Fun=SelectorExpr(X=Ident(Name="os"), Sel=Ident(Name="OpenFile"))):
-                f = Ident.from_str("f", _type_help=node._type(), _py_context=node._py_context)
-                assignment = AssignStmt([f, Ident.from_str(UNHANDLED_ERROR)], [node], token.DEFINE)
+                f = v("f", _type_help=node._type(), _py_context=node._py_context)
+                assignment = AssignStmt([f, v(UNHANDLED_ERROR)], [node], token.DEFINE)
                 return CallExpr(Args=[], Fun=FuncLit(
                     Body=BlockStmt(
                         List=[
@@ -281,40 +275,40 @@ class FileWritesAndErrors(NodeTransformerWithScope):
                     Type=FuncType(Results=FieldList(List=[Field(Type=node._type())]))
                 ), _py_context=node._py_context)
             case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="write"))):
-                n = Ident.from_str("n")
+                n = v("n")
                 selector = "WriteString" if self.scope._get_ctx(node.Fun.X)['text_mode'] else "Write"
                 return CallExpr(Args=[], Fun=FuncLit(
                     Body=BlockStmt(
                         List=[
-                            AssignStmt([n, Ident.from_str(UNHANDLED_ERROR)], [
+                            AssignStmt([n, v(UNHANDLED_ERROR)], [
                                 CallExpr(Args=node.Args, Fun=node.Fun.X.sel(selector))
                             ], token.DEFINE),
                             ReturnStmt([n])
                         ],
                     ),
-                    Type=FuncType(Results=FieldList(List=[Field(Type=Ident.from_str(GoBasicType.INT.value))]))
+                    Type=FuncType(Results=FieldList(List=[Field(Type=v(GoBasicType.INT.value))]))
                 ))
             case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="read"))):
-                content = Ident.from_str("content")
+                content = v("content")
                 text_mode = self.scope._get_ctx(node.Fun.X)['text_mode']
                 expr = CallExpr(Args=[], Fun=FuncLit(
                     Body=BlockStmt(
                         List=[
-                            AssignStmt(Lhs=[content, Ident.from_str(UNHANDLED_ERROR)], Rhs=[
-                                Ident.from_str("ioutil").sel("ReadAll").call(node.Fun.X)
+                            AssignStmt(Lhs=[content, v(UNHANDLED_ERROR)], Rhs=[
+                                v("ioutil").sel("ReadAll").call(node.Fun.X)
                             ], Tok=token.DEFINE),
-                            ReturnStmt(Results=[CallExpr(Fun=Ident.from_str(GoBasicType.STRING.value), Args=[content]) if text_mode else content])
+                            ReturnStmt(Results=[CallExpr(Fun=v(GoBasicType.STRING.value), Args=[content]) if text_mode else content])
                         ],
                     ),
                     Type=FuncType(Results=FieldList(List=[
-                        Field(Type=Ident.from_str(GoBasicType.STRING.value) if text_mode else ArrayType.from_Ident(Ident.from_str(GoBasicType.BYTE.value)))]))
+                        Field(Type=v(GoBasicType.STRING.value) if text_mode else ArrayType.from_Ident(v(GoBasicType.BYTE.value)))]))
                 ))
                 return expr
             case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="decode"))):
-                string = Ident.from_str(GoBasicType.STRING.value)
+                string = v(GoBasicType.STRING.value)
                 return string.call(node.Fun.X)
             case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="encode"))):
-                bytes_array = ArrayType(Elt=Ident.from_str(GoBasicType.BYTE.value))
+                bytes_array = ArrayType(Elt=v(GoBasicType.BYTE.value))
                 return bytes_array.call(node.Fun.X)
         return node
 
@@ -365,12 +359,13 @@ class HandleTypeCoercion(NodeTransformerWithScope):
                 if y_type == GoBasicType.INT:
                     node.Y = wrap_with_call_to([node.Y], GoBasicType.FLOAT64.value)
                     y_type = GoBasicType.FLOAT64
-        if x_type != y_type and x_type and y_type:
-            dominant_type = get_dominant_type(x_type, y_type)
-            if x_type != dominant_type:
-                node.X = wrap_with_call_to([node.X], dominant_type.value)
-            if y_type != dominant_type:
-                node.Y = wrap_with_call_to([node.Y], dominant_type.value)
+        if node.Op not in [token.PLACEHOLDER_IN, token.PLACEHOLDER_NOT_IN]:
+            if x_type != y_type and x_type and y_type:
+                dominant_type = get_dominant_type(x_type, y_type)
+                if x_type != dominant_type:
+                    node.X = wrap_with_call_to([node.X], dominant_type.value)
+                if y_type != dominant_type:
+                    node.Y = wrap_with_call_to([node.Y], dominant_type.value)
         return node
 
 
@@ -403,7 +398,7 @@ class HTTPErrors(NodeTransformerWithScope):
         if isinstance(rhn, CallExpr) and \
                 isinstance(rhn.Fun, SelectorExpr) and \
                 isinstance(rhn.Fun.X, Ident) and rhn.Fun.X.Name == "http":
-            node.Lhs.append(Ident.from_str(UNHANDLED_HTTP_ERROR))
+            node.Lhs.append(v(UNHANDLED_HTTP_ERROR))
             self.scope.Objects[node.Lhs[0].Name].Type = HTTP_RESPONSE_TYPE
         return node
 
@@ -414,21 +409,21 @@ class HTTPErrors(NodeTransformerWithScope):
                     return CallExpr(Args=[], Fun=FuncLit(
                         Body=BlockStmt(
                             List=[
-                                AssignStmt([Ident.from_str("body"), Ident.from_str(UNHANDLED_ERROR)], [
+                                AssignStmt([v("body"), v(UNHANDLED_ERROR)], [
                                     _call_from_name("ioutil.ReadAll", [_selector_from_name(f"{node.X.Name}.Body")])
                                 ], token.DEFINE),
-                                ReturnStmt([wrap_with_call_to([Ident.from_str("body")], GoBasicType.STRING.value)])
+                                ReturnStmt([wrap_with_call_to([v("body")], GoBasicType.STRING.value)])
                             ],
                         ),
                         Type=FuncType(Results=FieldList(List=[
-                            Field(Type=Ident.from_str(GoBasicType.STRING.value))]))
+                            Field(Type=v(GoBasicType.STRING.value))]))
                     ))
         return node
 
 
 def _selector_from_name(name: str):
     parts = reversed(name.split("."))
-    parts = [Ident.from_str(x) for x in parts]
+    parts = [v(x) for x in parts]
     while len(parts) > 1:
         X, Sel = parts.pop(), parts.pop()
         parts.append(SelectorExpr(Sel=Sel, X=X))
@@ -461,9 +456,9 @@ class HandleUnhandledErrorsAndDefers(NodeTransformerWithScope):
                 block_node.List.insert(pos,
                                        IfStmt(
                                            Body=BlockStmt(0, [
-                                               ExprStmt(X=wrap_with_call_to([Ident.from_str("err")], "panic"))], 0),
-                                           Cond=BinaryExpr(X=Ident.from_str("err"), Op=token.NEQ,
-                                                           Y=Ident.from_str("nil"), OpPos=0),
+                                               ExprStmt(X=wrap_with_call_to([v("err")], "panic"))], 0),
+                                           Cond=BinaryExpr(X=v("err"), Op=token.NEQ,
+                                                           Y=v("nil"), OpPos=0),
                                            Else=None,
                                            If=0,
                                            Init=None,
@@ -498,6 +493,54 @@ class AddTextTemplateImportForFStrings(ast.NodeTransformer):
         return node
 
 
+def _map_contains(node: BinaryExpr):
+    # Check if a bin expression's MapType Y contains X
+    ok = v("ok")
+    return FuncLit(
+        Body=BlockStmt(List=[
+            AssignStmt(Lhs=[v("_"), ok], Rhs=[node.Y[node.X]], Tok=token.DEFINE),
+            ReturnStmt(Results=[ok])
+        ]),
+        Type=FuncType(Results=FieldList(List=[Field(Type=v("bool"))]))
+    ).call()
+
+class SpecialComparators(NodeTransformerWithScope):
+    def visit_BinaryExpr(self, node: BinaryExpr):
+        self.generic_visit(node)
+        match node.Op:
+            case token.PLACEHOLDER_IN:
+                node.Op = token.NEQ
+                match self.scope._get_type(node.Y):
+                    case GoBasicType.STRING:
+                        node = v("strings").sel("Contains").call(node.Y, node.X)
+                    case ArrayType(Elt=Ident(Name=x)) if x in [GoBasicType.BYTE.value, GoBasicType.UINT8.value]:
+                        node = v("bytes").sel("Contains").call(node.Y, node.X)
+                    case MapType():
+                        node = _map_contains(node)
+                    case _:
+                        node.X = ast_snippets.index(node.Y, node.X)
+                        node.Y = BasicLit.from_int(-1)
+            case token.PLACEHOLDER_NOT_IN:
+                node.Op = token.EQL
+                match self.scope._get_type(node.Y):
+                    case GoBasicType.STRING:
+                        node = v("strings").sel("Contains").call(node.Y, node.X)
+                        node = UnaryExpr(Op=token.NOT, X=node)
+                    case ArrayType(Elt=Ident(Name=x)) if x in [GoBasicType.BYTE.value, GoBasicType.UINT8.value]:
+                        node = v("bytes").sel("Contains").call(node.Y, node.X)
+                        node = UnaryExpr(Op=token.NOT, X=node)
+                    case MapType():
+                        node = UnaryExpr(Op=token.NOT, X=_map_contains(node))
+                    case _:
+                        node.X = ast_snippets.index(node.Y, node.X)
+                        node.Y = BasicLit.from_int(-1)
+            case token.PLACEHOLDER_IS:
+                ...
+            case token.PLACEHOLDER_IS_NOT:
+                ...
+        return node
+
+
 ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
@@ -516,5 +559,6 @@ ALL_TRANSFORMS = [
     HTTPErrors,
     FileWritesAndErrors,
     HandleUnhandledErrorsAndDefers,
+    SpecialComparators,
     AddTextTemplateImportForFStrings
 ]

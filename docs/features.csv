@@ -132,7 +132,7 @@ complex,,,,Built-ins
 copyright,,,,Built-ins
 credits,,,,Built-ins
 delattr,,,,Built-ins
-dict,,,,Built-ins
+dict,X,,Literal support exists. Function support untested.,Built-ins
 dir,,,,Built-ins
 divmod,,,,Built-ins
 enumerate,,,Looping over an enumerate produces a go range loop.,Built-ins
@@ -273,245 +273,248 @@ ParamSpecArgs,,,,Typing - One-off things.
 ParamSpecKwargs,,,,Typing - One-off things.
 TypeAlias,,,,Typing - One-off things.
 TypeGuard,,,,Typing - One-off things.
-abc,,,,Standard Library Modules
-aifc,,,,Standard Library Modules
-antigravity,,,,Standard Library Modules
-argparse,,,,Standard Library Modules
-array,,,,Standard Library Modules
-ast,,,Too meta?,Standard Library Modules
-asynchat,,,,Standard Library Modules
-asyncio,,,,Standard Library Modules
-asyncore,,,,Standard Library Modules
-atexit,,,,Standard Library Modules
-audioop,,,,Standard Library Modules
-backend_interagg,,,,Standard Library Modules
-base64,,,,Standard Library Modules
-bdb,,,,Standard Library Modules
-binascii,,,,Standard Library Modules
-binhex,,,,Standard Library Modules
-bisect,,,,Standard Library Modules
-builtins,,,,Standard Library Modules
-bz2,,,,Standard Library Modules
-cProfile,,,,Standard Library Modules
-calendar,,,,Standard Library Modules
-certifi,,,,Standard Library Modules
-cgi,,,,Standard Library Modules
-cgitb,,,,Standard Library Modules
-chardet,,,,Standard Library Modules
-chunk,,,,Standard Library Modules
-cmath,,,,Standard Library Modules
-cmd,,,,Standard Library Modules
-code,,,,Standard Library Modules
-codecs,,,,Standard Library Modules
-codeop,,,,Standard Library Modules
-collections,,,,Standard Library Modules
-colorsys,,,,Standard Library Modules
-compileall,,,,Standard Library Modules
-concurrent,,,,Standard Library Modules
-configparser,,,,Standard Library Modules
-contextlib,,,,Standard Library Modules
-contextvars,,,,Standard Library Modules
-copy,,,,Standard Library Modules
-copyreg,,,,Standard Library Modules
-crypt,,,,Standard Library Modules
-csv,,,,Standard Library Modules
-ctypes,,,,Standard Library Modules
-curses,,,,Standard Library Modules
-dataclasses,,,,Standard Library Modules
-datalore,,,,Standard Library Modules
-datetime,,,,Standard Library Modules
-dbm,,,,Standard Library Modules
-decimal,,,,Standard Library Modules
-difflib,,,,Standard Library Modules
-dis,,,,Standard Library Modules
-distutils,,,,Standard Library Modules
-doctest,,,,Standard Library Modules
-email,,,,Standard Library Modules
-encodings,,,,Standard Library Modules
-ensurepip,,,,Standard Library Modules
-enum,,,,Standard Library Modules
-errno,,,,Standard Library Modules
-faulthandler,,,,Standard Library Modules
-filecmp,,,,Standard Library Modules
-fileinput,,,,Standard Library Modules
-fnmatch,,,,Standard Library Modules
-fractions,,,,Standard Library Modules
-ftplib,,,,Standard Library Modules
-functools,,,,Standard Library Modules
-gc,,,,Standard Library Modules
-genericpath,,,,Standard Library Modules
-getopt,,,,Standard Library Modules
-getpass,,,,Standard Library Modules
-gettext,,,,Standard Library Modules
-glob,,,,Standard Library Modules
-graphlib,,,,Standard Library Modules
-gzip,,,,Standard Library Modules
-hashlib,,,,Standard Library Modules
-heapq,,,,Standard Library Modules
-hmac,,,,Standard Library Modules
-html,,,,Standard Library Modules
-http,,,,Standard Library Modules
-idlelib,,,,Standard Library Modules
-idna,,,,Standard Library Modules
-imaplib,,,,Standard Library Modules
-imghdr,,,,Standard Library Modules
-imp,,,,Standard Library Modules
-importlib,,,,Standard Library Modules
-inspect,,,,Standard Library Modules
-interpreterInfo,,,,Standard Library Modules
-io,,,,Standard Library Modules
-ipaddress,,,,Standard Library Modules
-itertools,,,,Standard Library Modules
-json,,,,Standard Library Modules
-keyword,,,,Standard Library Modules
-lib2to3,,,,Standard Library Modules
-linecache,,,,Standard Library Modules
-locale,,,,Standard Library Modules
-logging,,,,Standard Library Modules
-lzma,,,,Standard Library Modules
-mailbox,,,,Standard Library Modules
-mailcap,,,,Standard Library Modules
-marshal,,,,Standard Library Modules
-math,,X,Many functions supported. Must have math imported as math.,Standard Library Modules
-mimetypes,,,,Standard Library Modules
-mmap,,,,Standard Library Modules
-modulefinder,,,,Standard Library Modules
-msilib,,,,Standard Library Modules
-msvcrt,,,,Standard Library Modules
-multiprocessing,,,,Standard Library Modules
-netrc,,,,Standard Library Modules
-nntplib,,,,Standard Library Modules
-nt,,,,Standard Library Modules
-ntpath,,,,Standard Library Modules
-nturl2path,,,,Standard Library Modules
-numbers,,,,Standard Library Modules
-opcode,,,,Standard Library Modules
-operator,,,,Standard Library Modules
-optparse,,,,Standard Library Modules
-os,,,,Standard Library Modules
-pathlib,,,,Standard Library Modules
-pdb,,,,Standard Library Modules
-pickle,,,,Standard Library Modules
-pickletools,,,,Standard Library Modules
-pip,,,,Standard Library Modules
-pipes,,,,Standard Library Modules
-pkg_resources,,,,Standard Library Modules
-pkgutil,,,,Standard Library Modules
-platform,,,,Standard Library Modules
-plistlib,,,,Standard Library Modules
-poplib,,,,Standard Library Modules
-posixpath,,,,Standard Library Modules
-pprint,,,,Standard Library Modules
-profile,,,,Standard Library Modules
-pstats,,,,Standard Library Modules
-pty,,,,Standard Library Modules
-py_compile,,,,Standard Library Modules
-pyclbr,,,,Standard Library Modules
-pycompletionserver,,,,Standard Library Modules
-pydev_app_engine_debug_startup,,,,Standard Library Modules
-pydev_console,,,,Standard Library Modules
-pydev_coverage,,,,Standard Library Modules
-pydev_ipython,,,,Standard Library Modules
-pydev_pysrc,,,,Standard Library Modules
-pydev_test_pydevd_reload,,,,Standard Library Modules
-pydev_tests,,,,Standard Library Modules
-pydev_tests_mainloop,,,,Standard Library Modules
-pydev_tests_python,,,,Standard Library Modules
-pydevconsole,,,,Standard Library Modules
-pydevd,,,,Standard Library Modules
-pydevd_concurrency_analyser,,,,Standard Library Modules
-pydevd_file_utils,,,,Standard Library Modules
-pydevd_plugins,,,,Standard Library Modules
-pydevd_pycharm,,,,Standard Library Modules
-pydevd_tracing,,,,Standard Library Modules
-pydoc,,,,Standard Library Modules
-pydoc_data,,,,Standard Library Modules
-pyexpat,,,,Standard Library Modules
-pythagoras,,,,Standard Library Modules
-queue,,,,Standard Library Modules
-quopri,,,,Standard Library Modules
-random,,,,Standard Library Modules
-re,,,,Standard Library Modules
-reprlib,,,,Standard Library Modules
-requests,,,,Standard Library Modules
-rlcompleter,,,,Standard Library Modules
-runfiles,,,,Standard Library Modules
-runpy,,,,Standard Library Modules
-sched,,,,Standard Library Modules
-secrets,,,,Standard Library Modules
-select,,,,Standard Library Modules
-selectors,,,,Standard Library Modules
-setup,,,,Standard Library Modules
-setup_cython,,,,Standard Library Modules
-setuptools,,,,Standard Library Modules
-shelve,,,,Standard Library Modules
-shlex,,,,Standard Library Modules
-shutil,,,,Standard Library Modules
-signal,,,,Standard Library Modules
-site,,,,Standard Library Modules
-sitecustomize,,,,Standard Library Modules
-smtpd,,,,Standard Library Modules
-smtplib,,,,Standard Library Modules
-sndhdr,,,,Standard Library Modules
-socket,,,,Standard Library Modules
-socketserver,,,,Standard Library Modules
-sqlite3,,,,Standard Library Modules
-sre_compile,,,,Standard Library Modules
-sre_constants,,,,Standard Library Modules
-sre_parse,,,,Standard Library Modules
-ssl,,,,Standard Library Modules
-stat,,,,Standard Library Modules
-statistics,,,,Standard Library Modules
-string,,,,Standard Library Modules
-stringprep,,,,Standard Library Modules
-struct,,,,Standard Library Modules
-subprocess,,,,Standard Library Modules
-sunau,,,,Standard Library Modules
-symtable,,,,Standard Library Modules
-sys,,,,Standard Library Modules
-sysconfig,,,,Standard Library Modules
-tabnanny,,,,Standard Library Modules
-tarfile,,,,Standard Library Modules
-telnetlib,,,,Standard Library Modules
-tempfile,,,,Standard Library Modules
-test,,,,Standard Library Modules
-textwrap,,,,Standard Library Modules
-this,,,,Standard Library Modules
-threading,,,,Standard Library Modules
-time,,,,Standard Library Modules
-timeit,,,,Standard Library Modules
-tkinter,,,,Standard Library Modules
-token,,,,Standard Library Modules
-tokenize,,,,Standard Library Modules
-trace,,,,Standard Library Modules
-traceback,,,,Standard Library Modules
-tracemalloc,,,,Standard Library Modules
-tty,,,,Standard Library Modules
-turtle,,,,Standard Library Modules
-turtledemo,,,,Standard Library Modules
-types,,,,Standard Library Modules
-typing,,,,Standard Library Modules
-unicodedata,,,,Standard Library Modules
-unittest,,,,Standard Library Modules
-urllib,,,,Standard Library Modules
-urllib3,,,,Standard Library Modules
-uu,,,,Standard Library Modules
-uuid,,,,Standard Library Modules
-venv,,,,Standard Library Modules
-warnings,,,,Standard Library Modules
-wave,,,,Standard Library Modules
-weakref,,,,Standard Library Modules
-webbrowser,,,,Standard Library Modules
-winreg,,,,Standard Library Modules
-winsound,,,,Standard Library Modules
-wsgiref,,,,Standard Library Modules
-xdrlib,,,,Standard Library Modules
-xml,,,,Standard Library Modules
-xmlrpc,,,,Standard Library Modules
-xxsubtype,,,,Standard Library Modules
-zipapp,,,,Standard Library Modules
-zipfile,,,,Standard Library Modules
-zipimport,,,,Standard Library Modules
-zlib,,,,Standard Library Modules
-zoneinfo,,,,Standard Library Modules
-requests,,X,"Experimental support for a simple ""get"" request",Third Party
+string,,,Common string operations,Standard Library - Text Processing Services
+re,,,Regular expression operations,Standard Library - Text Processing Services
+difflib,,,Helpers for computing deltas,Standard Library - Text Processing Services
+textwrap,,,Text wrapping and filling,Standard Library - Text Processing Services
+unicodedata,,,Unicode Database,Standard Library - Text Processing Services
+stringprep,,,Internet String Preparation,Standard Library - Text Processing Services
+readline,,,GNU readline interface,Standard Library - Text Processing Services
+rlcompleter,,,Completion function for GNU readline,Standard Library - Text Processing Services
+struct,,,Interpret bytes as packed binary data,Standard Library - Binary Data Services
+codecs,,,Codec registry and base classes,Standard Library - Binary Data Services
+datetime,,,Basic date and time types,Standard Library - Data Types
+zoneinfo,,,IANA time zone support,Standard Library - Data Types
+calendar,,,General calendar-related functions,Standard Library - Data Types
+collections,,,Container datatypes,Standard Library - Data Types
+collections.abc,,,Abstract Base Classes for Containers,Standard Library - Data Types
+heapq,,,Heap queue algorithm,Standard Library - Data Types
+bisect,,,Array bisection algorithm,Standard Library - Data Types
+array,,,Efficient arrays of numeric values,Standard Library - Data Types
+weakref,,,Weak references,Standard Library - Data Types
+types,,,Dynamic type creation and names for built-in types,Standard Library - Data Types
+copy,,,Shallow and deep copy operations,Standard Library - Data Types
+pprint,,,Data pretty printer,Standard Library - Data Types
+reprlib,,,Alternate repr() implementation,Standard Library - Data Types
+enum,,,Support for enumerations,Standard Library - Data Types
+graphlib,,,Functionality to operate with graph-like structures,Standard Library - Data Types
+numbers,,,Numeric abstract base classes,Standard Library - Numeric and Mathematical Modules
+math,,,Mathematical functions,Standard Library - Numeric and Mathematical Modules
+cmath,,,Mathematical functions for complex numbers,Standard Library - Numeric and Mathematical Modules
+decimal,,,Decimal fixed point and floating point arithmetic,Standard Library - Numeric and Mathematical Modules
+fractions,,,Rational numbers,Standard Library - Numeric and Mathematical Modules
+random,,,Generate pseudo-random numbers,Standard Library - Numeric and Mathematical Modules
+statistics,,,Mathematical statistics functions,Standard Library - Numeric and Mathematical Modules
+itertools,,,Functions creating iterators for efficient looping,Standard Library - Functional Programming Modules
+functools,,,Higher-order functions and operations on callable objects,Standard Library - Functional Programming Modules
+operator,,,Standard operators as functions,Standard Library - Functional Programming Modules
+pathlib,,,Object-oriented filesystem paths,Standard Library - File and Directory Access
+os.path,,,Common pathname manipulations,Standard Library - File and Directory Access
+fileinput,,,Iterate over lines from multiple input streams,Standard Library - File and Directory Access
+stat,,,Interpreting stat() results,Standard Library - File and Directory Access
+filecmp,,,File and Directory Comparisons,Standard Library - File and Directory Access
+tempfile,,,Generate temporary files and directories,Standard Library - File and Directory Access
+glob,,,Unix style pathname pattern expansion,Standard Library - File and Directory Access
+fnmatch,,,Unix filename pattern matching,Standard Library - File and Directory Access
+linecache,,,Random access to text lines,Standard Library - File and Directory Access
+shutil,,,High-level file operations,Standard Library - File and Directory Access
+pickle,,,Python object serialization,Standard Library - Data Persistence
+copyreg,,,Register pickle support functions,Standard Library - Data Persistence
+shelve,,,Python object persistence,Standard Library - Data Persistence
+marshal,,,Internal Python object serialization,Standard Library - Data Persistence
+dbm,,,Interfaces to Unix “databases”,Standard Library - Data Persistence
+sqlite3,,,DB-API 2.0 interface for SQLite databases,Standard Library - Data Persistence
+zlib,,,Compression compatible with gzip,Standard Library - Data Compression and Archiving
+gzip,,,Support for gzip files,Standard Library - Data Compression and Archiving
+bz2,,,Support for bzip2 compression,Standard Library - Data Compression and Archiving
+lzma,,,Compression using the LZMA algorithm,Standard Library - Data Compression and Archiving
+zipfile,,,Work with ZIP archives,Standard Library - Data Compression and Archiving
+tarfile,,,Read and write tar archive files,Standard Library - Data Compression and Archiving
+csv,,,CSV File Reading and Writing,Standard Library - File Formats
+configparser,,,Configuration file parser,Standard Library - File Formats
+netrc,,,netrc file processing,Standard Library - File Formats
+xdrlib,,,Encode and decode XDR data,Standard Library - File Formats
+plistlib,,,Generate and parse Apple .plist files,Standard Library - File Formats
+hashlib,,,Secure hashes and message digests,Standard Library - Cryptographic Services
+hmac,,,Keyed-Hashing for Message Authentication,Standard Library - Cryptographic Services
+secrets,,,Generate secure random numbers for managing secrets,Standard Library - Cryptographic Services
+os,,,Miscellaneous operating system interfaces,Standard Library - Generic Operating System Services
+io,,,Core tools for working with streams,Standard Library - Generic Operating System Services
+time,,,Time access and conversions,Standard Library - Generic Operating System Services
+argparse,,,"Parser for command-line options, arguments and sub-commands",Standard Library - Generic Operating System Services
+getopt,,,C-style parser for command line options,Standard Library - Generic Operating System Services
+logging,,,Logging facility for Python,Standard Library - Generic Operating System Services
+logging.config,,,Logging configuration,Standard Library - Generic Operating System Services
+logging.handlers,,,Logging handlers,Standard Library - Generic Operating System Services
+getpass,,,Portable password input,Standard Library - Generic Operating System Services
+curses,,,Terminal handling for character-cell displays,Standard Library - Generic Operating System Services
+curses.textpad,,,Text input widget for curses programs,Standard Library - Generic Operating System Services
+curses.ascii,,,Utilities for ASCII characters,Standard Library - Generic Operating System Services
+curses.panel,,,A panel stack extension for curses,Standard Library - Generic Operating System Services
+platform,,,Access to underlying platform’s identifying data,Standard Library - Generic Operating System Services
+errno,,,Standard errno system symbols,Standard Library - Generic Operating System Services
+ctypes,,,A foreign function library for Python,Standard Library - Generic Operating System Services
+threading,,,Thread-based parallelism,Standard Library - Concurrent Execution
+multiprocessing,,,Process-based parallelism,Standard Library - Concurrent Execution
+multiprocessing.shared_memory,,,Provides shared memory for direct access across processes,Standard Library - Concurrent Execution
+concurrent.futures,,,Launching parallel tasks,Standard Library - The concurrent package
+subprocess,,,Subprocess management,Standard Library - The concurrent package
+sched,,,Event scheduler,Standard Library - The concurrent package
+queue,,,A synchronized queue class,Standard Library - The concurrent package
+contextvars,,,Context Variables,Standard Library - The concurrent package
+_thread,,,Low-level threading API,Standard Library - The concurrent package
+asyncio,,,Asynchronous I/O,Standard Library - Networking and Interprocess Communication
+socket,,,Low-level networking interface,Standard Library - Networking and Interprocess Communication
+ssl,,,TLS/SSL wrapper for socket objects,Standard Library - Networking and Interprocess Communication
+select,,,Waiting for I/O completion,Standard Library - Networking and Interprocess Communication
+selectors,,,High-level I/O multiplexing,Standard Library - Networking and Interprocess Communication
+asyncore,,,Asynchronous socket handler,Standard Library - Networking and Interprocess Communication
+asynchat,,,Asynchronous socket command/response handler,Standard Library - Networking and Interprocess Communication
+signal,,,Set handlers for asynchronous events,Standard Library - Networking and Interprocess Communication
+mmap,,,Memory-mapped file support,Standard Library - Networking and Interprocess Communication
+email,,,An email and MIME handling package,Standard Library - Internet Data Handling
+json,,,JSON encoder and decoder,Standard Library - Internet Data Handling
+mailcap,,,Mailcap file handling,Standard Library - Internet Data Handling
+mailbox,,,Manipulate mailboxes in various formats,Standard Library - Internet Data Handling
+mimetypes,,,Map filenames to MIME types,Standard Library - Internet Data Handling
+base64,,,"Base16, Base32, Base64, Base85 Data Encodings",Standard Library - Internet Data Handling
+binhex,,,Encode and decode binhex4 files,Standard Library - Internet Data Handling
+binascii,,,Convert between binary and ASCII,Standard Library - Internet Data Handling
+quopri,,,Encode and decode MIME quoted-printable data,Standard Library - Internet Data Handling
+uu,,,Encode and decode uuencode files,Standard Library - Internet Data Handling
+html,,,HyperText Markup Language support,Standard Library - Structured Markup Processing Tools
+html.parser,,,Simple HTML and XHTML parser,Standard Library - Structured Markup Processing Tools
+html.entities,,,Definitions of HTML general entities,Standard Library - Structured Markup Processing Tools
+xml.etree.ElementTree,,,The ElementTree XML API,Standard Library - XML Processing Modules
+xml.dom,,,The Document Object Model API,Standard Library - XML Processing Modules
+xml.dom.minidom,,,Minimal DOM implementation,Standard Library - XML Processing Modules
+xml.dom.pulldom,,,Support for building partial DOM trees,Standard Library - XML Processing Modules
+xml.sax,,,Support for SAX2 parsers,Standard Library - XML Processing Modules
+xml.sax.handler,,,Base classes for SAX handlers,Standard Library - XML Processing Modules
+xml.sax.saxutils,,,SAX Utilities,Standard Library - XML Processing Modules
+xml.sax.xmlreader,,,Interface for XML parsers,Standard Library - XML Processing Modules
+xml.parsers.expat,,,Fast XML parsing using Expat,Standard Library - XML Processing Modules
+webbrowser,,,Convenient Web-browser controller,Standard Library - Internet Protocols and Support
+cgi,,,Common Gateway Interface support,Standard Library - Internet Protocols and Support
+cgitb,,,Traceback manager for CGI scripts,Standard Library - Internet Protocols and Support
+wsgiref,,,WSGI Utilities and Reference Implementation,Standard Library - Internet Protocols and Support
+urllib,,,URL handling modules,Standard Library - Internet Protocols and Support
+urllib.request,,,Extensible library for opening URLs,Standard Library - Internet Protocols and Support
+urllib.response,,,Response classes used by urllib,Standard Library - Internet Protocols and Support
+urllib.parse,,,Parse URLs into components,Standard Library - Internet Protocols and Support
+urllib.error,,,Exception classes raised by urllib.request,Standard Library - Internet Protocols and Support
+urllib.robotparser,,,Parser for robots.txt,Standard Library - Internet Protocols and Support
+http,,,HTTP modules,Standard Library - Internet Protocols and Support
+http.client,,,HTTP protocol client,Standard Library - Internet Protocols and Support
+ftplib,,,FTP protocol client,Standard Library - Internet Protocols and Support
+poplib,,,POP3 protocol client,Standard Library - Internet Protocols and Support
+imaplib,,,IMAP4 protocol client,Standard Library - Internet Protocols and Support
+nntplib,,,NNTP protocol client,Standard Library - Internet Protocols and Support
+smtplib,,,SMTP protocol client,Standard Library - Internet Protocols and Support
+smtpd,,,SMTP Server,Standard Library - Internet Protocols and Support
+telnetlib,,,Telnet client,Standard Library - Internet Protocols and Support
+uuid,,,UUID objects according to RFC 4122,Standard Library - Internet Protocols and Support
+socketserver,,,A framework for network servers,Standard Library - Internet Protocols and Support
+http.server,,,HTTP servers,Standard Library - Internet Protocols and Support
+http.cookies,,,HTTP state management,Standard Library - Internet Protocols and Support
+http.cookiejar,,,Cookie handling for HTTP clients,Standard Library - Internet Protocols and Support
+xmlrpc,,,XMLRPC server and client modules,Standard Library - Internet Protocols and Support
+xmlrpc.client,,,XML-RPC client access,Standard Library - Internet Protocols and Support
+xmlrpc.server,,,Basic XML-RPC servers,Standard Library - Internet Protocols and Support
+ipaddress,,,IPv4/IPv6 manipulation library,Standard Library - Internet Protocols and Support
+audioop,,,Manipulate raw audio data,Standard Library - Multimedia Services
+aifc,,,Read and write AIFF and AIFC files,Standard Library - Multimedia Services
+sunau,,,Read and write Sun AU files,Standard Library - Multimedia Services
+wave,,,Read and write WAV files,Standard Library - Multimedia Services
+chunk,,,Read IFF chunked data,Standard Library - Multimedia Services
+colorsys,,,Conversions between color systems,Standard Library - Multimedia Services
+imghdr,,,Determine the type of an image,Standard Library - Multimedia Services
+sndhdr,,,Determine type of sound file,Standard Library - Multimedia Services
+ossaudiodev,,,Access to OSS-compatible audio devices,Standard Library - Multimedia Services
+gettext,,,Multilingual internationalization services,Standard Library - Internationalization
+locale,,,Internationalization services,Standard Library - Internationalization
+turtle,,,Turtle graphics,Standard Library - Program Frameworks
+cmd,,,Support for line-oriented command interpreters,Standard Library - Program Frameworks
+shlex,,,Simple lexical analysis,Standard Library - Program Frameworks
+tkinter,,,Python interface to Tcl/Tk,Standard Library - Graphical User Interfaces with Tk
+tkinter.colorchooser,,,Color choosing dialog,Standard Library - Graphical User Interfaces with Tk
+tkinter.font,,,Tkinter font wrapper,Standard Library - Graphical User Interfaces with Tk
+tkinter.messagebox,,,Tkinter message prompts,Standard Library - Tkinter Dialogs
+tkinter.scrolledtext,,,Scrolled Text Widget,Standard Library - Tkinter Dialogs
+tkinter.dnd,,,Drag and drop support,Standard Library - Tkinter Dialogs
+tkinter.ttk,,,Tk themed widgets,Standard Library - Tkinter Dialogs
+tkinter.tix,,,Extension widgets for Tk,Standard Library - Tkinter Dialogs
+typing,,,Support for type hints,Standard Library - Development Tools
+pydoc,,,Documentation generator and online help system,Standard Library - Development Tools
+doctest,,,Test interactive Python examples,Standard Library - Bad file descriptor error example
+unittest,,,Unit testing framework,Standard Library - Bad file descriptor error example
+unittest.mock,,,mock object library,Standard Library - Bad file descriptor error example
+unittest.mock,,,getting started,Standard Library - Bad file descriptor error example
+test,,,Regression tests package for Python,Standard Library - 2to3 - Automated Python 2 to 3 code translation
+test.support,,,Utilities for the Python test suite,Standard Library - 2to3 - Automated Python 2 to 3 code translation
+test.support.socket_helper,,,Utilities for socket tests,Standard Library - 2to3 - Automated Python 2 to 3 code translation
+test.support.script_helper,,,Utilities for the Python execution tests,Standard Library - 2to3 - Automated Python 2 to 3 code translation
+test.support.bytecode_helper,,,Support tools for testing correct bytecode generation,Standard Library - 2to3 - Automated Python 2 to 3 code translation
+bdb,,,Debugger framework,Standard Library - Audit events table
+faulthandler,,,Dump the Python traceback,Standard Library - Audit events table
+pdb,,,The Python Debugger,Standard Library - Audit events table
+timeit,,,Measure execution time of small code snippets,Standard Library - The Python Profilers
+trace,,,Trace or track Python statement execution,Standard Library - The Python Profilers
+tracemalloc,,,Trace memory allocations,Standard Library - The Python Profilers
+distutils,,,Building and installing Python modules,Standard Library - Software Packaging and Distribution
+ensurepip,,,Bootstrapping the pip installer,Standard Library - Software Packaging and Distribution
+venv,,,Creation of virtual environments,Standard Library - Software Packaging and Distribution
+zipapp,,,Manage executable Python zip archives,Standard Library - Software Packaging and Distribution
+sys,,,System-specific parameters and functions,Standard Library - Python Runtime Services
+sysconfig,,,Provide access to Python’s configuration information,Standard Library - Python Runtime Services
+builtins,,,Built-in objects,Standard Library - Python Runtime Services
+__main__,,,Top-level script environment,Standard Library - Python Runtime Services
+warnings,,,Warning control,Standard Library - Python Runtime Services
+dataclasses,,,Data Classes,Standard Library - Python Runtime Services
+contextlib,,,Utilities for with-statement contexts,Standard Library - Python Runtime Services
+abc,,,Abstract Base Classes,Standard Library - Python Runtime Services
+atexit,,,Exit handlers,Standard Library - Python Runtime Services
+traceback,,,Print or retrieve a stack traceback,Standard Library - Python Runtime Services
+__future__,,,Future statement definitions,Standard Library - Python Runtime Services
+gc,,,Garbage Collector interface,Standard Library - Python Runtime Services
+inspect,,,Inspect live objects,Standard Library - Python Runtime Services
+site,,,Site-specific configuration hook,Standard Library - Python Runtime Services
+code,,,Interpreter base classes,Standard Library - Custom Python Interpreters
+codeop,,,Compile Python code,Standard Library - Custom Python Interpreters
+zipimport,,,Import modules from Zip archives,Standard Library - Importing Modules
+pkgutil,,,Package extension utility,Standard Library - Importing Modules
+modulefinder,,,Find modules used by a script,Standard Library - Importing Modules
+runpy,,,Locating and executing Python modules,Standard Library - Importing Modules
+importlib,,,The implementation of import,Standard Library - Importing Modules
+parser,,,Access Python parse trees,Standard Library - Python Language Services
+ast,,,Abstract Syntax Trees,Standard Library - Python Language Services
+symtable,,,Access to the compiler’s symbol tables,Standard Library - Python Language Services
+symbol,,,Constants used with Python parse trees,Standard Library - Python Language Services
+token,,,Constants used with Python parse trees,Standard Library - Python Language Services
+keyword,,,Testing for Python keywords,Standard Library - Python Language Services
+tokenize,,,Tokenizer for Python source,Standard Library - Python Language Services
+tabnanny,,,Detection of ambiguous indentation,Standard Library - Python Language Services
+pyclbr,,,Python module browser support,Standard Library - Python Language Services
+py_compile,,,Compile Python source files,Standard Library - Python Language Services
+compileall,,,Byte-compile Python libraries,Standard Library - Python Language Services
+dis,,,Disassembler for Python bytecode,Standard Library - Python Language Services
+pickletools,,,Tools for pickle developers,Standard Library - Python Language Services
+formatter,,,Generic output formatting,Standard Library - Miscellaneous Services
+msilib,,,Read and write Microsoft Installer files,Standard Library - MS Windows Specific Services
+msvcrt,,,Useful routines from the MS VC++ runtime,Standard Library - MS Windows Specific Services
+winreg,,,Windows registry access,Standard Library - MS Windows Specific Services
+winsound,,,Sound-playing interface for Windows,Standard Library - MS Windows Specific Services
+posix,,,The most common POSIX system calls,Standard Library - Unix Specific Services
+pwd,,,The password database,Standard Library - Unix Specific Services
+spwd,,,The shadow password database,Standard Library - Unix Specific Services
+grp,,,The group database,Standard Library - Unix Specific Services
+crypt,,,Function to check Unix passwords,Standard Library - Unix Specific Services
+termios,,,POSIX style tty control,Standard Library - Unix Specific Services
+tty,,,Terminal control functions,Standard Library - Unix Specific Services
+pty,,,Pseudo-terminal utilities,Standard Library - Unix Specific Services
+fcntl,,,The fcntl and ioctl system calls,Standard Library - Unix Specific Services
+pipes,,,Interface to shell pipelines,Standard Library - Unix Specific Services
+resource,,,Resource usage information,Standard Library - Unix Specific Services
+nis,,,Interface to Sun’s NIS (Yellow Pages),Standard Library - Unix Specific Services
+syslog,,,Unix syslog library routines,Standard Library - Unix Specific Services
+requests,,X,Experimental GET request support. HTTP library.,Third Party - Networking
