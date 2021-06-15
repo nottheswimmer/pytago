@@ -21,7 +21,7 @@ from,X,,,Keywords
 global,,,,Keywords
 if,,X,Newly declared variables will not be available outside.,Keywords
 import,X,,,Keywords
-in,,,,Keywords
+in,,X,Functions checking for membership may conflict with named variables.,Keywords
 is,,,,Keywords
 lambda,,X,Limited type inference,Keywords
 nonlocal,,,,Keywords
@@ -132,10 +132,10 @@ complex,,,,Built-ins
 copyright,,,,Built-ins
 credits,,,,Built-ins
 delattr,,,,Built-ins
-dict,X,,Literal support exists. Function support untested.,Built-ins
+dict,,X,Literal support exists. Function support untested.,Built-ins
 dir,,,,Built-ins
 divmod,,,,Built-ins
-enumerate,,,Looping over an enumerate produces a go range loop.,Built-ins
+enumerate,,X,Looping over an enumerate produces a go range loop.,Built-ins
 eval,,,,Built-ins
 exec,,,,Built-ins
 exit,,,,Built-ins
@@ -252,7 +252,7 @@ SupportsRound,,,,"Typing - Structural checks, a.k.a. protocols."
 ChainMap,,,,Typing - Concrete collection types.
 Counter,,,,Typing - Concrete collection types.
 Deque,,,,Typing - Concrete collection types.
-Dict,,,,Typing - Concrete collection types.
+Dict,,X,"See ""dict""",Typing - Concrete collection types.
 DefaultDict,,,,Typing - Concrete collection types.
 List,,X,"See ""list""",Typing - Concrete collection types.
 OrderedDict,,,,Typing - Concrete collection types.
