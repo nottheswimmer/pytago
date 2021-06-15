@@ -1059,6 +1059,17 @@ class EmptyStmt(Stmt):
         self.Semicolon = Semicolon
         super().__init__(**kwargs)
 
+    @classmethod
+    def from_Expr(cls, node: ast.Expr):
+        match node.value:
+            case ast.Constant(value=x) if type(x) == type(...):
+                return EmptyStmt()
+        raise NotImplementedError(node, node.value)
+
+    @classmethod
+    def from_Pass(cls, node: ast.Pass):
+        return EmptyStmt()
+
 
 class ExprStmt(Stmt):
     """An ExprStmt node represents a (stand-alone) expression in a statement list."""
@@ -1074,6 +1085,9 @@ class ExprStmt(Stmt):
 
     @classmethod
     def from_Expr(cls, node: ast.Expr):
+        match node.value:
+            case ast.Constant(value=Ellipsis()):
+                raise NotImplementedError(node, node.value)
         return cls(build_expr_list([node.value])[0])
 
     @classmethod

@@ -41,5 +41,8 @@ def main():
     with open("file_8.tmp", "xb+") as f:
         f.write(b"This file was created by xb+ mode\n")
 
+    # with open("file_4.tmp", "x+") as f:
+    #     pass
+
 if __name__ == '__main__':
     main()

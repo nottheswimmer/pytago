@@ -62,3 +62,9 @@ class Test(TestCase):
 
     def test_writefile(self):
         assert_examples_match(self, "writefile")
+
+    def test_pass(self):
+        assert_examples_match(self, "pass")
+
+    def test_ellipsis(self):
+        assert_examples_match(self, "ellipsis")
