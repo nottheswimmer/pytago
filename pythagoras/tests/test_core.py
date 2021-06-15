@@ -68,3 +68,16 @@ class Test(TestCase):
 
     def test_ellipsis(self):
         assert_examples_match(self, "ellipsis")
+
+    # def test_lambdafunc(self):
+    #     assert_examples_match(self, "lambdafunc")
+
+    def test_continuestmt(self):
+        assert_examples_match(self, "continuestmt")
+
+    def test_breakstmt(self):
+        assert_examples_match(self, "breakstmt")
+
+    def test_whileloop(self):
+        assert_examples_match(self, "whileloop")
+

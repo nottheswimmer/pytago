@@ -716,6 +716,15 @@ class BranchStmt(Stmt):
         self.TokPos = TokPos
         super().__init__(**kwargs)
 
+    @classmethod
+    def from_Continue(cls, node: ast.Continue):
+        return cls(Tok=token.CONTINUE)
+
+    @classmethod
+    def from_Break(cls, node: ast.Break):
+        return cls(Tok=token.BREAK)
+
+
 
 class CallExpr(Expr):
     """A CallExpr node represents an expression followed by an argument list."""
@@ -1158,6 +1167,10 @@ class Field(GoAST):
     def from_Name(cls, node: ast.Name, **kwargs):
         return cls(None, None, [], None, from_this(Ident, node), **kwargs)
 
+    @classmethod
+    def from_GoBasicType(cls, node: GoBasicType, **kwargs):
+        return cls(Type=from_this(Ident, node.value), **kwargs)
+
 
 class FieldList(GoAST):
     """A FieldList represents a list of Fields, enclosed by parentheses or braces.
@@ -1404,6 +1417,22 @@ class ForStmt(Stmt):
         self.Post = Post
         super().__init__(**kwargs)
 
+    @classmethod
+    def from_While(cls, node: ast.While):
+        body = from_this(BlockStmt, node.body)
+        cond = build_expr_list([node.test])[0]
+        match cond:
+            case Ident(Name="true"):
+                return cls(Body=body)
+            case BasicLit(Value=x) if not json.loads(x):
+                return cls(Body=body, Cond=Ident.from_str("false"))
+            case BasicLit(Kind=x) if x in [token.INT, token.STRING, token.FLOAT]:
+                return cls(Body=body)
+            case Ident(Name="false") | Ident(Name="nil"):
+                return cls(Body=body, Cond=Ident.from_str("false"))
+
+        return cls(Body=body, Cond=cond)
+
 
 class FuncType(GoAST):
     """function signature: parameters, results, and position of 'func' keyword
@@ -1435,6 +1464,12 @@ class FuncType(GoAST):
     def from_FunctionDef(cls, node: ast.FunctionDef, **kwargs):
         params = from_this(FieldList, node.args)
         results = from_this(FieldList, node.returns) if node.returns else None
+        return cls(0, params, results, **kwargs)
+
+    @classmethod
+    def from_Lambda(cls, node: ast.Lambda, **kwargs):
+        params = from_this(FieldList, node.args)
+        results = FieldList(List=[from_this(Field, x._type()) for x in build_expr_list([node.body])])
         return cls(0, params, results, **kwargs)
 
 
@@ -1513,6 +1548,12 @@ class FuncLit(Expr):
     @classmethod
     def from_FunctionDef(cls, node: ast.FunctionDef, **kwargs):
         body = from_this(BlockStmt, node.body)
+        _type = from_this(FuncType, node)
+        return cls(body, _type, **kwargs)
+
+    @classmethod
+    def from_Lambda(cls, node: ast.Lambda, **kwargs):
+        body = BlockStmt(List=build_expr_list([node.body]))
         _type = from_this(FuncType, node)
         return cls(body, _type, **kwargs)
 
