@@ -1161,7 +1161,7 @@ class Field(GoAST):
     @classmethod
     def from_arg(cls, node: ast.arg):
         return cls(None, None, [from_this(Ident, node.arg)], None, build_expr_list([node.annotation])[0]
-        if node.annotation else Ident.from_str("missing"))
+        if node.annotation else InterfaceType())
 
     @classmethod
     def from_Name(cls, node: ast.Name, **kwargs):
@@ -1553,7 +1553,7 @@ class FuncLit(Expr):
 
     @classmethod
     def from_Lambda(cls, node: ast.Lambda, **kwargs):
-        body = BlockStmt(List=build_expr_list([node.body]))
+        body = BlockStmt(List=[ReturnStmt(build_expr_list([node.body]))])
         _type = from_this(FuncType, node)
         return cls(body, _type, **kwargs)
 
