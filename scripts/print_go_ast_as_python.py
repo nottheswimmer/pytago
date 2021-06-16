@@ -10,6 +10,23 @@ AST = r"""
     Name: "main",
   },
   Decls: []ast.Decl {
+    &ast.GenDecl {
+      Tok: token.IMPORT,
+      Specs: []ast.Spec {
+        &ast.ImportSpec {
+          Path: &ast.BasicLit {
+            Kind: token.STRING,
+            Value: "\"fmt\"",
+          },
+        },
+        &ast.ImportSpec {
+          Path: &ast.BasicLit {
+            Kind: token.STRING,
+            Value: "\"strings\"",
+          },
+        },
+      },
+    },
     &ast.FuncDecl {
       Name: &ast.Ident {
         Name: "main",
@@ -19,92 +36,189 @@ AST = r"""
       },
       Body: &ast.BlockStmt {
         List: []ast.Stmt {
-          &ast.AssignStmt {
-            Lhs: []ast.Expr {
-              &ast.Ident {
-                Name: "a",
-              },
-            },
-            Tok: token.DEFINE,
-            Rhs: []ast.Expr {
-              &ast.CompositeLit {
-                Type: &ast.ArrayType {
-                  Elt: &ast.Ident {
-                    Name: "int",
-                  },
+          &ast.DeferStmt {
+            Call: &ast.CallExpr {
+              Fun: &ast.FuncLit {
+                Type: &ast.FuncType {
+                  Params: &ast.FieldList {},
                 },
-                Elts: []ast.Expr {
-                  &ast.BasicLit {
-                    Kind: token.INT,
-                    Value: "1",
-                  },
-                  &ast.BasicLit {
-                    Kind: token.INT,
-                    Value: "2",
-                  },
-                  &ast.BasicLit {
-                    Kind: token.INT,
-                    Value: "3",
-                  },
-                },
-              },
-            },
-          },
-          &ast.ExprStmt {
-            X: &ast.CallExpr {
-              Fun: &ast.Ident {
-                Name: "print",
-              },
-              Args: []ast.Expr {
-                &ast.BinaryExpr {
-                  X: &ast.CallExpr {
-                    Fun: &ast.FuncLit {
-                      Type: &ast.FuncType {
-                        Params: &ast.FieldList {},
-                        Results: &ast.FieldList {
-                          List: []*ast.Field {
-                            &ast.Field {
-                              Type: &ast.Ident {
-                                Name: "int",
-                              },
+                Body: &ast.BlockStmt {
+                  List: []ast.Stmt {
+                    &ast.IfStmt {
+                      Init: &ast.AssignStmt {
+                        Lhs: []ast.Expr {
+                          &ast.Ident {
+                            Name: "r",
+                          },
+                        },
+                        Tok: token.DEFINE,
+                        Rhs: []ast.Expr {
+                          &ast.CallExpr {
+                            Fun: &ast.Ident {
+                              Name: "recover",
                             },
                           },
                         },
                       },
+                      Cond: &ast.BinaryExpr {
+                        X: &ast.Ident {
+                          Name: "r",
+                        },
+                        Op: token.NEQ,
+                        Y: &ast.Ident {
+                          Name: "nil",
+                        },
+                      },
                       Body: &ast.BlockStmt {
                         List: []ast.Stmt {
-                          &ast.RangeStmt {
-                            Key: &ast.Ident {
-                              Name: "i",
+                          &ast.IfStmt {
+                            Init: &ast.AssignStmt {
+                              Lhs: []ast.Expr {
+                                &ast.Ident {
+                                  Name: "err",
+                                },
+                                &ast.Ident {
+                                  Name: "ok",
+                                },
+                              },
+                              Tok: token.DEFINE,
+                              Rhs: []ast.Expr {
+                                &ast.TypeAssertExpr {
+                                  X: &ast.Ident {
+                                    Name: "r",
+                                  },
+                                  Type: &ast.Ident {
+                                    Name: "error",
+                                  },
+                                },
+                              },
                             },
-                            Value: &ast.Ident {
-                              Name: "v",
-                            },
-                            Tok: token.DEFINE,
-                            X: &ast.Ident {
-                              Name: "a",
+                            Cond: &ast.Ident {
+                              Name: "ok",
                             },
                             Body: &ast.BlockStmt {
                               List: []ast.Stmt {
                                 &ast.IfStmt {
-                                  Cond: &ast.BinaryExpr {
-                                    X: &ast.Ident {
-                                      Name: "v",
+                                  Cond: &ast.CallExpr {
+                                    Fun: &ast.SelectorExpr {
+                                      X: &ast.Ident {
+                                        Name: "strings",
+                                      },
+                                      Sel: &ast.Ident {
+                                        Name: "HasPrefix",
+                                      },
                                     },
-                                    Op: token.EQL,
-                                    Y: &ast.BasicLit {
-                                      Kind: token.INT,
-                                      Value: "1",
+                                    Args: []ast.Expr {
+                                      &ast.CallExpr {
+                                        Fun: &ast.SelectorExpr {
+                                          X: &ast.Ident {
+                                            Name: "err",
+                                          },
+                                          Sel: &ast.Ident {
+                                            Name: "Error",
+                                          },
+                                        },
+                                      },
+                                      &ast.BasicLit {
+                                        Kind: token.STRING,
+                                        Value: "\"Handler 1 case goes here\"",
+                                      },
                                     },
                                   },
                                   Body: &ast.BlockStmt {
                                     List: []ast.Stmt {
-                                      &ast.ReturnStmt {
-                                        Results: []ast.Expr {
-                                          &ast.Ident {
-                                            Name: "i",
+                                      &ast.ExprStmt {
+                                        X: &ast.CallExpr {
+                                          Fun: &ast.SelectorExpr {
+                                            X: &ast.Ident {
+                                              Name: "fmt",
+                                            },
+                                            Sel: &ast.Ident {
+                                              Name: "Println",
+                                            },
+                                          },
+                                          Args: []ast.Expr {
+                                            &ast.BasicLit {
+                                              Kind: token.STRING,
+                                              Value: "\"Handler 1 body goes here\"",
+                                            },
                                           },
                                         },
+                                      },
+                                      &ast.ReturnStmt {},
+                                    },
+                                  },
+                                  Else: &ast.IfStmt {
+                                    Cond: &ast.CallExpr {
+                                      Fun: &ast.SelectorExpr {
+                                        X: &ast.Ident {
+                                          Name: "strings",
+                                        },
+                                        Sel: &ast.Ident {
+                                          Name: "HasPrefix",
+                                        },
+                                      },
+                                      Args: []ast.Expr {
+                                        &ast.CallExpr {
+                                          Fun: &ast.SelectorExpr {
+                                            X: &ast.Ident {
+                                              Name: "err",
+                                            },
+                                            Sel: &ast.Ident {
+                                              Name: "Error",
+                                            },
+                                          },
+                                        },
+                                        &ast.BasicLit {
+                                          Kind: token.STRING,
+                                          Value: "\"Handler N case goes here\"",
+                                        },
+                                      },
+                                    },
+                                    Body: &ast.BlockStmt {
+                                      List: []ast.Stmt {
+                                        &ast.ExprStmt {
+                                          X: &ast.CallExpr {
+                                            Fun: &ast.SelectorExpr {
+                                              X: &ast.Ident {
+                                                Name: "fmt",
+                                              },
+                                              Sel: &ast.Ident {
+                                                Name: "Println",
+                                              },
+                                            },
+                                            Args: []ast.Expr {
+                                              &ast.BasicLit {
+                                                Kind: token.STRING,
+                                                Value: "\"Handler N body goes here\"",
+                                              },
+                                            },
+                                          },
+                                        },
+                                        &ast.ReturnStmt {},
+                                      },
+                                    },
+                                    Else: &ast.BlockStmt {
+                                      List: []ast.Stmt {
+                                        &ast.ExprStmt {
+                                          X: &ast.CallExpr {
+                                            Fun: &ast.SelectorExpr {
+                                              X: &ast.Ident {
+                                                Name: "fmt",
+                                              },
+                                              Sel: &ast.Ident {
+                                                Name: "Println",
+                                              },
+                                            },
+                                            Args: []ast.Expr {
+                                              &ast.BasicLit {
+                                                Kind: token.STRING,
+                                                Value: "\"Exception / BaseException / bare 'except' case goes here\"",
+                                              },
+                                            },
+                                          },
+                                        },
+                                        &ast.ReturnStmt {},
                                       },
                                     },
                                   },
@@ -112,13 +226,14 @@ AST = r"""
                               },
                             },
                           },
-                          &ast.ReturnStmt {
-                            Results: []ast.Expr {
-                              &ast.UnaryExpr {
-                                Op: token.SUB,
-                                X: &ast.BasicLit {
-                                  Kind: token.INT,
-                                  Value: "1",
+                          &ast.ExprStmt {
+                            X: &ast.CallExpr {
+                              Fun: &ast.Ident {
+                                Name: "panic",
+                              },
+                              Args: []ast.Expr {
+                                &ast.Ident {
+                                  Name: "r",
                                 },
                               },
                             },
@@ -127,19 +242,25 @@ AST = r"""
                       },
                     },
                   },
-                  Op: token.NEQ,
-                  Y: &ast.UnaryExpr {
-                    Op: token.SUB,
-                    X: &ast.BasicLit {
-                      Kind: token.INT,
-                      Value: "1",
-                    },
-                  },
                 },
               },
             },
           },
         },
+      },
+    },
+  },
+  Imports: []*ast.ImportSpec {
+    &ast.ImportSpec {
+      Path: &ast.BasicLit {
+        Kind: token.STRING,
+        Value: "\"fmt\"",
+      },
+    },
+    &ast.ImportSpec {
+      Path: &ast.BasicLit {
+        Kind: token.STRING,
+        Value: "\"strings\"",
       },
     },
   },

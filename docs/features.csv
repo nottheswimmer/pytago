@@ -14,7 +14,7 @@ def,,X,Limited type inference,Keywords
 del,X,,,Keywords
 elif,X,,,Keywords
 else,X,,,Keywords
-except,,,,Keywords
+except,,X,Very hacky implementation using the names of Python's exceptions. Not all things will throw exception that would in Python and vice versa. Go was not meant for this.,Keywords
 finally,,,,Keywords
 for,,X,No list comprehension / unpacking support.,Keywords
 from,X,,,Keywords
@@ -28,9 +28,9 @@ nonlocal,,,,Keywords
 not,X,,,Keywords
 or,X,,,Keywords
 pass,X,,,Keywords
-raise,,,,Keywords
+raise,,X,"No ""raise from"" support yet",Keywords
 return,X,,,Keywords
-try,,,,Keywords
+try,,X,Exceptions are incredibly hairy,Keywords
 while,,X,Newly declared variables will not be available outside.,Keywords
 with,X,,,Keywords
 yield,,,,Keywords
@@ -62,7 +62,7 @@ IOError,,,,Built-ins
 ImportError,,,,Built-ins
 ImportWarning,,,,Built-ins
 IndentationError,,,,Built-ins
-IndexError,,,,Built-ins
+IndexError,,X,Checks for error prefix matching go's equivalent,Built-ins
 InterruptedError,,,,Built-ins
 IsADirectoryError,,,,Built-ins
 KeyError,,,,Built-ins
@@ -82,7 +82,7 @@ ProcessLookupError,,,,Built-ins
 RecursionError,,,,Built-ins
 ReferenceError,,,,Built-ins
 ResourceWarning,,,,Built-ins
-RuntimeError,,,,Built-ins
+RuntimeError,,X,Checks for error prefix matching go's equivalent,Built-ins
 RuntimeWarning,,,,Built-ins
 StopAsyncIteration,,,,Built-ins
 StopIteration,,,,Built-ins

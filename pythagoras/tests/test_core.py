@@ -87,3 +87,5 @@ class Test(TestCase):
     def test_contains(self):
         assert_examples_match(self, "contains")
 
+    def test_tryexcept(self):
+        assert_examples_match(self, "tryexcept")

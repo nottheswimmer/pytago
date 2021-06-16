@@ -246,6 +246,12 @@ class Expr(GoAST):
         """
         return BinaryExpr(Op=token.OR, X=self, Y=Y)
 
+    def _or(self, Y: 'Expr') -> 'BinaryExpr':
+        """
+        Shorthand way to describe the binary expression self || Y
+        """
+        return BinaryExpr(Op=token.LOR, X=self, Y=Y)
+
     def sel(self, sel, **kwargs) -> 'SelectorExpr':
         """
         Shorthand way to describe the attribute access self.{{ sel }}
@@ -1146,6 +1152,25 @@ class ExprStmt(Stmt):
         return cls(build_expr_list([node])[0])
 
     @classmethod
+    def from_Raise(cls, node: ast.Raise):
+        panic = Ident.from_str("panic")
+        panic_msg = ""
+        args = []
+        match node.exc:
+            case ast.Call(func=ast.Name(id=exception_name), args=args):
+                panic_msg += exception_name
+                if args:
+                    panic_msg += ': ' + ', '.join(["%v"] * len(args))
+        panic_msg = panic_msg or "Exception"
+        if args:
+            fmt = Ident.from_str("fmt")
+            panic_msg = fmt.sel("Errorf").call(BasicLit(Kind=token.STRING, Value=panic_msg), *build_expr_list(args))
+        else:
+            errors = Ident.from_str("errors")
+            panic_msg = errors.sel("New").call(BasicLit(Kind=token.STRING, Value=panic_msg))
+        return cls(X=panic.call(panic_msg))
+
+    @classmethod
     def from_With(cls, node: ast.With):
         body = []
         for with_item in node.items:
@@ -1165,6 +1190,44 @@ class ExprStmt(Stmt):
                 )
             )
         )
+
+    @classmethod
+    def from_Try(cls, node: ast.Try, **kwargs):
+        finalbody = []
+        if node.finalbody:
+            finalbody.append(
+                DeferStmt(Call=CallExpr(Fun=FuncLit(Body=BlockStmt(List=build_stmt_list(node.finalbody)))))
+            )
+        handlerbody = []
+        if node.handlers:
+            conditional_handlers = []
+            conditional_handler_names = []
+            base_handler = None
+            base_handler_name = None
+            for handler in node.handlers:
+                is_base_handler = False
+                match handler.type:
+                    case ast.Tuple(elts=x):
+                        cond = ast_snippets.handler_name_to_cond(x[0].id)
+                        for subhandler in x[1:]:
+                            cond = cond._or(ast_snippets.handler_name_to_cond(subhandler.id))
+                    case None | ast.Name(id="Exception") | ast.Name(id="BaseException"):
+                        is_base_handler = True
+                    case _:
+                        cond = ast_snippets.handler_name_to_cond(handler.type.id)
+                if is_base_handler and not base_handler:
+                    base_handler = build_stmt_list(handler.body)
+                    base_handler_name = None if not handler.name else from_this(Ident, handler.name)
+                else:
+                    conditional_handlers.append((cond, build_stmt_list(handler.body)))
+                    conditional_handler_names.append(None if not handler.name else from_this(Ident, handler.name))
+            handlerbody.append(ast_snippets.exceptions(
+                conditional_handlers, base_handler, conditional_handler_names, base_handler_name))
+
+        body = finalbody + handlerbody + build_stmt_list(node.body)
+        return cls(X=CallExpr(
+            Fun=FuncLit(Body=BlockStmt(List=body)),
+        **kwargs))
 
 
 class Field(GoAST):
@@ -1778,9 +1841,7 @@ class IndexExpr(Expr):
     @classmethod
     def from_Subscript(cls, node: ast.Subscript, **kwargs):
         match node.slice:
-            case ast.Constant():
-                index = build_expr_list([node.slice])[0]
-            case ast.UnaryOp():
+            case ast.Constant() | ast.UnaryOp() | ast.Name():
                 index = build_expr_list([node.slice])[0]
             case _:
                 raise NotImplementedError((node, node.slice))
