@@ -252,8 +252,8 @@ class StringifyStringMember(NodeTransformerWithScope):
 
     def visit_IndexExpr(self, node: IndexExpr):
         self.generic_visit(node)
-        if self.scope._get_type(node.X) == GoBasicType.STRING and self.scope._get_type(node.Index) == GoBasicType.INT:
-            return wrap_with_call_to([node], GoBasicType.STRING.value)
+        if self.scope._get_type(node.X) == GoBasicType.STRING.ident and self.scope._get_type(node.Index) == GoBasicType.INT.ident:
+            return GoBasicType.STRING.ident.call(node)
         return node
 
 
@@ -286,7 +286,7 @@ class FileWritesAndErrors(NodeTransformerWithScope):
                             ReturnStmt([n])
                         ],
                     ),
-                    Type=FuncType(Results=FieldList(List=[Field(Type=v(GoBasicType.INT.value))]))
+                    Type=FuncType(Results=FieldList(List=[Field(Type=GoBasicType.INT.ident)]))
                 ))
             case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="read"))):
                 content = v("content")
@@ -297,18 +297,18 @@ class FileWritesAndErrors(NodeTransformerWithScope):
                             AssignStmt(Lhs=[content, v(UNHANDLED_ERROR)], Rhs=[
                                 v("ioutil").sel("ReadAll").call(node.Fun.X)
                             ], Tok=token.DEFINE),
-                            ReturnStmt(Results=[CallExpr(Fun=v(GoBasicType.STRING.value), Args=[content]) if text_mode else content])
+                            ReturnStmt(Results=[CallExpr(Fun=GoBasicType.STRING.ident, Args=[content]) if text_mode else content])
                         ],
                     ),
                     Type=FuncType(Results=FieldList(List=[
-                        Field(Type=v(GoBasicType.STRING.value) if text_mode else ArrayType.from_Ident(v(GoBasicType.BYTE.value)))]))
+                        Field(Type=GoBasicType.STRING.ident if text_mode else ArrayType.from_Ident(GoBasicType.BYTE.ident))]))
                 ))
                 return expr
             case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="decode"))):
-                string = v(GoBasicType.STRING.value)
+                string = GoBasicType.STRING.ident
                 return string.call(node.Fun.X)
             case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="encode"))):
-                bytes_array = ArrayType(Elt=v(GoBasicType.BYTE.value))
+                bytes_array = ArrayType(Elt=GoBasicType.BYTE.ident)
                 return bytes_array.call(node.Fun.X)
         return node
 
@@ -331,7 +331,7 @@ def _type_score(typ):
         "float64",
         "complex64",
         "complex128",
-    ].index(str(typ).lower())
+    ].index(str(typ.Name).lower())
 
 
 def get_dominant_type(type_a, type_b):
@@ -346,26 +346,26 @@ class HandleTypeCoercion(NodeTransformerWithScope):
         match node.Op:
             case token.PLACEHOLDER_FLOOR_DIV:
                 node.Op = token.QUO
-                if x_type != GoBasicType.INT or y_type != GoBasicType.INT:
-                    if x_type == GoBasicType.INT:
-                        node.X = wrap_with_call_to([node.X], GoBasicType.FLOAT64.value)
-                    if y_type == GoBasicType.INT:
-                        node.Y = wrap_with_call_to([node.Y], GoBasicType.FLOAT64.value)
+                if x_type != GoBasicType.INT.ident or y_type != GoBasicType.INT.ident:
+                    if x_type == GoBasicType.INT.ident:
+                        node.X = GoBasicType.FLOAT64.ident.call(node.X)
+                    if y_type == GoBasicType.INT.ident:
+                        node.Y = GoBasicType.FLOAT64.ident.call(node.Y)
                     return wrap_with_call_to([node], "math.Floor")
             case token.QUO:
-                if x_type == GoBasicType.INT:
-                    node.X = wrap_with_call_to([node.X], GoBasicType.FLOAT64.value)
-                    x_type = GoBasicType.FLOAT64
-                if y_type == GoBasicType.INT:
-                    node.Y = wrap_with_call_to([node.Y], GoBasicType.FLOAT64.value)
-                    y_type = GoBasicType.FLOAT64
+                if x_type == GoBasicType.INT.ident:
+                    node.X = GoBasicType.FLOAT64.ident.call(node.X)
+                    x_type = GoBasicType.FLOAT64.ident
+                if y_type == GoBasicType.INT.ident:
+                    node.Y = GoBasicType.FLOAT64.ident.call(node.Y)
+                    y_type = GoBasicType.FLOAT64.ident
         if node.Op not in [token.PLACEHOLDER_IN, token.PLACEHOLDER_NOT_IN]:
             if x_type != y_type and x_type and y_type:
                 dominant_type = get_dominant_type(x_type, y_type)
                 if x_type != dominant_type:
-                    node.X = wrap_with_call_to([node.X], dominant_type.value)
+                    node.X = dominant_type.call(node.X)
                 if y_type != dominant_type:
-                    node.Y = wrap_with_call_to([node.Y], dominant_type.value)
+                    node.Y = dominant_type.call(node.Y)
         return node
 
 
@@ -511,7 +511,7 @@ class SpecialComparators(NodeTransformerWithScope):
             case token.PLACEHOLDER_IN:
                 node.Op = token.NEQ
                 match self.scope._get_type(node.Y):
-                    case GoBasicType.STRING:
+                    case GoBasicType.STRING.ident:
                         node = v("strings").sel("Contains").call(node.Y, node.X)
                     case ArrayType(Elt=Ident(Name=x)) if x in [GoBasicType.BYTE.value, GoBasicType.UINT8.value]:
                         node = v("bytes").sel("Contains").call(node.Y, node.X)
@@ -523,7 +523,7 @@ class SpecialComparators(NodeTransformerWithScope):
             case token.PLACEHOLDER_NOT_IN:
                 node.Op = token.EQL
                 match self.scope._get_type(node.Y):
-                    case GoBasicType.STRING:
+                    case GoBasicType.STRING.ident:
                         node = v("strings").sel("Contains").call(node.Y, node.X)
                         node = UnaryExpr(Op=token.NOT, X=node)
                     case ArrayType(Elt=Ident(Name=x)) if x in [GoBasicType.BYTE.value, GoBasicType.UINT8.value]:

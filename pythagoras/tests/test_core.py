@@ -8,90 +8,94 @@ abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
 
-def assert_examples_match(test_case: TestCase, example: str):
-    with open(f"../../examples/{example}.py") as a, \
-            open(f"../../examples/{example}.go") as b:
-        test_case.assertEqual(python_to_go(a.read()), b.read())
-
 
 class Test(TestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.maxDiff = None
+
+    def assert_examples_match(self, example: str):
+        with open(f"../../examples/{example}.py") as a, \
+                open(f"../../examples/{example}.go") as b:
+            self.assertEqual(b.read(), python_to_go(a.read()))
+
     def test_hello_world(self):
-        assert_examples_match(self, "helloworld")
+        self.assert_examples_match("helloworld")
 
     def test_add(self):
-        assert_examples_match(self, "add")
+        self.assert_examples_match("add")
 
     def test_exponents(self):
-        assert_examples_match(self, "exponents")
+        self.assert_examples_match("exponents")
 
     def test_variables(self):
-        assert_examples_match(self, "variables")
+        self.assert_examples_match("variables")
 
     def test_floats(self):
-        assert_examples_match(self, "floats")
+        self.assert_examples_match("floats")
 
     def test_numlist(self):
-        assert_examples_match(self, "numlist")
+        self.assert_examples_match("numlist")
 
     def test_loops(self):
-        assert_examples_match(self, "loops")
+        self.assert_examples_match("loops")
 
     def test_strings(self):
-        assert_examples_match(self, "strings")
+        self.assert_examples_match("strings")
 
     def test_logical(self):
-        assert_examples_match(self, "logical")
+        self.assert_examples_match("logical")
 
     def test_maths(self):
-        assert_examples_match(self, "maths")
+        self.assert_examples_match("maths")
 
     def test_requestslib(self):
-        assert_examples_match(self, "requestslib")
+        self.assert_examples_match("requestslib")
 
     def test_conditionals(self):
-        assert_examples_match(self, "conditionals")
+        self.assert_examples_match("conditionals")
 
     def test_fstrings(self):
-        assert_examples_match(self, "fstrings")
+        self.assert_examples_match("fstrings")
 
     def test_nestedfstrings(self):
-        assert_examples_match(self, "nestedfstrings")
+        self.assert_examples_match("nestedfstrings")
 
     def test_dictionary(self):
-        assert_examples_match(self, "dictionary")
+        self.assert_examples_match("dictionary")
 
     def test_writefile(self):
-        assert_examples_match(self, "writefile")
+        self.assert_examples_match("writefile")
 
     def test_pass(self):
-        assert_examples_match(self, "pass")
+        self.assert_examples_match("pass")
 
     def test_ellipsis(self):
-        assert_examples_match(self, "ellipsis")
+        self.assert_examples_match("ellipsis")
 
     # def test_lambdafunc(self):
-    #     assert_examples_match(self, "lambdafunc")
+    #     self.assert_examples_match("lambdafunc")
 
     def test_continuestmt(self):
-        assert_examples_match(self, "continuestmt")
+        self.assert_examples_match("continuestmt")
 
     def test_breakstmt(self):
-        assert_examples_match(self, "breakstmt")
+        self.assert_examples_match("breakstmt")
 
     def test_whileloop(self):
-        assert_examples_match(self, "whileloop")
+        self.assert_examples_match("whileloop")
 
     def test_sets(self):
-        assert_examples_match(self, "sets")
+        self.assert_examples_match("sets")
 
     def test_contains(self):
-        assert_examples_match(self, "contains")
+        self.assert_examples_match("contains")
 
     def test_tryexcept(self):
-        assert_examples_match(self, "tryexcept")
+        self.assert_examples_match("tryexcept")
 
     def test_tryfinally(self):
-        assert_examples_match(self, "tryfinally")
+        self.assert_examples_match("tryfinally")
 
     def test_asserts(self):
-        assert_examples_match(self, "asserts")
+        self.assert_examples_match("asserts")

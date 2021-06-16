@@ -2,6 +2,7 @@ import ast
 import inspect
 import json
 from enum import Enum
+from functools import cached_property
 from typing import List, Dict, Optional, Any
 
 from pythagoras.go_ast import ast_snippets
@@ -37,6 +38,10 @@ class GoBasicType(Enum):
     INT = "int"
     UINT = "uint"
     UINTPTR = "uintptr"
+
+    @cached_property
+    def ident(self):
+        return Ident.from_str(self.value)
 
 
 # class GoCompositeType(Enum):
@@ -173,15 +178,15 @@ BOOL_OPS = [
 
 def token_type_to_go_type(t: token):
     if t == token.INT:
-        return GoBasicType.INT
+        return GoBasicType.INT.ident
     if t == token.FLOAT:
-        return GoBasicType.FLOAT64
+        return GoBasicType.FLOAT64.ident
     if t == token.STRING:
-        return GoBasicType.STRING
+        return GoBasicType.STRING.ident
     if t == token.IMAG:
-        return GoBasicType.COMPLEX64
+        return GoBasicType.COMPLEX64.ident
     if t == token.CHAR:
-        return GoBasicType.BYTE
+        return GoBasicType.BYTE.ident
     raise ValueError(t)
 
 
@@ -211,6 +216,26 @@ def _build_x_list(x_types: list, x_name: str, nodes, **kwargs):
                              f"\n```\n{ast.unparse(x_node) if x_node else None}\n```") from Exception(errors)
     return li
 
+def _construct_error(exception: ast.AST):
+    panic_msg = ""
+    args = []
+    match exception:
+        case ast.Assert():
+            panic_msg += "AssertionError"
+            if exception.msg:
+                args.append(exception.msg)
+        case ast.Call(func=ast.Name(id=exception_name), args=args):
+            panic_msg += exception_name
+    if args:
+        panic_msg += ': ' + ', '.join(["%v"] * len(args))
+    panic_msg = panic_msg or "Exception"
+    if args:
+        fmt = Ident.from_str("fmt")
+        panic_msg = fmt.sel("Errorf").call(BasicLit(Kind=token.STRING, Value=panic_msg), *build_expr_list(args))
+    else:
+        errors = Ident.from_str("errors")
+        panic_msg = errors.sel("New").call(BasicLit(Kind=token.STRING, Value=panic_msg))
+    return panic_msg
 
 def build_expr_list(nodes, **kwargs):
     return _build_x_list(_EXPR_TYPES, "Expr", nodes, **kwargs)
@@ -232,6 +257,16 @@ class GoAST(ast.AST):
 
     def remove_falsy_fields(self):
         self._fields = [f for f in self._fields if getattr(self, f, None)]
+
+    def __eq__(self, other):
+        if type(self) != type(other):
+            return False
+
+        for field in self._fields:
+            if getattr(self, field, None) != getattr(other, field, None):
+                return False
+
+        return True
 
 
 class Expr(GoAST):
@@ -308,7 +343,7 @@ class ArrayType(Expr):
 
     @classmethod
     def from_BasicLit(cls, node: 'BasicLit', **kwargs):
-        return cls(Ident.from_str(token_type_to_go_type(node.Kind).value), 0, None, **kwargs)
+        return cls(token_type_to_go_type(node.Kind), 0, None, **kwargs)
 
     @classmethod
     def from_Ident(cls, node: 'Ident', **kwargs):
@@ -589,7 +624,7 @@ class BinaryExpr(Expr):
 
     def _type(self):
         if self.Op in COMPARISON_OPS or self.Op in BOOL_OPS:
-            return GoBasicType.BOOL
+            return GoBasicType.BOOL.ident
         return self.X._type() or self.Y._type() or super()._type()
 
 
@@ -848,7 +883,7 @@ class CallExpr(Expr):
         match node.value:
             case bytes():
                 return cls(
-                    Fun=ArrayType(Elt=Ident.from_str(GoBasicType.BYTE.value)),
+                    Fun=ArrayType(Elt=GoBasicType.BYTE.ident),
                     Args=[BasicLit(Kind=token.STRING, Value=node.value.decode())], **kwargs)
             case _:
                 raise NotImplementedError(node, type(node.value))
@@ -861,7 +896,7 @@ class CallExpr(Expr):
     def _type(self):
         if isinstance(self.Fun, Ident):
             try:
-                return GoBasicType(self.Fun.Name)
+                return GoBasicType(self.Fun.Name).ident
             except ValueError:
                 pass
         return super()._type()
@@ -874,7 +909,7 @@ class CallExpr(Expr):
             # Basic types
             case Ident(Name=x):
                 try:
-                    return GoBasicType(x) or super()._type()
+                    return GoBasicType(x).ident or super()._type()
                 except ValueError:
                     pass
         return super()._type()
@@ -1126,28 +1161,6 @@ class EmptyStmt(Stmt):
     @classmethod
     def from_Pass(cls, node: ast.Pass):
         return EmptyStmt()
-
-
-def _construct_error(exception: ast.AST):
-    panic_msg = ""
-    args = []
-    match exception:
-        case ast.Assert():
-            panic_msg += "AssertionError"
-            if exception.msg:
-                args.append(exception.msg)
-        case ast.Call(func=ast.Name(id=exception_name), args=args):
-            panic_msg += exception_name
-    if args:
-        panic_msg += ': ' + ', '.join(["%v"] * len(args))
-    panic_msg = panic_msg or "Exception"
-    if args:
-        fmt = Ident.from_str("fmt")
-        panic_msg = fmt.sel("Errorf").call(BasicLit(Kind=token.STRING, Value=panic_msg), *build_expr_list(args))
-    else:
-        errors = Ident.from_str("errors")
-        panic_msg = errors.sel("New").call(BasicLit(Kind=token.STRING, Value=panic_msg))
-    return panic_msg
 
 class ExprStmt(Stmt):
     """An ExprStmt node represents a (stand-alone) expression in a statement list."""
@@ -1858,11 +1871,11 @@ class IndexExpr(Expr):
         x_type = self.X._type()
         index_type = self.Index._type()
         # If we're taking a slice, the type doesn't change
-        if index_type != GoBasicType.INT:
+        if index_type != GoBasicType.INT.ident:
             return x_type or super()._type()
         # If X is a string and we're indexing it, it's a byte
-        if x_type == GoBasicType.STRING:
-            return GoBasicType.BYTE
+        if x_type == GoBasicType.STRING.ident:
+            return GoBasicType.BYTE.ident
         return super()._type()
 
 
