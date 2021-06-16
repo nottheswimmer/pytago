@@ -1128,6 +1128,27 @@ class EmptyStmt(Stmt):
         return EmptyStmt()
 
 
+def _construct_error(exception: ast.AST):
+    panic_msg = ""
+    args = []
+    match exception:
+        case ast.Assert():
+            panic_msg += "AssertionError"
+            if exception.msg:
+                args.append(exception.msg)
+        case ast.Call(func=ast.Name(id=exception_name), args=args):
+            panic_msg += exception_name
+    if args:
+        panic_msg += ': ' + ', '.join(["%v"] * len(args))
+    panic_msg = panic_msg or "Exception"
+    if args:
+        fmt = Ident.from_str("fmt")
+        panic_msg = fmt.sel("Errorf").call(BasicLit(Kind=token.STRING, Value=panic_msg), *build_expr_list(args))
+    else:
+        errors = Ident.from_str("errors")
+        panic_msg = errors.sel("New").call(BasicLit(Kind=token.STRING, Value=panic_msg))
+    return panic_msg
+
 class ExprStmt(Stmt):
     """An ExprStmt node represents a (stand-alone) expression in a statement list."""
     _fields = ("X",)
@@ -1154,20 +1175,8 @@ class ExprStmt(Stmt):
     @classmethod
     def from_Raise(cls, node: ast.Raise):
         panic = Ident.from_str("panic")
-        panic_msg = ""
-        args = []
-        match node.exc:
-            case ast.Call(func=ast.Name(id=exception_name), args=args):
-                panic_msg += exception_name
-                if args:
-                    panic_msg += ': ' + ', '.join(["%v"] * len(args))
-        panic_msg = panic_msg or "Exception"
-        if args:
-            fmt = Ident.from_str("fmt")
-            panic_msg = fmt.sel("Errorf").call(BasicLit(Kind=token.STRING, Value=panic_msg), *build_expr_list(args))
-        else:
-            errors = Ident.from_str("errors")
-            panic_msg = errors.sel("New").call(BasicLit(Kind=token.STRING, Value=panic_msg))
+        exception = node.exc
+        panic_msg = _construct_error(exception)
         return cls(X=panic.call(panic_msg))
 
     @classmethod
@@ -1780,18 +1789,15 @@ class IfStmt(Stmt):
         elif len(node.orelse) == 0:
             _else = None
         else:
-            raise NotImplementedError(f"Multiple else: {node.orelse}")
-        init = None
-        return cls(body, cond, _else, 0, init, **kwargs)
+            raise NotImplementedError(f"Multiple else???: {node.orelse}")
+        return cls(body, cond, _else, **kwargs)
 
     @classmethod
     def from_Assert(cls, node: ast.Assert, **kwargs):
-        body = BlockStmt(List=[
-            ExprStmt(CallExpr(Args=[BasicLit(Kind=token.STRING, Value=node.msg or "AssertionError")], Fun=Ident.from_str("panic")))])
-        cond = build_expr_list([node.test])[0]
-        _else = None
-        init = None
-        return cls(body, cond, _else, 0, init, **kwargs)
+        panic = Ident.from_str("panic")
+        body = BlockStmt(List=[ExprStmt(X=panic.call(_construct_error(node)))])
+        cond = UnaryExpr(X=build_expr_list([node.test])[0], Op=token.NOT)
+        return cls(body, cond, **kwargs)
 
 
 class IncDecStmt(Stmt):

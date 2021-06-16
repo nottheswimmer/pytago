@@ -92,3 +92,6 @@ class Test(TestCase):
 
     def test_tryfinally(self):
         assert_examples_match(self, "tryfinally")
+
+    def test_asserts(self):
+        assert_examples_match(self, "asserts")
