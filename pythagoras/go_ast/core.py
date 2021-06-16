@@ -176,6 +176,58 @@ BOOL_OPS = [
 ]
 
 
+def _type_annotation_to_go_type(node: ast.AST):
+    match node:
+        case ast.Name(id=x):
+            match x:
+                case 'str':
+                    return GoBasicType.STRING.ident
+                case 'int':
+                    return GoBasicType.INT.ident
+                case 'float':
+                    return GoBasicType.FLOAT64.ident
+                case 'bytes' | 'bytearray':
+                    return ArrayType(Elt=GoBasicType.BYTE.ident)
+                case 'list' | 'tuple' | 'List' | 'Tuple':
+                    return ArrayType()
+                case 'dict' | 'Dict' | 'DefaultDict' | 'OrderedDict' | 'TypedDict' | 'Mapping' | 'MutableMapping':
+                    return MapType()
+                case 'set' | 'frozenset' | 'Set' | 'FrozenSet' | 'MutableSet':
+                    return MapType(Value=StructType())
+        case ast.Subscript(value=value, slice=index):
+            value = _type_annotation_to_go_type(value)
+            index = _type_annotation_to_go_type(index)
+            match value:
+                case ArrayType():
+                    value.Elt = index
+                case MapType():
+                    if isinstance(index, tuple):
+                        key, map = index
+                        value.Key = key
+                        value.Map = map
+                    else:
+                        # A set?
+                        key = index
+                        value.Key = key
+                case _:
+                    raise NotImplementedError(value)
+            return value
+        case ast.Tuple(elts=elts):
+            return tuple(_type_annotation_to_go_type(elt) for elt in elts)
+        case _:
+            raise NotImplementedError(node)
+
+
+def _find_nodes(node: ast.AST, condition: callable):
+    results = []
+    class Explorer(ast.NodeVisitor):
+        def generic_visit(self, node: ast.AST) -> Any:
+            if result := condition(node):
+                results.append(result)
+            return super().generic_visit(node)
+    Explorer().visit(node)
+    return results
+
 def token_type_to_go_type(t: token):
     if t == token.INT:
         return GoBasicType.INT.ident
@@ -206,10 +258,14 @@ def _build_x_list(x_types: list, x_name: str, nodes, **kwargs):
         for x_type in x_types:
             if hasattr(x_type, method):
                 try:
-                    li.append(getattr(x_type, method)(x_node, **kwargs))
+                    result = getattr(x_type, method)(x_node, **kwargs)
                 except NotImplementedError as e:
                     errors.append(e)
                     continue
+                if isinstance(result, list):
+                    li += result
+                else:
+                    li.append(result)
                 break
         else:
             raise ValueError(f"No {x_name} type in {x_types} with {method}: "
@@ -371,7 +427,7 @@ class AssignStmt(Stmt):
         set_list_type(self.Lhs, "ast.Expr")
         self.Rhs = Rhs or []
         set_list_type(self.Rhs, "ast.Expr")
-        self.Tok = Tok
+        self.Tok = Tok or token.ASSIGN
         self.TokPos = TokPos
         super().__init__(**kwargs)
 
@@ -1097,6 +1153,15 @@ class DeclStmt(Stmt):
         self.Decl = Decl
         super().__init__(**kwargs)
 
+    @classmethod
+    def from_AnnAssign(cls, node: ast.AnnAssign, **kwargs):
+        if node.value and not node.annotation:
+            # TODO: Maybe consider some situations where this is desireable (e.g. out outside functions?)
+            raise NotImplementedError(node)
+        values = build_expr_list([node.value]) if node.value else None
+        specs = [ValueSpec(Type=_type_annotation_to_go_type(node.annotation), Names=[from_this(Ident, node.target)])]
+        return cls(Decl=GenDecl(Tok=token.VAR, Specs=specs), **kwargs)
+
 
 class DeferStmt(Stmt):
     """A DeferStmt node represents a defer statement."""
@@ -1287,7 +1352,7 @@ class Field(GoAST):
 
     @classmethod
     def from_arg(cls, node: ast.arg):
-        return cls(None, None, [from_this(Ident, node.arg)], None, build_expr_list([node.annotation])[0]
+        return cls(None, None, [from_this(Ident, node.arg)], None, _type_annotation_to_go_type(node.annotation)
         if node.annotation else InterfaceType())
 
     @classmethod
@@ -1593,7 +1658,11 @@ class FuncType(GoAST):
     @classmethod
     def from_FunctionDef(cls, node: ast.FunctionDef, **kwargs):
         params = from_this(FieldList, node.args)
-        results = from_this(FieldList, node.returns) if node.returns else None
+        match node.returns:
+            case None | ast.Constant(value=None):
+                results = None
+            case _:
+                results = from_this(FieldList, node.returns)
         return cls(0, params, results, **kwargs)
 
     @classmethod
@@ -1687,7 +1756,6 @@ class FuncLit(Expr):
         _type = from_this(FuncType, node)
         return cls(body, _type, **kwargs)
 
-
 class GenDecl(Decl):
     """A GenDecl node (generic declaration node) represents an import, constant, type or
     variable declaration. A valid Lparen position (Lparen.IsValid()) indicates a
@@ -1731,6 +1799,68 @@ class GenDecl(Decl):
         return cls(Specs=[ImportSpec(None, None, 0, from_this(Ident, x.asname) if x.asname else None,
                                            BasicLit(token.STRING, x.name, 0)) for x in node.names],
                    Tok=token.IMPORT, **kwargs)
+
+    @classmethod
+    def from_ClassDef(cls, node: ast.ClassDef, **kwargs):
+        # Returns a list of declarations
+        fields_dict = {}
+        methods = []
+        for obj in node.body:
+            match obj:
+                case ast.AnnAssign():
+                    assignment = build_stmt_list([obj])[0]
+                    for spec in assignment.Decl.Specs:
+                        for name in spec.Names:
+                            if name.Name in fields_dict:
+                                if fields_dict[name.Name].Type == InterfaceType() and spec.Type:
+                                    fields_dict[name.Name].Type = spec.Type
+                            else:
+                                fields_dict[name.Name] = Field(Type=spec.Type, Names=[name])
+                case ast.Assign():
+                    ... # TODO
+                case ast.FunctionDef():
+                    methods.append(obj)
+                    func_def = build_stmt_list([obj])[0]
+                    func_lit = func_def.Rhs[0]
+                    self_name = func_lit.Type.Params.List[0].Names[0].Name
+                    def _matcher(_node: 'ast.AST'):
+                        match _node:
+                            case AssignStmt(Lhs=[SelectorExpr(X=Ident(Name=x))]):
+                                if self_name == x:
+                                    return _node
+                    assignment_exprs = _find_nodes(func_lit, _matcher)
+                    for assignment in assignment_exprs:
+                        match assignment:
+                            case AssignStmt(Lhs=[SelectorExpr(Sel=name)], Rhs=[expr]):
+                                _type = expr._type()
+                                if name.Name in fields_dict:
+                                    if fields_dict[name.Name].Type == InterfaceType() and _type:
+                                        fields_dict[name.Name].Type = _type
+                                else:
+                                    fields_dict[name.Name] = Field(Type=_type, Names=[name])
+                case _:
+                    # Real assignments in the body not yet supported...
+                    raise NotImplementedError(node, obj)
+        fields = list(fields_dict.values())
+        self_ident = Ident.from_str(node.name)
+        specs = [TypeSpec(Name=self_ident, Type=StructType(FieldList(List=fields)))]
+        decls = [cls(Tok=token.TYPE, Specs=specs, **kwargs)]
+        method_decls = build_decl_list(methods)
+        for method in method_decls:
+            recv = FieldList(List=[method.Type.Params.List[0]])
+            recv.List[0].Type = StarExpr(X=self_ident)
+            del method.Type.Params.List[0]
+            match method.Name.Name:
+                case '__init__':
+                    method.Body.List.insert(0, AssignStmt(Lhs=list(recv.List[0].Names),
+                                                          Rhs=[Ident.from_str("new").call(self_ident)]))
+                    method.Body.List.append(ReturnStmt())
+                    method.Name = Ident.from_str(f"New{node.name}")
+                    method.Type.Results = recv
+                case _:
+                    method.Recv = recv
+        decls += method_decls
+        return decls
 
     @classmethod
     def from_ImportSpec(cls, node: ImportSpec, **kwargs):
@@ -2358,7 +2488,7 @@ class UnaryExpr(Expr):
         return self.X._type() or super()._type()
 
 
-class ValueSpec(GoAST):
+class ValueSpec(Expr):
     """A ValueSpec node represents a constant or variable declaration (ConstSpec or VarSpec
     production).
     """

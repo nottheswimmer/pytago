@@ -99,3 +99,6 @@ class Test(TestCase):
 
     def test_asserts(self):
         self.assert_examples_match("asserts")
+
+    def test_classes(self):
+        return self.assert_examples_match("classes")

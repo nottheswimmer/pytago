@@ -9,6 +9,7 @@ from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, Bin
 # Shortcuts
 v = Ident.from_str
 
+
 class PrintToFmtPrintln(ast.NodeTransformer):
     """
     This should probably add an import, but goimports takes care of that in postprocessing for now.
@@ -252,7 +253,8 @@ class StringifyStringMember(NodeTransformerWithScope):
 
     def visit_IndexExpr(self, node: IndexExpr):
         self.generic_visit(node)
-        if self.scope._get_type(node.X) == GoBasicType.STRING.ident and self.scope._get_type(node.Index) == GoBasicType.INT.ident:
+        if self.scope._get_type(node.X) == GoBasicType.STRING.ident and self.scope._get_type(
+                node.Index) == GoBasicType.INT.ident:
             return GoBasicType.STRING.ident.call(node)
         return node
 
@@ -297,11 +299,13 @@ class FileWritesAndErrors(NodeTransformerWithScope):
                             AssignStmt(Lhs=[content, v(UNHANDLED_ERROR)], Rhs=[
                                 v("ioutil").sel("ReadAll").call(node.Fun.X)
                             ], Tok=token.DEFINE),
-                            ReturnStmt(Results=[CallExpr(Fun=GoBasicType.STRING.ident, Args=[content]) if text_mode else content])
+                            ReturnStmt(Results=[
+                                CallExpr(Fun=GoBasicType.STRING.ident, Args=[content]) if text_mode else content])
                         ],
                     ),
                     Type=FuncType(Results=FieldList(List=[
-                        Field(Type=GoBasicType.STRING.ident if text_mode else ArrayType.from_Ident(GoBasicType.BYTE.ident))]))
+                        Field(Type=GoBasicType.STRING.ident if text_mode else ArrayType.from_Ident(
+                            GoBasicType.BYTE.ident))]))
                 ))
                 return expr
             case CallExpr(Fun=SelectorExpr(Sel=Ident(Name="decode"))):
@@ -504,6 +508,26 @@ def _map_contains(node: BinaryExpr):
         Type=FuncType(Results=FieldList(List=[Field(Type=v("bool"))]))
     ).call()
 
+
+# TODO: Should check scope
+class UseConstructorIfAvailable(ast.NodeTransformer):
+    def __init__(self):
+        self.declared_function_names = {}
+
+    def visit_FuncDecl(self, node: FuncDecl):
+        self.generic_visit(node)
+        self.declared_function_names[node.Name.Name] = node.Name
+        return node
+
+    def visit_CallExpr(self, node: CallExpr):
+        self.generic_visit(node)
+        match node.Fun:
+            case Ident(Name=x):
+                if f"New{x}" in self.declared_function_names:
+                    node.Fun = self.declared_function_names[f"New{x}"]
+        return node
+
+
 class SpecialComparators(NodeTransformerWithScope):
     def visit_BinaryExpr(self, node: BinaryExpr):
         self.generic_visit(node)
@@ -542,6 +566,7 @@ class SpecialComparators(NodeTransformerWithScope):
 
 
 ALL_TRANSFORMS = [
+    UseConstructorIfAvailable,
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
     CapitalizeMathModuleCalls,
