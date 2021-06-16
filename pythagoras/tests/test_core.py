@@ -89,3 +89,6 @@ class Test(TestCase):
 
     def test_tryexcept(self):
         assert_examples_match(self, "tryexcept")
+
+    def test_tryfinally(self):
+        assert_examples_match(self, "tryfinally")

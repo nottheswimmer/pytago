@@ -412,7 +412,9 @@ def exceptions(conditional: list[tuple['ast.Expr', list['ast.Stmt']]], base: lis
     body = []
     conditional.reverse()
     conditional_names.reverse()
+    used_err = False
     while conditional:
+        used_err = True
         exception_cond, exception_body = conditional.pop()
         name = conditional_names.pop()
         name_declarations = []
@@ -443,6 +445,7 @@ def exceptions(conditional: list[tuple['ast.Expr', list['ast.Stmt']]], base: lis
             name_declarations.append(ast.AssignStmt(Lhs=[base_name],
                                                     Tok=token.DEFINE,
                                                     Rhs=[ast.Ident.from_str("err")]))
+            used_err = True
         base_stmts = [*name_declarations, *base, ast.ReturnStmt()]
         if body:
             last_if = body[-1]
@@ -492,7 +495,7 @@ def exceptions(conditional: list[tuple['ast.Expr', list['ast.Stmt']]], base: lis
                                         Init=ast.AssignStmt(
                                             Lhs=[
                                                 ast.Ident(
-                                                    Name="err",
+                                                    Name="err" if used_err else "_",
                                                 ),
                                                 ast.Ident(
                                                     Name="ok",
