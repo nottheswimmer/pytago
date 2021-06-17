@@ -519,15 +519,26 @@ class BadStmt(Stmt):
     _fields = tuple()
     From: int
     To: int
+    _pyAST: Optional[ast.AST]
 
     def __init__(self,
                  From: int = 0,
                  To: int = 0,
+                 _pyAST = None,
                  **kwargs) -> None:
         self.From = From
         self.To = To
+        self._pyAST = _pyAST  # Used by transformers in postprocessing stage
         super().__init__(**kwargs)
 
+
+    @classmethod
+    def from_Global(cls, node: ast.Global, **kwargs):
+        return cls(_pyAST=node, **kwargs)
+
+    @classmethod
+    def from_Nonlocal(cls, node: ast.Nonlocal, **kwargs):
+        return cls(_pyAST=node, **kwargs)
 
 class BasicLit(Expr):
     """A BasicLit node represents a literal of basic type.
@@ -1155,12 +1166,7 @@ class DeclStmt(Stmt):
 
     @classmethod
     def from_AnnAssign(cls, node: ast.AnnAssign, **kwargs):
-        if node.value and not node.annotation:
-            # TODO: Maybe consider some situations where this is desireable (e.g. out outside functions?)
-            raise NotImplementedError(node)
-        values = build_expr_list([node.value]) if node.value else None
-        specs = [ValueSpec(Type=_type_annotation_to_go_type(node.annotation), Names=[from_this(Ident, node.target)])]
-        return cls(Decl=GenDecl(Tok=token.VAR, Specs=specs), **kwargs)
+        return cls(Decl=from_this(GenDecl, node), **kwargs)
 
 
 class DeferStmt(Stmt):
@@ -1456,9 +1462,11 @@ class Scope(GoAST):
     def __init__(self,
                  Objects: Dict[str, Object] = None,
                  Outer: 'Scope' = None,
+                 _global: 'Scope' = None,
                  **kwargs) -> None:
         self.Objects = Objects or {}
         self.Outer = Outer
+        self._global = Outer._global if Outer else self
         super().__init__(**kwargs)
 
     def _in_scope(self, obj: Object) -> bool:
@@ -1861,6 +1869,18 @@ class GenDecl(Decl):
                     method.Recv = recv
         decls += method_decls
         return decls
+
+    @classmethod
+    def from_Assign(cls, node: ast.Assign, **kwargs):
+        values = build_expr_list([node.value])
+        specs = [ValueSpec(Values=values, Names=build_expr_list(node.targets))]
+        return cls(Tok=token.VAR, Specs=specs, **kwargs)
+
+    @classmethod
+    def from_AnnAssign(cls, node: ast.AnnAssign, **kwargs):
+        values = build_expr_list([node.value]) if node.value else None
+        specs = [ValueSpec(Values=values, Type=_type_annotation_to_go_type(node.annotation), Names=[from_this(Ident, node.target)])]
+        return cls(Tok=token.VAR, Specs=specs, **kwargs)
 
     @classmethod
     def from_ImportSpec(cls, node: ImportSpec, **kwargs):
@@ -2517,6 +2537,7 @@ class ValueSpec(Expr):
         set_list_type(Names, '*ast.Ident')
         self.Type = Type
         self.Values = Values or []
+        set_list_type(Values, 'ast.Expr')
         super().__init__(**kwargs)
 
 

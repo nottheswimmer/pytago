@@ -4,7 +4,7 @@ from _ast import AST
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
     GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec, ArrayType, \
-    ast_snippets, MapType
+    ast_snippets, MapType, GenDecl, ValueSpec, Expr, BadStmt
 
 # Shortcuts
 v = Ident.from_str
@@ -103,14 +103,30 @@ class PythonToGoTypes(ast.NodeTransformer):
 class NodeTransformerWithScope(ast.NodeTransformer):
     def __init__(self, scope=None):
         self.scope = Scope({}, scope)
+        self.current_globals = []
+        self.current_nonlocals = []
 
     def generic_visit(self, node):
+        prev_globals = self.current_globals
+        prev_nonlocals = self.current_nonlocals
+
+        if isinstance(node, (FuncDecl, FuncLit)):
+            self.current_globals = []
+            self.current_nonlocals = []
+
         for field, old_value in ast.iter_fields(node):
             if isinstance(old_value, list):
                 new_values = []
                 for value in old_value:
+                    # Handle globals
+                    if isinstance(value, BadStmt):
+                        match value._pyAST:
+                            case ast.Global(names=names):
+                                self.current_globals += names
+                            case ast.Nonlocal(names=names):
+                                self.current_nonlocals += names
                     if isinstance(value, AST):
-                        new_scope = isinstance(value, Stmt) and not isinstance(value, AssignStmt)
+                        new_scope = isinstance(value, Stmt) and not isinstance(value, (AssignStmt, ValueSpec))
                         if new_scope:
                             self.scope = Scope({}, self.scope)
                         value = self.visit(value)
@@ -124,7 +140,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                     new_values.append(value)
                 old_value[:] = new_values
             elif isinstance(old_value, AST):
-                new_scope = isinstance(old_value, Stmt) and not isinstance(old_value, AssignStmt)
+                new_scope = isinstance(old_value, Stmt) and not isinstance(old_value, (AssignStmt, ValueSpec))
                 if new_scope:
                     self.scope = Scope({}, self.scope)
                 new_node = self.visit(old_value)
@@ -134,27 +150,34 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                     delattr(node, field)
                 else:
                     setattr(node, field, new_node)
+
+        self.current_globals = prev_globals
+        self.current_nonlocals = prev_nonlocals
+        return node
+
+    def visit_ValueSpec(self, node: ValueSpec):
+        self.apply_eager_context(node.Names, node.Values)
+        self.generic_visit(node)
+        self.apply_to_scope(node.Names, node.Values)
         return node
 
     def visit_AssignStmt(self, node: AssignStmt):
         """Don't forget to super call this if you override it"""
-        eager_type_hint = next((self.scope._get_type(x) for x in node.Rhs), None)
-        eager_context = {}
-        for x in node.Rhs:
-            eager_context.update(x._py_context)
-        for expr in node.Lhs:
-            if not expr._type_help:
-                expr._type_help = eager_type_hint
-            if eager_context:
-                expr._py_context = {**eager_context, **expr._py_context}
+        self.apply_eager_context(node.Lhs, node.Rhs)
         self.generic_visit(node)
-        ctx = {}
-        for x in node.Rhs:
-            ctx.update(x._py_context)
         if node.Tok != token.DEFINE:
             return node
+        declared = self.apply_to_scope(node.Lhs, node.Rhs)
+        if not declared:
+            node.Tok = token.ASSIGN
+        return node
+
+    def apply_to_scope(self, lhs: list[Expr], rhs: list[Expr]):
+        ctx = {}
+        for x in rhs:
+            ctx.update(x._py_context)
         declared = False
-        for expr in node.Lhs:
+        for expr in lhs:
             if not isinstance(expr, Ident):
                 continue
             obj = Object(
@@ -162,15 +185,30 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                 Decl=None,
                 Kind=ObjKind.Var,
                 Name=expr.Name,
-                Type=next((self.scope._get_type(x) for x in node.Rhs), None),
+                Type=next((self.scope._get_type(x) for x in rhs), None),
                 _py_context=ctx
             )
-            if not (self.scope._in_scope(obj) or self.scope._in_outer_scope(obj)):
+            if not (self.scope._in_scope(obj) or (
+                    self.scope._in_outer_scope(obj) and (
+                    # TODO: Combining nonlocals because I think it will technically
+                    #   give better support than no support, but nonlocals needs further consideration
+                    (obj.Name in self.current_globals + self.current_nonlocals) or not self.scope._global._in_scope(obj)
+            )
+            )):
                 self.scope.Insert(obj)
                 declared = True
-        if not declared:
-            node.Tok = token.ASSIGN
-        return node
+        return declared
+
+    def apply_eager_context(self, lhs: list[Expr], rhs: list[Expr]):
+        eager_type_hint = next((self.scope._get_type(x) for x in rhs), None)
+        eager_context = {}
+        for x in rhs:
+            eager_context.update(x._py_context)
+        for expr in lhs:
+            if not expr._type_help:
+                expr._type_help = eager_type_hint
+            if eager_context:
+                expr._py_context = {**eager_context, **expr._py_context}
 
 
 class RangeRangeToFor(ast.NodeTransformer):
@@ -565,6 +603,12 @@ class SpecialComparators(NodeTransformerWithScope):
         return node
 
 
+class RemoveBadStmt(ast.NodeTransformer):
+    def visit_BadStmt(self, node: BadStmt):
+        self.generic_visit(node)
+        pass  # It is removed by not being returned
+
+
 ALL_TRANSFORMS = [
     UseConstructorIfAvailable,
     PrintToFmtPrintln,
@@ -585,5 +629,6 @@ ALL_TRANSFORMS = [
     FileWritesAndErrors,
     HandleUnhandledErrorsAndDefers,
     SpecialComparators,
-    AddTextTemplateImportForFStrings
+    AddTextTemplateImportForFStrings,
+    RemoveBadStmt,  # Should be last as these are used for scoping
 ]

@@ -102,3 +102,6 @@ class Test(TestCase):
 
     def test_classes(self):
         return self.assert_examples_match("classes")
+
+    def test_globals(self):
+        return self.assert_examples_match("globals")
