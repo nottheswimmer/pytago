@@ -105,3 +105,7 @@ class Test(TestCase):
 
     def test_globals(self):
         return self.assert_examples_match("globals")
+
+    # List methods
+    def test_listappend(self):
+        return self.assert_examples_match("listappend")
