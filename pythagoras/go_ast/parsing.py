@@ -1,6 +1,6 @@
 import json
 import os
-import uuid
+import tempfile
 from subprocess import Popen, PIPE
 
 from pythagoras.go_ast import GoAST, ALL_TRANSFORMS, File, get_list_type
@@ -32,24 +32,25 @@ def unparse(go_tree: GoAST, apply_transformations=True, debugging=True):
     """ % go_tree_string
     if debugging:
         compilation_code = _gofumpt(compilation_code)
-    tmp_file = f"tmp_{uuid.uuid4().hex}.go"
-    if debugging:
-        print(f"=== Start Compilation Code ===")
-        lines = compilation_code.splitlines()
-        max_i_size = len(str(len(lines) + 1))
-        for i, line in enumerate(lines, start=1):
-            print(str(i).rjust(max_i_size), line)
-        print(f"=== End Compilation Code ===")
+    tmp_file = tempfile.NamedTemporaryFile(suffix=".go", delete=False)
     try:
-        with open(tmp_file, "w") as f:
-            f.write(compilation_code)
-        code = _gorun(tmp_file)
+        tmp_file.close()
         if debugging:
-            print(f"=== Start Code ===")
-            print(code)
-            print(f"=== End Code ===")
+            print(f"=== Start Compilation Code ===")
+            lines = compilation_code.splitlines()
+            max_i_size = len(str(len(lines) + 1))
+            for i, line in enumerate(lines, start=1):
+                print(str(i).rjust(max_i_size), line)
+            print(f"=== End Compilation Code ===")
+        with open(tmp_file.name, "w") as f:
+            f.write(compilation_code)
+        code = _gorun(tmp_file.name)
     finally:
-        os.remove(tmp_file)
+        os.remove(tmp_file.name)
+    if debugging:
+        print(f"=== Start Code ===")
+        print(code)
+        print(f"=== End Code ===")
     externally_formatted_code = _gofumpt(_goimport(code))
     if debugging:
         print(f"=== Start Externally Formatted Code ===")
@@ -139,7 +140,7 @@ def clean_go_tree(go_tree: File):
 
 
 def _gorun(filename: str) -> str:
-    p = Popen(["go", "run", filename], stdout=PIPE, stderr=PIPE, stdin=PIPE)
+    p = Popen(["go", "run", "-gcflags=-N -l", filename], stdout=PIPE, stderr=PIPE, stdin=PIPE)
     out, err = p.communicate()
     if err:
         return "\n".join("// " + x for x in err.decode().strip().splitlines())

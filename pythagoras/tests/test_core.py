@@ -73,6 +73,9 @@ class Test(TestCase):
     def test_ellipsis(self):
         self.assert_examples_match("ellipsis")
 
+    def test_missingreturntype(self):
+        self.assert_examples_match("missingreturntype")
+
     # def test_lambdafunc(self):
     #     self.assert_examples_match("lambdafunc")
 
@@ -105,6 +108,12 @@ class Test(TestCase):
 
     def test_globals(self):
         return self.assert_examples_match("globals")
+
+    def test_asyncawait(self):
+        return self.assert_examples_match("asyncawait")
+
+    def test_yields(self):
+        return self.assert_examples_match("yields")
 
     # List methods
     def test_listappend(self):

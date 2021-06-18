@@ -3,7 +3,7 @@ import inspect
 import json
 from enum import Enum
 from functools import cached_property
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, TypeVar, Type
 
 from pythagoras.go_ast import ast_snippets
 
@@ -218,14 +218,27 @@ def _type_annotation_to_go_type(node: ast.AST):
             raise NotImplementedError(node)
 
 
-def _find_nodes(node: ast.AST, condition: callable):
+def _find_nodes(node: ast.AST, finder: callable, skipper: callable=None):
     results = []
     class Explorer(ast.NodeVisitor):
         def generic_visit(self, node: ast.AST) -> Any:
-            if result := condition(node):
+            if skipper and skipper(node):
+                return node
+            if result := finder(node):
                 results.append(result)
             return super().generic_visit(node)
     Explorer().visit(node)
+    return results
+
+def _replace_nodes(node: ast.AST, replacer: callable, skipper: callable=None):
+    results = []
+    class Replacer(ast.NodeTransformer):
+        def generic_visit(self, node: ast.AST) -> Any:
+            if skipper and skipper(node):
+                return node
+            node = super().generic_visit(node)
+            return replacer(node)
+    Replacer().visit(node)
     return results
 
 def token_type_to_go_type(t: token):
@@ -246,7 +259,8 @@ def from_method(node):
     return f"from_{node.__class__.__name__}"
 
 
-def from_this(cls, node):
+T = TypeVar('T')
+def from_this(cls: Type[T], node) -> T:
     return getattr(cls, from_method(node))(node)
 
 
@@ -337,6 +351,9 @@ class Expr(GoAST):
         """
         return BinaryExpr(Op=token.OR, X=self, Y=Y)
 
+    def __mul__(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.MUL, X=self, Y=Y)
+
     def _or(self, Y: 'Expr') -> 'BinaryExpr':
         """
         Shorthand way to describe the binary expression self || Y
@@ -352,6 +369,30 @@ class Expr(GoAST):
     def call(self, *args, **kwargs) -> 'CallExpr':
         return CallExpr(Args=list(args), Fun=self, **kwargs)
 
+    def return_(self, **kwargs) -> 'ReturnStmt':
+        return ReturnStmt(Results=[self], **kwargs)
+
+    def receive(self, **kwargs):
+        return UnaryExpr(Op=token.ARROW, X=self, **kwargs)
+
+    def send(self, value: 'Expr', **kwargs):
+        return SendStmt(Chan=self, Value=value, **kwargs)
+
+    def stmt(self, **kwargs):
+        return ExprStmt(X=self, **kwargs)
+
+    def chan(self, dir=3, **kwargs):
+        return ChanType(Value=self, Dir=dir, **kwargs)
+
+    def defer(self, **kwargs):
+        return DeferStmt(Call=self, **kwargs)
+
+    def go(self, **kwargs):
+        return GoStmt(Call=self, **kwargs)
+
+    def composite_lit_type(self, **kwargs):
+        return CompositeLit(Type=self, **kwargs)
+
     def __getitem__(self, item):
         # Convenience function to let me cleanly represent subscripts in transformation
         if isinstance(item, slice):
@@ -364,8 +405,7 @@ class Expr(GoAST):
             return IndexExpr(X=self, Index=BasicLit(Value=item, Kind=token.STRING))
         return IndexExpr(X=self, Index=item)
 
-
-    def _type(self):
+    def _type(self, scope: Optional['Scope'] = None):
         return self._type_help
 
 
@@ -595,7 +635,7 @@ class BasicLit(Expr):
         return obj
 
 
-    def _type(self):
+    def _type(self, scope: Optional['Scope']=None):
         return token_type_to_go_type(self.Kind) or super()._type()
 
 
@@ -689,9 +729,11 @@ class BinaryExpr(Expr):
         Y = build_expr_list([node.right])[0]
         return cls(op, 0, X, Y, **kwargs)
 
-    def _type(self):
+    def _type(self, scope: Optional['Scope'] = None):
         if self.Op in COMPARISON_OPS or self.Op in BOOL_OPS:
             return GoBasicType.BOOL.ident
+        if scope:
+            return scope._get_type(self.X) or scope._get_type(self.Y) or super()._type(scope)
         return self.X._type() or self.Y._type() or super()._type()
 
 
@@ -820,6 +862,9 @@ class Ident(Expr):
     def from_str(cls, name: str, **kwargs):
         return cls(name, 0, None, **kwargs)
 
+    def assign(self, *expr: Expr, tok=token.DEFINE, **kwargs) -> AssignStmt:
+        assert expr
+        return AssignStmt(Lhs=[self], Rhs=list(expr), Tok=tok, **kwargs)
 
 class BranchStmt(Stmt):
     """A BranchStmt node represents a break, continue, goto, or fallthrough statement."""
@@ -960,26 +1005,21 @@ class CallExpr(Expr):
         t = node.targets[0]  # TODO: Support multiple deletes and slices
         return cls(Fun=Ident.from_str("delete"), Args=build_expr_list([t.value]) + build_expr_list([t.slice.value]))
 
-    def _type(self):
-        if isinstance(self.Fun, Ident):
-            try:
-                return GoBasicType(self.Fun.Name).ident
-            except ValueError:
-                pass
-        return super()._type()
 
-    def _type(self):
+
+    def _type(self, scope: Optional['Scope']=None):
         match self.Fun:
             # Maps and arrays
             case MapType() | ArrayType():
-                return self.Fun or super()._type()
+                return self.Fun or super()._type(scope)
             # Basic types
             case Ident(Name=x):
                 try:
-                    return GoBasicType(x).ident or super()._type()
+                    return GoBasicType(x).ident or super()._type(scope)
                 except ValueError:
                     pass
-        return super()._type()
+
+        return super()._type(scope)
 
 
 class CaseClause(GoAST):
@@ -1007,7 +1047,7 @@ class CaseClause(GoAST):
         super().__init__(**kwargs)
 
 
-class ChanType(GoAST):
+class ChanType(Expr):
     """A ChanType node represents a channel type."""
     _fields = ("Dir", "Value")
     """position of '<-' (token.NoPos if there is no '<-')"""
@@ -1028,7 +1068,7 @@ class ChanType(GoAST):
         self.Arrow = Arrow
         self.Begin = Begin
         self.Dir = Dir
-        self.Value = Value
+        self.Value = Value or InterfaceType()
         super().__init__(**kwargs)
 
 
@@ -1148,7 +1188,7 @@ class CompositeLit(Expr):
         elts = [KeyValueExpr(Key=key, Value=value) for key, value in zip(key_elts, value_elts)]
         return cls(elts, Type=MapType(Value=StructType()), **kwargs)
 
-    def _type(self):
+    def _type(self, scope: Optional['Scope']=None):
         return self.Type or super()._type()
 
 
@@ -1248,8 +1288,9 @@ class ExprStmt(Stmt):
     @classmethod
     def from_Expr(cls, node: ast.Expr):
         match node.value:
-            case ast.Constant(value=Ellipsis()):
+            case ast.Constant(value=Ellipsis()) | ast.Yield() | ast.YieldFrom():
                 raise NotImplementedError(node, node.value)
+
         return cls(build_expr_list([node.value])[0])
 
     @classmethod
@@ -1469,6 +1510,13 @@ class Scope(GoAST):
         self._global = Outer._global if Outer else self
         super().__init__(**kwargs)
 
+    def _contains_scope(self, scope: 'Scope') -> bool:
+        if self is scope:
+            return True
+        if self.Outer:
+            return self.Outer._contains_scope(scope)
+        return False
+
     def _in_scope(self, obj: Object) -> bool:
         return obj.Name in self.Objects
 
@@ -1484,7 +1532,7 @@ class Scope(GoAST):
             case str():
               obj_name = x
             case Expr():
-                return x._type()
+                return x._type(scope=self)
             case _:
                 raise ValueError(x)
         if obj := self._from_scope_or_outer(obj_name):
@@ -1597,7 +1645,7 @@ class ForStmt(Stmt):
     _fields = ("Body", "Cond", "Init", "Post")
     """A ForStmt represents a for statement."""
     Body: BlockStmt
-    """condition; or nil"""
+    """finder; or nil"""
     Cond: Expr
     """position of 'for' keyword"""
     For: int
@@ -1637,7 +1685,7 @@ class ForStmt(Stmt):
         return cls(Body=body, Cond=cond)
 
 
-class FuncType(GoAST):
+class FuncType(Expr):
     """function signature: parameters, results, and position of 'func' keyword
 
     function type
@@ -1672,6 +1720,17 @@ class FuncType(GoAST):
             case _:
                 results = from_this(FieldList, node.returns)
         return cls(0, params, results, **kwargs)
+
+    @classmethod
+    def from_AsyncFunctionDef(cls, node: ast.AsyncFunctionDef, **kwargs):
+        func_type = cls.from_FunctionDef(node, **kwargs)
+        # TODO: Multiple return values should be a struct or something?
+        match func_type.Results:
+            case FieldList(List=[f]):
+                f.Type = ChanType(Value=f.Type, Dir=2)
+            case _:
+                func_type.Results = FieldList(List=[Field(Type=ChanType())], Dir=2)
+        return func_type
 
     @classmethod
     def from_Lambda(cls, node: ast.Lambda, **kwargs):
@@ -1714,7 +1773,39 @@ class FuncDecl(Decl):
         doc = None
         name = from_this(Ident, node.name)
         recv = None
-        _type = from_this(FuncType, node)
+        _type = FuncType.from_FunctionDef(node)
+        return cls(body, doc, name, recv, _type, **kwargs)
+
+    @classmethod
+    def from_AsyncFunctionDef(cls, node: ast.AsyncFunctionDef, **kwargs):
+        if node.name == "main":
+            # TODO: There are other situations where we probably want to just disregard
+            #   the async aspect of the function definition, likely more easy to interpret
+            #   as part of post-processing.
+            #   One idea for how I could handle this in post without reversing
+            #   all the logic is to store a deepcopy of the functionDef version as part of the
+            #   asyncFunctionDef and recover it in an early transformation stage.
+            #   For now, though, this will do.
+            return cls.from_FunctionDef(node, **kwargs)
+        r = Ident("r")
+        _type = FuncType.from_AsyncFunctionDef(node)
+        body = from_this(BlockStmt, node.body)
+        # TODO: Multi-return?
+        _replace_nodes(
+            body,
+            replacer=lambda x: SendStmt(Chan=r, Value=x.Results[0]) if isinstance(x, ReturnStmt) else x,
+            skipper=lambda x: isinstance(x, FuncLit)
+        )
+        body.List.insert(0, DeferStmt(Call=Ident("close").call(r)))
+        make_chan_type = ChanType(Value=_type.Results.List[0].Type.Value, Dir=3)
+        body = BlockStmt(List=[
+            r.assign(Ident("make").call(make_chan_type)),
+            GoStmt(Call=FuncLit(Body=body).call()),
+            r.return_()
+        ])
+        doc = None
+        name = from_this(Ident, node.name)
+        recv = None
         return cls(body, doc, name, recv, _type, **kwargs)
 
     # All of these simply throw the code in a function titled _ to be swept up later
@@ -1829,14 +1920,14 @@ class GenDecl(Decl):
                 case ast.FunctionDef():
                     methods.append(obj)
                     func_def = build_stmt_list([obj])[0]
-                    func_lit = func_def.Rhs[0]
-                    self_name = func_lit.Type.Params.List[0].Names[0].Name
+                    f = func_def.Rhs[0]
+                    self_name = f.Params.List[0].Names[0].Name
                     def _matcher(_node: 'ast.AST'):
                         match _node:
                             case AssignStmt(Lhs=[SelectorExpr(X=Ident(Name=x))]):
                                 if self_name == x:
                                     return _node
-                    assignment_exprs = _find_nodes(func_lit, _matcher)
+                    assignment_exprs = _find_nodes(f, _matcher)
                     for assignment in assignment_exprs:
                         match assignment:
                             case AssignStmt(Lhs=[SelectorExpr(Sel=name)], Rhs=[expr]):
@@ -1920,7 +2011,7 @@ class IfStmt(Stmt):
     """An IfStmt node represents an if statement."""
     _fields = ("Body", "Cond", "Else", "Init")
     Body: BlockStmt
-    """condition"""
+    """finder"""
     Cond: Expr
     """else branch; or nil"""
     Else: Stmt
@@ -2017,7 +2108,7 @@ class IndexExpr(Expr):
         x = build_expr_list([node.value])[0]
         return cls(index, X=x, **kwargs)
 
-    def _type(self):
+    def _type(self, scope: Optional['Scope']=None):
         x_type = self.X._type()
         index_type = self.Index._type()
         # If we're taking a slice, the type doesn't change
@@ -2276,6 +2367,17 @@ class SendStmt(Stmt):
         self.Value = Value
         super().__init__(**kwargs)
 
+    @classmethod
+    def from_Expr(cls, node: ast.Expr, **kwargs):
+        match node.value:
+            case ast.Yield():
+                # Returns an additional UnaryExpr
+                return [
+                    cls(Chan=Ident("yield"), Value=build_expr_list([node.value.value])[0], **kwargs),
+                   Ident("wait").receive().stmt()
+                ]
+            case _:
+                raise NotImplementedError()
 
 class SliceExpr(Expr):
     """A SliceExpr node represents an expression followed by slice indices."""
@@ -2492,7 +2594,12 @@ class UnaryExpr(Expr):
             case ast.Not(): op = token.NOT
             case _: raise NotImplementedError((node, node.op))
         X = build_expr_list([node.operand])[0]
-        return cls(op, 0, X, **kwargs)
+        return cls(Op=op, X=X, **kwargs)
+
+    @classmethod
+    def from_Await(cls, node: ast.Await, **kwargs):
+        X = build_expr_list([node.value])[0]
+        return cls(Op=token.ARROW, X=X, **kwargs)
 
     def __init__(self,
                  Op: token = None,
@@ -2504,7 +2611,9 @@ class UnaryExpr(Expr):
         self.X = X
         super().__init__(**kwargs)
 
-    def _type(self):
+    def _type(self, scope: Optional['Scope'] = None):
+        if scope:
+            scope._get_type(self.X) or super()._type(scope)
         return self.X._type() or super()._type()
 
 

@@ -4,9 +4,11 @@ from _ast import AST
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
     GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec, ArrayType, \
-    ast_snippets, MapType, GenDecl, ValueSpec, Expr, BadStmt
+    ast_snippets, MapType, GenDecl, ValueSpec, Expr, BadStmt, SendStmt
 
 # Shortcuts
+from pythagoras.go_ast.core import _find_nodes, build_stmt_list, GoAST, ChanType, StructType, _replace_nodes
+
 v = Ident.from_str
 
 
@@ -103,10 +105,13 @@ class PythonToGoTypes(ast.NodeTransformer):
 class NodeTransformerWithScope(ast.NodeTransformer):
     def __init__(self, scope=None):
         self.scope = Scope({}, scope)
+        self.stack = []
         self.current_globals = []
         self.current_nonlocals = []
+        self.missing_type_info = []
 
     def generic_visit(self, node):
+        self.stack.append(node)
         prev_globals = self.current_globals
         prev_nonlocals = self.current_nonlocals
 
@@ -153,12 +158,83 @@ class NodeTransformerWithScope(ast.NodeTransformer):
 
         self.current_globals = prev_globals
         self.current_nonlocals = prev_nonlocals
+        self.stack.pop()
+
+        if len(self.stack) == 0:
+            resolved_indices = []
+            for i, (expr, val, scope, callbacks) in enumerate(self.missing_type_info):
+                resolved = False
+                t = None
+                match val:
+                    case CallExpr():
+                        t = scope._get_type(val.Fun)
+                        match t:
+                            case FuncType(Results=FieldList(List=[Field(Type=x)])):
+                                expr._type_help = x
+                                resolved = True
+                            case _:
+                                expr._type_help = t
+                                resolved = True
+                if resolved:
+                    resolved_indices.append(i)
+                    while callbacks:
+                        callbacks.pop()(expr, t)
+            for i in reversed(resolved_indices):
+                del self.missing_type_info[i]
         return node
 
     def visit_ValueSpec(self, node: ValueSpec):
         self.apply_eager_context(node.Names, node.Values)
         self.generic_visit(node)
         self.apply_to_scope(node.Names, node.Values)
+        return node
+
+    def visit_FuncDecl(self, node: FuncDecl):
+        names = [node.Name]
+        values = [node.Type]
+        for p in node.Type.Params.List:
+            names += p.Names
+            values += [p.Type] * len(p.Names)
+        self.apply_eager_context(names, values, rhs_is_types=True)
+        self.apply_to_scope(names, values, rhs_is_types=True)
+        self.generic_visit(node)
+
+        # Infer return type
+        # TODO: this is kind of bad at the moment -- it doesn't have the
+        #   right scope info available
+        if node.Type.Results is None:
+            def finder(x: GoAST):
+                match x:
+                    case ReturnStmt():
+                        return x
+                    case SendStmt(Chan=Ident(Name=name)):
+                        return x if name == 'yield' else None
+                return None
+            stmts = _find_nodes(
+                node.Body,
+                finder=finder,
+                skipper=lambda x: isinstance(x, FuncLit)
+            )
+            if stmts:
+                is_yield = False
+                for stmt in stmts:
+                    match stmt:
+                        case ReturnStmt():
+                            stmt: ReturnStmt
+                            types = [self.scope._get_type(x) for x in stmt.Results]
+                        case SendStmt():
+                            stmt: SendStmt
+                            types = [self.scope._get_type(stmt.Value)]
+                            is_yield = True
+                        case _:
+                            types = [None]
+
+                    if all(types):
+                        node.Type.Results = FieldList(List=[Field(Type=t) for t in types])
+                        self.apply_to_scope([node.Name], [node.Type])
+                        break
+                node._is_yield = is_yield
+
         return node
 
     def visit_AssignStmt(self, node: AssignStmt):
@@ -172,20 +248,22 @@ class NodeTransformerWithScope(ast.NodeTransformer):
             node.Tok = token.ASSIGN
         return node
 
-    def apply_to_scope(self, lhs: list[Expr], rhs: list[Expr]):
+    def apply_to_scope(self, lhs: list[Expr], rhs: list[Expr], rhs_is_types=False):
+        # TODO: This was only built to handle one type, but zipping is much better sometimes
         ctx = {}
         for x in rhs:
             ctx.update(x._py_context)
         declared = False
-        for expr in lhs:
+        for i, expr in enumerate(lhs):
             if not isinstance(expr, Ident):
                 continue
+            t = rhs[i] if rhs_is_types else next((self.scope._get_type(x) for x in rhs), None)
             obj = Object(
                 Data=None,
                 Decl=None,
                 Kind=ObjKind.Var,
                 Name=expr.Name,
-                Type=next((self.scope._get_type(x) for x in rhs), None),
+                Type=t,
                 _py_context=ctx
             )
             if not (self.scope._in_scope(obj) or (
@@ -197,18 +275,32 @@ class NodeTransformerWithScope(ast.NodeTransformer):
             )):
                 self.scope.Insert(obj)
                 declared = True
+            if not self.scope._get_type(obj.Name):
+                try:
+                    t = rhs[i]
+                except IndexError:
+                    pass
+                self.missing_type_info.append((expr, t, self.scope, []))
         return declared
 
-    def apply_eager_context(self, lhs: list[Expr], rhs: list[Expr]):
+    def apply_eager_context(self, lhs: list[Expr], rhs: list[Expr], rhs_is_types=False):
+        # TODO: This was only built to handle one type, but zipping is much better sometimes
         eager_type_hint = next((self.scope._get_type(x) for x in rhs), None)
         eager_context = {}
         for x in rhs:
             eager_context.update(x._py_context)
-        for expr in lhs:
+        for i, expr in enumerate(lhs):
             if not expr._type_help:
-                expr._type_help = eager_type_hint
+                expr._type_help = rhs[i] if rhs_is_types else eager_type_hint
             if eager_context:
                 expr._py_context = {**eager_context, **expr._py_context}
+
+    def add_callback_for_missing_type(self, node: Expr, callback: callable) -> bool:
+        for expr, val, scope, callbacks in self.missing_type_info:
+            if expr == node and self.scope._contains_scope(scope):
+                callbacks.append(callback)
+                return True
+        return False
 
 
 class RangeRangeToFor(ast.NodeTransformer):
@@ -603,10 +695,126 @@ class SpecialComparators(NodeTransformerWithScope):
         return node
 
 
+class AsyncTransformer(ast.NodeTransformer):
+    def visit_UnaryExpr(self, node: UnaryExpr):
+        self.generic_visit(node)
+        # Change awaited asyncio calls
+        match node:
+            case UnaryExpr(X=CallExpr(Fun=SelectorExpr(X=Ident(Name="asyncio"), Sel=sel), Args=args)):
+                match sel:
+                    case Ident(Name="sleep"):
+                        time = Ident("time")
+                        # TODO: Ignored optional result keyword
+                        return time.sel("Sleep").call(time.sel("Second") * args[0])
+        return node
+
+
+# class AddMissingFunctionTypes(NodeTransformerWithScope):
+#     def visit_BlockStmt(self, node: BlockStmt):
+#         self.generic_visit(node)
+#         if hasattr(node, 'parent'):
+#             print()
+#         return node
+#
+    # def visit_FuncDecl(self, node: FuncDecl):
+    #     node.Body.parent = node
+    #     self.generic_visit(node)
+    #     if node.Type.Results is None:
+    #         return_stmts = _find_nodes(
+    #             node.Body,
+    #             finder=lambda x: x if isinstance(x, ReturnStmt) else None,
+    #             skipper=lambda x: isinstance(x, FuncLit)
+    #         )
+    #
+    #         if return_stmts:
+    #             for return_stmt in return_stmts:
+    #                 return_stmt: ReturnStmt
+    #                 types = [x._type() for x in return_stmt.Results]
+    #                 if all(types):
+    #                     results = FieldList(List=[Field(Type=t) for t in types])
+    #                     node.Type.Results = results
+    #     return node
+
+
+class YieldTransformer(NodeTransformerWithScope):
+    def visit_FuncDecl(self, node: FuncDecl):
+        node = super().visit_FuncDecl(node)
+        def finder(x: GoAST):
+            match x:
+                case SendStmt(Chan=Ident(Name=name)):
+                    return x if name == 'yield' else None
+            return None
+        stmts = _find_nodes(
+            node.Body,
+            finder=finder,
+            skipper=lambda x: isinstance(x, FuncLit)
+        )
+        if any(stmts):
+            # TODO: Multi-support
+            original_type = None
+            for f in node.Type.Results.List:
+                original_type = f.Type
+                f.Type = ChanType(Value=f.Type, Dir=2)
+            if original_type is None:
+                return node
+            return_func_type = node.Type
+            node.Type = FuncType(Params=FieldList(), Results=FieldList(List=[Field(Type=node.Type)]))
+            wait = Ident("wait")
+            _yield = Ident("yield")
+            make = Ident("make")
+            node.Body.List[:] = [
+                wait.assign(make.call(StructType().chan(), BasicLit.from_int(1))),
+                _yield.assign(make.call(original_type.chan(), BasicLit.from_int(1))),
+                FuncLit(Body=BlockStmt(List=[
+                    Ident("close").call(_yield).defer(),
+                    wait.receive().stmt(),
+                    *node.Body.List,
+                ])).call().go(),
+                FuncLit(Type=return_func_type, Body=BlockStmt(List=[
+                    wait.send(StructType().composite_lit_type()),
+                    _yield.return_()
+                ])).return_()
+            ]
+        return node
+
+
+class YieldRangeTransformer(NodeTransformerWithScope):
+    def visit_RangeStmt(self, node: RangeStmt, callback=False, callback_type=None, callback_parent=None):
+        if not callback:
+            self.generic_visit(node)
+        t = callback_type or self.scope._get_type(node.X)
+        match t:
+            case None:
+                _callback_parent = self.stack[-1] if len(self.stack) > 1 else None
+                self.add_callback_for_missing_type(node.X,                                             (lambda _, type_: self.visit_RangeStmt(
+                                                       node, callback=True, callback_type=type_, callback_parent=_callback_parent)))
+            case FuncType(Results=FieldList(List=[Field(Type=FuncType(Results=FieldList(List=[Field(Type=ChanType())])))])):
+                val = node.Value
+                gen = node.X
+                ok = Ident("ok")
+                for_stmt = ForStmt(
+                    Body=node.Body,
+                    Init=AssignStmt(Lhs=[val, ok], Rhs=[gen.call().receive()], Tok=token.DEFINE),
+                    Cond=ok,
+                    Post=AssignStmt(Lhs=[val, ok], Rhs=[gen.call().receive()], Tok=token.ASSIGN)
+                )
+                if callback and callback_parent:
+                    match callback_parent:
+                        case BlockStmt(List=l):
+                            l: list
+                            old_index = l.index(node)
+                            l[old_index] = for_stmt
+                        case _:
+                            raise NotImplementedError()
+                return for_stmt
+        return node
+
+
 class RemoveBadStmt(ast.NodeTransformer):
     def visit_BadStmt(self, node: BadStmt):
         self.generic_visit(node)
         pass  # It is removed by not being returned
+
 
 
 ALL_TRANSFORMS = [
@@ -618,7 +826,10 @@ ALL_TRANSFORMS = [
     ReplacePythonStyleAppends,
     AppendSliceViaUnpacking,
     PythonToGoTypes,
+    YieldTransformer,
     NodeTransformerWithScope,
+    # AddMissingFunctionTypes,
+    YieldRangeTransformer,
     RangeRangeToFor,
     UnpackRange,
     NegativeIndexesSubtractFromLen,
@@ -630,5 +841,6 @@ ALL_TRANSFORMS = [
     HandleUnhandledErrorsAndDefers,
     SpecialComparators,
     AddTextTemplateImportForFStrings,
+    AsyncTransformer,
     RemoveBadStmt,  # Should be last as these are used for scoping
 ]
