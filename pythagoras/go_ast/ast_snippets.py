@@ -401,9 +401,9 @@ def handler_name_to_cond(name: str) -> 'ast.Expr':
             )
     # Add support for some built-in go error handling where possible
     if name == "IndexError":
-        cond = cond._or(handler_name_to_cond("runtime error: index out of range"))
+        cond = cond.or_(handler_name_to_cond("runtime error: index out of range"))
     elif name == "RuntimeError":
-        cond = cond._or(handler_name_to_cond("runtime error"))
+        cond = cond.or_(handler_name_to_cond("runtime error"))
     return cond
 
 def exceptions(conditional: list[tuple['ast.Expr', list['ast.Stmt']]], base: list['ast.Stmt'],

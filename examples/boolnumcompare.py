@@ -1,0 +1,20 @@
+def main():
+    print(1 == True)
+    print(1 == False)
+    print(0 == True)
+    print(0 == False)
+    print()
+    print(1. == True)
+    print(1. == False)
+    print(0. == True)
+    print(0. == False)
+    print()
+    print(1+0j == True)
+    print(1+0j == False)
+    print(0+0j == True)
+    print(0+0j == False)
+    print()
+    print(2 == True)
+
+if __name__ == '__main__':
+    main()

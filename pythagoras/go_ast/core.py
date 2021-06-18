@@ -43,6 +43,29 @@ class GoBasicType(Enum):
     def ident(self):
         return Ident.from_str(self.value)
 
+    @cached_property
+    def is_integer(self):
+        t = self.__class__
+        return self in [
+            t.UINT8, t.BYTE, t.UINT16, t.UINT32, t.UINT64,
+            t.INT8, t.INT16, t.INT32, t.RUNE, t.INT64, t.INT,
+            t.UINT, t.UINTPTR
+        ]
+
+    @cached_property
+    def is_float(self):
+        t = self.__class__
+        return self in [t.FLOAT32, t.FLOAT64]
+
+    @cached_property
+    def is_complex(self):
+        t = self.__class__
+        return self in [t.COMPLEX64, t.COMPLEX128]
+
+    @cached_property
+    def is_numeric(self):
+        return self.is_integer or self.is_float or self.is_complex
+
 
 # class GoCompositeType(Enum):
 #     ARRAY = "array"
@@ -171,9 +194,16 @@ COMPARISON_OPS = [token.GTR,
                   token.NEQ]
 BOOL_OPS = [
     token.LAND,
-    token.OR,
-    token.AND_NOT
+    token.LOR,
+    token.NOT
 ]
+
+OP_COMPLIMENTS = {
+    token.GEQ: token.LEQ,
+    token.GTR: token.LSS,
+    token.EQL: token.NEQ,
+}
+OP_COMPLIMENTS |= {v: k for k, v in OP_COMPLIMENTS.items()}
 
 
 def _type_annotation_to_go_type(node: ast.AST):
@@ -356,11 +386,23 @@ class Expr(GoAST):
     def __mul__(self, Y: 'Expr') -> 'BinaryExpr':
         return BinaryExpr(Op=token.MUL, X=self, Y=Y)
 
-    def _or(self, Y: 'Expr') -> 'BinaryExpr':
+    def __add__(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.ADD, X=self, Y=Y)
+
+    def or_(self, Y: 'Expr') -> 'BinaryExpr':
         """
         Shorthand way to describe the binary expression self || Y
         """
         return BinaryExpr(Op=token.LOR, X=self, Y=Y)
+
+    def and_(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.LAND, X=self, Y=Y)
+
+    def eql(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.EQL, X=self, Y=Y)
+
+    def neq(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.NEQ, X=self, Y=Y)
 
     def sel(self, sel, **kwargs) -> 'SelectorExpr':
         """
@@ -403,6 +445,60 @@ class Expr(GoAST):
 
     def deref(self, **kwargs):
         return StarExpr(X=self, **kwargs)
+
+    def if_(self, body: List['Stmt'], else_=None, **kwargs):
+        return IfStmt(Cond=self, Body=BlockStmt(List=body.copy()), Else=else_, **kwargs)
+
+    @property
+    def basic_type(self) -> Optional[GoBasicType]:
+        try:
+            return GoBasicType(self.Name)
+        except (AttributeError, ValueError):
+            return None
+
+    @property
+    def is_basic_type(self):
+        return self.basic_type is not None
+
+    @property
+    def is_integer_type(self):
+        return bool(self.basic_type) and self.basic_type.is_integer
+
+    @property
+    def is_float_type(self):
+        return bool(self.basic_type) and self.basic_type.is_float
+
+    @property
+    def is_complex_type(self):
+        return bool(self.basic_type) and self.basic_type.is_complex
+
+    @property
+    def is_numeric_type(self):
+        return bool(self.basic_type) and self.basic_type.is_numeric
+
+
+
+    def cast(self, type_1: 'Expr', type_2: 'Expr') -> 'Expr':
+        if type_1 == type_2:
+            return self
+
+        if isinstance(self, BasicLit):
+            # We don't need to cast literals just to add them to use them as another type
+            if type_1.is_numeric_type and type_2.is_numeric_type:
+                return self
+
+        match type_1, type_2:
+            case Ident(Name=GoBasicType.BOOL.value), x if x.is_numeric_type:
+                return FuncLit(
+                    Type=FuncType(Results=FieldList(List=[Field(Type=type_2)])),
+                    Body=BlockStmt(List=[
+                        self.if_([BasicLit.from_int(1).return_()]),
+                        BasicLit.from_int(0).return_()
+                    ])
+                ).call()
+            case x, Ident(Name=GoBasicType.BOOL.value) if x.is_numeric_type:
+                return self.neq(BasicLit.from_int(0))
+        return type_2.call(self)
 
     def __getitem__(self, item):
         # Convenience function to let me cleanly represent subscripts in transformation
@@ -618,7 +714,11 @@ class BasicLit(Expr):
 
     @classmethod
     def from_Constant(cls, node: ast.Constant, **kwargs):
-        t = type(node.value)
+        return cls.from_Constant_value(node.value, **kwargs)
+
+    @classmethod
+    def from_Constant_value(cls, value, **kwargs):
+        t = type(value)
         if t == int:
             kind = token.INT
         elif t == float:
@@ -626,10 +726,14 @@ class BasicLit(Expr):
         elif t == str:
             kind = token.STRING
         elif t == complex:
-            kind = token.IMAG
+            val = cls.from_value(f"{value.imag}i", token.IMAG, **kwargs)
+            if value.real:
+                # TODO: Not a basic lit in this case, a bit smelly
+                val = cls.from_Constant_value(value.real, **kwargs) + val
+            return val
         else:
-            raise NotImplementedError(node)
-        return cls(kind, node.value, 0, **kwargs)
+            raise NotImplementedError(value)
+        return cls(kind, value, **kwargs)
 
     @classmethod
     def from_int(cls, node: int, **kwargs):
@@ -676,28 +780,49 @@ class BinaryExpr(Expr):
 
     @classmethod
     def from_Compare(cls, node: ast.Compare, **kwargs):
-        if len(node.ops) != 1:
-            raise NotImplementedError("Op count != 1", node.ops)
-        if len(node.comparators) != 1:
-            raise NotImplementedError("Comparator count != 1", node.comparators)
         py_op = node.ops[0]
+        node_left = node.left
         node_right = node.comparators[0]
+        expr = cls.from_left_op_right(node_left, py_op, node_right, **kwargs)
+        py_op_remaining = node.ops[1:]
+        py_op_remaining.reverse()
+        node_right_remaining = node.comparators[1:]
+        node_right_remaining.reverse()
+        while py_op_remaining and node_right_remaining:
+            py_op = py_op_remaining.pop()
+            node_right = node_right_remaining.pop()
+            expr = expr.and_(cls.from_left_op_right(expr.Y, py_op, node_right, **kwargs))
+        return expr
+
+    @classmethod
+    def from_left_op_right(cls, node_left, py_op, node_right, **kwargs):
         match py_op:
-            case ast.Gt(): op = token.GTR
-            case ast.GtE(): op = token.GEQ
-            case ast.Lt(): op = token.LSS
-            case ast.LtE(): op = token.LEQ
-            case ast.Eq(): op = token.EQL
-            case ast.NotEq(): op = token.NEQ
-            case ast.Is(): op = token.PLACEHOLDER_IS
-            case ast.IsNot(): op = token.PLACEHOLDER_IS_NOT
-            case ast.In(): op = token.PLACEHOLDER_IN
-            case ast.NotIn(): op = token.PLACEHOLDER_NOT_IN
+            case ast.Gt():
+                op = token.GTR
+            case ast.GtE():
+                op = token.GEQ
+            case ast.Lt():
+                op = token.LSS
+            case ast.LtE():
+                op = token.LEQ
+            case ast.Eq():
+                op = token.EQL
+            case ast.NotEq():
+                op = token.NEQ
+            case ast.Is():
+                op = token.PLACEHOLDER_IS
+            case ast.IsNot():
+                op = token.PLACEHOLDER_IS_NOT
+            case ast.In():
+                op = token.PLACEHOLDER_IN
+            case ast.NotIn():
+                op = token.PLACEHOLDER_NOT_IN
             case _:
                 raise NotImplementedError(f"Unimplemented comparator: {py_op}")
-        X = build_expr_list([node.left])[0]
-        Y = build_expr_list([node_right])[0]
-        return cls(op, 0, X, Y, **kwargs)
+        X = node_left if isinstance(node_left, Expr) else build_expr_list([node_left])[0]
+        Y = node_right if isinstance(node_right, Expr) else build_expr_list([node_right])[0]
+        expr = cls(op, 0, X, Y, **kwargs)
+        return expr
 
     @classmethod
     def from_BoolOp(cls, node: ast.BoolOp, **kwargs):
@@ -1382,7 +1507,7 @@ class ExprStmt(Stmt):
                     case ast.Tuple(elts=x):
                         cond = ast_snippets.handler_name_to_cond(x[0].id)
                         for subhandler in x[1:]:
-                            cond = cond._or(ast_snippets.handler_name_to_cond(subhandler.id))
+                            cond = cond.or_(ast_snippets.handler_name_to_cond(subhandler.id))
                     case None | ast.Name(id="Exception") | ast.Name(id="BaseException"):
                         is_base_handler = True
                     case _:
@@ -1580,6 +1705,8 @@ class Scope(GoAST):
                 return x._type(scope=self)
             case _:
                 raise ValueError(x)
+        if obj_name in ['true', 'false']:
+            return GoBasicType.BOOL.ident
         if obj := self._from_scope_or_outer(obj_name):
             return obj.Type
 

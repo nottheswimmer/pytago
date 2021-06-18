@@ -22,6 +22,9 @@ class Test(TestCase):
     def test_hello_world(self):
         self.assert_examples_match("helloworld")
 
+    def test_boolnumcompare(self):
+        return self.assert_examples_match("boolnumcompare")
+
     def test_add(self):
         self.assert_examples_match("add")
 

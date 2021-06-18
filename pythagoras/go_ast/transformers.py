@@ -1,6 +1,7 @@
 import ast
 import warnings
 from _ast import AST
+from typing import Optional
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
@@ -9,7 +10,7 @@ from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, Bin
 
 # Shortcuts
 from pythagoras.go_ast.core import _find_nodes, build_stmt_list, GoAST, ChanType, StructType, _replace_nodes, \
-    InterfaceType, BadExpr
+    InterfaceType, BadExpr, COMPARISON_OPS, BOOL_OPS, OP_COMPLIMENTS
 
 v = Ident.from_str
 
@@ -58,14 +59,7 @@ class CapitalizeMathModuleCalls(ast.NodeTransformer):
         return node
 
 
-class ReplacePowWithMathPow(ast.NodeTransformer):
-    def visit_BinaryExpr(self, node: BinaryExpr):
-        self.generic_visit(node)
-        match node:
-            case BinaryExpr(Op=token.PLACEHOLDER_POW):
-                return CallExpr(Args=[node.X, node.Y],
-                                Fun=SelectorExpr(X=v("math"), Sel=v("Pow")))
-        return node
+
 
 
 class ReplacePythonStyleAppends(ast.NodeTransformer):
@@ -314,6 +308,26 @@ class NodeTransformerWithScope(ast.NodeTransformer):
         return False
 
 
+class ReplacePowWithMathPow(NodeTransformerWithScope):
+    def visit_BinaryExpr(self, node: BinaryExpr):
+        self.generic_visit(node)
+        match node:
+            case BinaryExpr(Op=token.PLACEHOLDER_POW):
+                replacement = CallExpr(Args=[node.X, node.Y],
+                                Fun=SelectorExpr(X=v("math"), Sel=v("Pow")))
+                x_type = self.scope._get_type(node.X)
+                y_type = self.scope._get_type(node.Y)
+
+                try:
+                    x_basic = GoBasicType(x_type.Name)
+                    y_basic = GoBasicType(y_type.Name)
+                except (ValueError, AttributeError):
+                    return replacement
+                if x_basic.is_integer and y_basic.is_integer:
+                    return replacement.cast(GoBasicType.FLOAT64.ident, get_dominant_type(x_type, y_type))
+                return replacement
+        return node
+
 class RangeRangeToFor(ast.NodeTransformer):
     def visit_RangeStmt(self, node: RangeStmt):
         self.generic_visit(node)
@@ -459,6 +473,10 @@ class FileWritesAndErrors(NodeTransformerWithScope):
 
 
 def _type_score(typ):
+    if isinstance(typ, InterfaceType):
+        return -2
+    if isinstance(typ, (MapType, ArrayType)):
+        return -1
     return [
         "uint",
         "uintptr",
@@ -479,8 +497,13 @@ def _type_score(typ):
     ].index(str(typ.Name).lower())
 
 
-def get_dominant_type(type_a, type_b):
+def get_dominant_type(type_a: Expr, type_b: Expr, op: Optional[token]=None):
     # Pick a type to coerce things to
+    if isinstance(type_a, GoBasicType):
+        type_a = type_a.ident
+    if isinstance(type_b, GoBasicType):
+        type_b = type_b.ident
+
     return max((type_a, type_b), key=_type_score)
 
 
@@ -506,11 +529,42 @@ class HandleTypeCoercion(NodeTransformerWithScope):
                     y_type = GoBasicType.FLOAT64.ident
         if node.Op not in [token.PLACEHOLDER_IN, token.PLACEHOLDER_NOT_IN]:
             if x_type != y_type and x_type and y_type:
-                dominant_type = get_dominant_type(x_type, y_type)
+                true = Ident('true')
+                false = Ident('false')
+
+                # When comparing numbers to boolean literals, change the bools to ints
+                if node.X == true and y_type.is_numeric_type:
+                    node.X = BasicLit.from_int(1)
+                    x_type = node.X._type()
+                elif node.X == false and y_type.is_numeric_type:
+                    node.X = BasicLit.from_int(0)
+                    x_type = node.X._type()
+                elif node.Y == true and x_type.is_numeric_type:
+                    node.Y = BasicLit.from_int(1)
+                    y_type = node.Y._type()
+                elif node.Y == false and x_type.is_numeric_type:
+                    node.Y = BasicLit.from_int(0)
+                    y_type = node.Y._type()
+
+                dominant_type = get_dominant_type(x_type, y_type, node.Op)
+
                 if x_type != dominant_type:
-                    node.X = dominant_type.call(node.X)
+                    node.X = node.X.cast(x_type, dominant_type)
                 if y_type != dominant_type:
-                    node.Y = dominant_type.call(node.Y)
+                    node.Y = node.Y.cast(y_type, dominant_type)
+
+                # Simplify boolean comparisons
+                for a, b in (node.X, node.Y), (node.Y, node.X):
+                    if b == true:
+                        return a
+                    if b == false:
+                        match a:
+                            case BinaryExpr(Op=x):
+                                if x in OP_COMPLIMENTS:
+                                    a.Op = OP_COMPLIMENTS[x]
+                                    return a
+                        return a.not_()
+
         return node
 
 
@@ -899,11 +953,13 @@ ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     RemoveOrphanedFunctions,
     CapitalizeMathModuleCalls,
-    ReplacePowWithMathPow,
     ReplacePythonStyleAppends,
     AppendSliceViaUnpacking,
     PythonToGoTypes,
-    YieldTransformer,
+
+    # Scope transformers
+    YieldTransformer, # May need to be above other scope transformers because jank
+    ReplacePowWithMathPow,
     NodeTransformerWithScope,
     # AddMissingFunctionTypes,
     YieldRangeTransformer,
