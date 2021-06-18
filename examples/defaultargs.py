@@ -3,7 +3,7 @@ def main():
     print(a)
     b = increment(a, 2)
     print(b)
-    c = increment(a, 3, decrement=True)
+    c = increment(a, decrement=True, amount=3)
     print(c)
 
 

@@ -241,6 +241,12 @@ class NodeTransformerWithScope(ast.NodeTransformer):
 
     def visit_AssignStmt(self, node: AssignStmt):
         """Don't forget to super call this if you override it"""
+        # Handle unpacking when both sides have multiple elements
+        # TODO: Handle when lhs has multiple elements and rhs has one.
+        match node:
+            case AssignStmt(Lhs=[CompositeLit(Elts=lhs)], Rhs=[CompositeLit(Elts=rhs)]):
+                node.Lhs = lhs
+                node.Rhs = rhs
         self.apply_eager_context(node.Lhs, node.Rhs)
         self.generic_visit(node)
         if node.Tok != token.DEFINE:
@@ -878,8 +884,6 @@ class FillDefaultsAndSortKeywords(NodeTransformerWithScope):
                     except IndexError:
                         warnings.warn("TODO: *args, **kwargs? Oh boy...")
                         continue
-
-
 
         return
 

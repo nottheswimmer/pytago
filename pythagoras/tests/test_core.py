@@ -127,3 +127,7 @@ class Test(TestCase):
     # List methods
     def test_listappend(self):
         return self.assert_examples_match("listappend")
+
+    # Algorithms
+    def test_algomajorityelement(self):
+        return self.assert_examples_match("algomajorityelement")
