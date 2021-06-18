@@ -121,6 +121,9 @@ class Test(TestCase):
     def test_matchcase(self):
         return self.assert_examples_match("matchcase")
 
+    def test_defaultargs(self):
+        return self.assert_examples_match("defaultargs")
+
     # List methods
     def test_listappend(self):
         return self.assert_examples_match("listappend")

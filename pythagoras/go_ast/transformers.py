@@ -1,4 +1,5 @@
 import ast
+import warnings
 from _ast import AST
 
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
@@ -8,7 +9,7 @@ from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, Bin
 
 # Shortcuts
 from pythagoras.go_ast.core import _find_nodes, build_stmt_list, GoAST, ChanType, StructType, _replace_nodes, \
-    InterfaceType
+    InterfaceType, BadExpr
 
 v = Ident.from_str
 
@@ -179,7 +180,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                 if resolved:
                     resolved_indices.append(i)
                     while callbacks:
-                        callbacks.pop()(expr, t)
+                        callbacks.pop()(expr, val, t)
             for i in reversed(resolved_indices):
                 del self.missing_type_info[i]
         return node
@@ -281,8 +282,11 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                     t = rhs[i]
                 except IndexError:
                     pass
-                self.missing_type_info.append((expr, t, self.scope, []))
+                self.missing_type_info.append((expr, t, self.scope, [lambda *args, **kwargs: self.generic_missing_type_callback(*args, **kwargs)]))
         return declared
+
+    def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
+        return
 
     def apply_eager_context(self, lhs: list[Expr], rhs: list[Expr], rhs_is_types=False):
         # TODO: This was only built to handle one type, but zipping is much better sometimes
@@ -803,7 +807,7 @@ class YieldRangeTransformer(NodeTransformerWithScope):
         match t:
             case None:
                 _callback_parent = self.stack[-1] if len(self.stack) > 1 else None
-                self.add_callback_for_missing_type(node.X,                                             (lambda _, type_: self.visit_RangeStmt(
+                self.add_callback_for_missing_type(node.X,                                             (lambda _, __, type_: self.visit_RangeStmt(
                                                        node, callback=True, callback_type=type_, callback_parent=_callback_parent)))
             case FuncType(Results=FieldList(List=[Field(Type=FuncType(Results=FieldList(List=[Field(Type=ChanType())])))])):
                 val = node.Value
@@ -826,6 +830,58 @@ class YieldRangeTransformer(NodeTransformerWithScope):
                 return for_stmt
         return node
 
+
+class FillDefaultsAndSortKeywords(NodeTransformerWithScope):
+    def visit_CallExpr(self, node: CallExpr):
+        self.generic_visit(node)
+        return node
+
+
+    def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
+        if not isinstance(type_, FuncType):
+            return
+
+        if "defaults" not in type_.Params._py_context:
+            return
+
+        match val:
+            case CallExpr():
+                val: CallExpr
+
+                # Remove and set aside keyword arguments
+                call_kw_args = {}
+                call_kw_arg_indices = []
+                for i, arg in enumerate(val.Args):
+                    if "keyword" in arg._py_context:
+                        call_kw_args[arg._py_context["keyword"]] = arg
+                        call_kw_arg_indices.append(i)
+                for i in reversed(call_kw_arg_indices):
+                    del val.Args[i]
+
+                # Add missing args
+                adding = []
+                for default in reversed(type_.Params._py_context["defaults"]):
+                    if len(val.Args) + len(adding) >= len(type_.Params.List):
+                        break
+                    adding.append(default)
+                val.Args += reversed(adding)
+
+                # Fill in any keyword args in proper positions
+                arg_names = []
+                for param in type_.Params.List:
+                    for name in param.Names:
+                        arg_names.append(name.Name)
+
+                for kwname, kwvalue in call_kw_args.items():
+                    try:
+                        val.Args[arg_names.index(kwname)] = kwvalue
+                    except IndexError:
+                        warnings.warn("TODO: *args, **kwargs? Oh boy...")
+                        continue
+
+
+
+        return
 
 class RemoveBadStmt(ast.NodeTransformer):
     def visit_BadStmt(self, node: BadStmt):
@@ -859,5 +915,6 @@ ALL_TRANSFORMS = [
     SpecialComparators,
     AddTextTemplateImportForFStrings,
     AsyncTransformer,
+    FillDefaultsAndSortKeywords,
     RemoveBadStmt,  # Should be last as these are used for scoping
 ]

@@ -194,6 +194,8 @@ def _type_annotation_to_go_type(node: ast.AST):
                     return MapType()
                 case 'set' | 'frozenset' | 'Set' | 'FrozenSet' | 'MutableSet':
                     return MapType(Value=StructType())
+                case 'bool':
+                    return Ident('bool')
         case ast.Subscript(value=value, slice=index):
             value = _type_annotation_to_go_type(value)
             index = _type_annotation_to_go_type(index)
@@ -941,36 +943,47 @@ class CallExpr(Expr):
         match node:
             # Special case to calls to the open function
             case ast.Call(func=ast.Name(id='open'), args=[filename_expr, ast.Constant(value=mode)]):
-                args = build_expr_list([filename_expr])
-                os = Ident.from_str('os')
-                perm = os.sel('O_RDONLY')
-                _py_context = {'text_mode': 'b' not in mode}  # TODO: Care about text mode
-                mode = mode.replace('b', '').replace('t', '')
-                mode = ''.join(sorted(mode, reverse=True))
-                match mode:
-                    case 'r':
-                        perm = os.sel('O_RDONLY')
-                    case 'r+':
-                        perm = os.sel('O_RDWR')
-                    case 'w':
-                        perm = os.sel('O_WRONLY') | os.sel('O_TRUNC')
-                    case 'w+':
-                        perm = os.sel('O_RDWR') | os.sel('O_TRUNC') | os.sel('O_CREATE')
-                    case 'a':
-                        perm = os.sel('O_WRONLY') | os.sel('O_APPEND') | os.sel('O_CREATE')
-                    case 'a+':
-                        perm = os.sel('O_RDWR') | os.sel('O_APPEND') | os.sel('O_CREATE')
-                    case 'x':
-                        perm = os.sel('O_WRONLY') | os.sel('O_EXCL') | os.sel('O_CREATE')
-                    case 'x+':
-                        perm = os.sel('O_RDWR') | os.sel('O_EXCL') | os.sel('O_CREATE')
-                args += [perm, BasicLit.from_value("0o777", token.INT)]
-                fun = os.sel("OpenFile")
-                _type_help=StarExpr(X=os.sel("File"))
+                args, fun, _py_context, _type_help = cls._open_call_helper(_py_context, _type_help, filename_expr, mode)
             case _:
                 args = build_expr_list(node.args)
+
+                # Must be dealt with by a transformer later
+                kwargs = build_expr_list([x.value for x in node.keywords])
+                for kwarg, kw in zip(kwargs, node.keywords):
+                    kwarg._py_context.update({"keyword": kw.arg})
+                args += kwargs
                 fun = build_expr_list([node.func])[0]
         return cls(Args=args, Fun=fun, _type_help=_type_help, _py_context=_py_context)
+
+    @classmethod
+    def _open_call_helper(cls, _py_context, _type_help, filename_expr, mode):
+        args = build_expr_list([filename_expr])
+        os = Ident.from_str('os')
+        perm = os.sel('O_RDONLY')
+        _py_context = {'text_mode': 'b' not in mode}  # TODO: Care about text mode
+        mode = mode.replace('b', '').replace('t', '')
+        mode = ''.join(sorted(mode, reverse=True))
+        match mode:
+            case 'r':
+                perm = os.sel('O_RDONLY')
+            case 'r+':
+                perm = os.sel('O_RDWR')
+            case 'w':
+                perm = os.sel('O_WRONLY') | os.sel('O_TRUNC')
+            case 'w+':
+                perm = os.sel('O_RDWR') | os.sel('O_TRUNC') | os.sel('O_CREATE')
+            case 'a':
+                perm = os.sel('O_WRONLY') | os.sel('O_APPEND') | os.sel('O_CREATE')
+            case 'a+':
+                perm = os.sel('O_RDWR') | os.sel('O_APPEND') | os.sel('O_CREATE')
+            case 'x':
+                perm = os.sel('O_WRONLY') | os.sel('O_EXCL') | os.sel('O_CREATE')
+            case 'x+':
+                perm = os.sel('O_RDWR') | os.sel('O_EXCL') | os.sel('O_CREATE')
+        args += [perm, BasicLit.from_value("0o777", token.INT)]
+        fun = os.sel("OpenFile")
+        _type_help = StarExpr(X=os.sel("File"))
+        return args, fun, _py_context, _type_help
 
     @classmethod
     def from_JoinedStr(cls, node: ast.JoinedStr, **kwargs):
@@ -1427,6 +1440,7 @@ class Field(GoAST):
         return cls(None, None, [from_this(Ident, node.arg)], None, _type_annotation_to_go_type(node.annotation)
         if node.annotation else InterfaceType())
 
+
     @classmethod
     def from_Name(cls, node: ast.Name, **kwargs):
         return cls(None, None, [], None, from_this(Ident, node), **kwargs)
@@ -1439,7 +1453,7 @@ class Field(GoAST):
         return self.Type or super()._type()
 
 
-class FieldList(GoAST):
+class FieldList(Expr):
     """A FieldList represents a list of Fields, enclosed by parentheses or braces.
 
     receiver (methods); or nil (functions)
@@ -1476,7 +1490,13 @@ class FieldList(GoAST):
         fields = []
         for arg in node.args:
             fields.append(from_this(Field, arg))
-        return cls(0, fields)
+        return cls(0, fields,
+                   _py_context={
+                       "defaults": build_expr_list(node.defaults),
+                       "kw_defaults":build_expr_list(node.kw_defaults),
+                       "kwonlyargs": build_expr_list(node.kwonlyargs),
+                       "posonlyargs": build_expr_list(node.posonlyargs)
+                   })
 
     @classmethod
     def from_Name(cls, node: ast.Name):
@@ -2145,7 +2165,7 @@ class IndexExpr(Expr):
         return super()._type()
 
 
-class InterfaceType(GoAST):
+class InterfaceType(Expr):
     """An InterfaceType node represents an interface type."""
     _fields = ("Incomplete", "Methods")
     """true if (source) methods are missing in the Methods list"""
