@@ -378,6 +378,9 @@ class Expr(GoAST):
     def send(self, value: 'Expr', **kwargs):
         return SendStmt(Chan=self, Value=value, **kwargs)
 
+    def not_(self, **kwargs):
+        return UnaryExpr(Op=token.NOT, X=self)
+
     def stmt(self, **kwargs):
         return ExprStmt(X=self, **kwargs)
 
@@ -392,6 +395,12 @@ class Expr(GoAST):
 
     def composite_lit_type(self, **kwargs):
         return CompositeLit(Type=self, **kwargs)
+
+    def ref(self, **kwargs):
+        return UnaryExpr(X=self, Op=token.AND, **kwargs)
+
+    def deref(self, **kwargs):
+        return StarExpr(X=self, **kwargs)
 
     def __getitem__(self, item):
         # Convenience function to let me cleanly represent subscripts in transformation

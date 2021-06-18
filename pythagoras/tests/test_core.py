@@ -115,6 +115,9 @@ class Test(TestCase):
     def test_yields(self):
         return self.assert_examples_match("yields")
 
+    def test_isvseql(self):
+        return self.assert_examples_match("isvseql")
+
     # List methods
     def test_listappend(self):
         return self.assert_examples_match("listappend")

@@ -22,7 +22,7 @@ global,X,,Doesn't support reassigning functions from the global scope or anythin
 if,,X,Newly declared variables will not be available outside.,Keywords
 import,X,,,Keywords
 in,,X,Functions checking for membership may conflict with named variables.,Keywords
-is,,,,Keywords
+is,,X,Checks for pointer equality using == (and != for is not) operators.,Keywords
 lambda,,X,Limited type inference,Keywords
 nonlocal,,X,Untested + treated like the global keyword,Keywords
 not,X,,,Keywords

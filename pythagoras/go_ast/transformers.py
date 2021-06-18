@@ -7,7 +7,8 @@ from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, Bin
     ast_snippets, MapType, GenDecl, ValueSpec, Expr, BadStmt, SendStmt
 
 # Shortcuts
-from pythagoras.go_ast.core import _find_nodes, build_stmt_list, GoAST, ChanType, StructType, _replace_nodes
+from pythagoras.go_ast.core import _find_nodes, build_stmt_list, GoAST, ChanType, StructType, _replace_nodes, \
+    InterfaceType
 
 v = Ident.from_str
 
@@ -689,9 +690,25 @@ class SpecialComparators(NodeTransformerWithScope):
                         node.X = ast_snippets.index(node.Y, node.X)
                         node.Y = BasicLit.from_int(-1)
             case token.PLACEHOLDER_IS:
-                ...
+                node.Op = token.EQL
+                node.X = node.X.ref()
+                node.Y = node.Y.ref()
             case token.PLACEHOLDER_IS_NOT:
-                ...
+                node.Op = token.NEQ
+                node.X = node.X.ref()
+                node.Y = node.Y.ref()
+            case token.EQL | token.NEQ:
+                for xy in (node.X, node.Y):
+                    t = self.scope._get_type(xy)
+                    match t:
+                        case MapType() | ArrayType() | FuncType() | InterfaceType():
+                            reflect = Ident("reflect")
+                            result = reflect.sel("DeepEqual").call(node.X, node.Y)
+                            if node.Op == token.NEQ:
+                                result = result.not_()
+                            return result
+
+
         return node
 
 
