@@ -11,8 +11,8 @@ func main() {
 }
 
 func gen() func() <-chan int {
-	wait := make(chan struct{}, 1)
-	yield := make(chan int, 1)
+	wait := make(chan struct{})
+	yield := make(chan int)
 	go func() {
 		defer close(yield)
 		<-wait

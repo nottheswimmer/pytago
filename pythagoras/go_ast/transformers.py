@@ -763,8 +763,8 @@ class YieldTransformer(NodeTransformerWithScope):
             _yield = Ident("yield")
             make = Ident("make")
             node.Body.List[:] = [
-                wait.assign(make.call(StructType().chan(), BasicLit.from_int(1))),
-                _yield.assign(make.call(original_type.chan(), BasicLit.from_int(1))),
+                wait.assign(make.call(StructType().chan())),
+                _yield.assign(make.call(original_type.chan())),
                 FuncLit(Body=BlockStmt(List=[
                     Ident("close").call(_yield).defer(),
                     wait.receive().stmt(),
