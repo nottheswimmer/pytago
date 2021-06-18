@@ -34,8 +34,8 @@ try,,X,Exceptions are incredibly hairy. Newly declared variables will not be ava
 while,,X,Newly declared variables will not be available outside.,Keywords
 with,,X,Newly declared variables will not be available outside.,Keywords
 yield,,X,Yield implemented using channels. Currently bad at inferring the correct type for non-trivial generators.,Keywords
-match,,,,Soft Keywords
-case,,,,Soft Keywords
+match,,X,Supports switching on tags but not using init yet,Soft Keywords
+case,,X,"MatchValue cases are supported, but not other ones like MatchClass. A limited implementation of that should be possible.",Soft Keywords
 ArithmeticError,,,,Built-ins
 AssertionError,,X,A failed assert will panic and print out that there was an AssertionError alongside any message included with the assertion,Built-ins
 AttributeError,,,,Built-ins

@@ -307,15 +307,15 @@ def _construct_error(exception: ast.AST):
         panic_msg = errors.sel("New").call(BasicLit(Kind=token.STRING, Value=panic_msg))
     return panic_msg
 
-def build_expr_list(nodes, **kwargs):
+def build_expr_list(nodes, **kwargs) -> list['Expr']:
     return _build_x_list(_EXPR_TYPES, "Expr", nodes, **kwargs)
 
 
-def build_stmt_list(nodes):
-    return _build_x_list(_STMT_TYPES, "Stmt", nodes)
+def build_stmt_list(nodes, **kwargs) -> list['Stmt']:
+    return _build_x_list(_STMT_TYPES, "Stmt", nodes, **kwargs)
 
 
-def build_decl_list(nodes):
+def build_decl_list(nodes) -> list['Decl']:
     return _build_x_list(_DECL_TYPES, "Decl", nodes)
 
 
@@ -1031,11 +1031,11 @@ class CallExpr(Expr):
         return super()._type(scope)
 
 
-class CaseClause(GoAST):
+class CaseClause(Stmt):
     """A CaseClause represents a case of an expression or type switch statement."""
     _fields = ("Body", "List")
     """statement list; or nil"""
-    Body: List[Expr]
+    Body: List[Stmt]
     """position of 'case' or 'default' keyword"""
     Case: int
     """position of ':'"""
@@ -1044,16 +1044,32 @@ class CaseClause(GoAST):
     List: List[Expr]
 
     def __init__(self,
-                 Body: List[Expr] = None,
+                 Body: List[Stmt] = None,
                  Case: int = 0,
                  Colon: int = 0,
                  List: List[Expr] = None,
                  **kwargs) -> None:
         self.Body = Body or []
+        set_list_type(self.Body, "ast.Stmt")
         self.Case = Case
         self.Colon = Colon
         self.List = List or []
+        set_list_type(self.List, "ast.Expr")
         super().__init__(**kwargs)
+
+    @classmethod
+    def from_match_case(cls, case: ast.match_case, **kwargs):
+        match case.pattern:
+            case ast.MatchValue():
+                expr_list = build_expr_list([case.pattern.value], **kwargs)
+            case ast.MatchAs(name=name) if name is None:
+                expr_list = []  # Default
+            case _:
+                raise NotImplementedError()
+        return cls(
+            Body=build_stmt_list(case.body, **kwargs),
+            List=expr_list
+        )
 
 
 class ChanType(Expr):
@@ -2483,7 +2499,7 @@ class SwitchStmt(Stmt):
     """CaseClauses only"""
     Body: BlockStmt
     """initialization statement; or nil"""
-    Init: Expr
+    Init: Stmt
     """position of 'switch' keyword"""
     Switch: int
     """tag expression; or nil"""
@@ -2491,7 +2507,7 @@ class SwitchStmt(Stmt):
 
     def __init__(self,
                  Body: BlockStmt = None,
-                 Init: Expr = None,
+                 Init: Stmt = None,
                  Switch: int = 0,
                  Tag: Expr = None,
                  **kwargs) -> None:
@@ -2500,6 +2516,15 @@ class SwitchStmt(Stmt):
         self.Switch = Switch
         self.Tag = Tag
         super().__init__(**kwargs)
+
+    @classmethod
+    def from_Match(cls, node: ast.Match, **kwargs):
+        tag = build_expr_list([node.subject])[0]
+        body = []
+        # Avoiding build_expr_list here because we'll probably be passing in more context later
+        for case in node.cases:
+            body.append(CaseClause.from_match_case(case))
+        return cls(Tag=tag, Body=BlockStmt(List=body))
 
 
 class TypeAssertExpr(Expr):

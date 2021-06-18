@@ -118,6 +118,9 @@ class Test(TestCase):
     def test_isvseql(self):
         return self.assert_examples_match("isvseql")
 
+    def test_matchcase(self):
+        return self.assert_examples_match("matchcase")
+
     # List methods
     def test_listappend(self):
         return self.assert_examples_match("listappend")
