@@ -136,6 +136,9 @@ class Test(TestCase):
     def test_minmax(self):
         self.assert_examples_match("minmax")
 
+    def test_sum(self):
+        self.assert_examples_match("sum")
+
     # List methods
     def test_listappend(self):
         self.assert_examples_match("listappend")

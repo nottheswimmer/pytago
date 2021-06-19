@@ -162,9 +162,9 @@ license,,,,Built-ins
 list,,X,Literal support exists. Function support untested.,Built-ins
 locals,,,,Built-ins
 map,,,,Built-ins
-max,,,,Built-ins
+max,,X,"Inlines a function to do this, works for for some types.",Built-ins
 memoryview,,,,Built-ins
-min,,,,Built-ins
+min,,,"Inlines a function to do this, works for for some types.",Built-ins
 next,,,,Built-ins
 object,,,,Built-ins
 oct,,,,Built-ins
@@ -178,13 +178,13 @@ range,,X,Looping over a range produces a classic for loop.,Built-ins
 repr,,,,Built-ins
 reversed,,,,Built-ins
 round,,,,Built-ins
-set,,,,Built-ins
+set,,X,,Built-ins
 setattr,,,,Built-ins
 slice,,,,Built-ins
 sorted,,,,Built-ins
 staticmethod,,,,Built-ins
 str,,X,Literal support exists. Function support untested.,Built-ins
-sum,,,,Built-ins
+sum,,X,,Built-ins
 super,,,,Built-ins
 tuple,,X,Limited literal support. Function support untested.,Built-ins
 type,,,,Built-ins

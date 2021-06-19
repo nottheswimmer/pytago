@@ -6,11 +6,9 @@ from typing import Optional
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
     GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec, ArrayType, \
-    ast_snippets, MapType, GenDecl, ValueSpec, Expr, BadStmt, SendStmt
-
+    ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt
 # Shortcuts
-from pythagoras.go_ast.core import _find_nodes, build_stmt_list, GoAST, ChanType, StructType, _replace_nodes, \
-    InterfaceType, BadExpr, COMPARISON_OPS, BOOL_OPS, OP_COMPLIMENTS
+from pythagoras.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS
 
 v = Ident.from_str
 
@@ -1027,13 +1025,24 @@ class IterFuncs(NodeTransformerWithScope):
         match node:
             case CallExpr(Fun=Ident(Name=x)):
                 match x:
-                    case 'max' | 'min':
+                    case 'max' | 'min' | 'sum':
                         iterable: Expr
                         m = Ident('m')
                         i = Ident('i')
                         e = Ident('e')
-                        key = (e < m) if x == 'min' else (e > m)
-
+                        if x in ['min', 'max']:
+                            key = (e < m) if x == 'min' else (e > m)
+                            loop_body = [
+                                i.eql(BasicLit.from_int(0)).or_(key).if_(
+                                    [m.assign(e, tok=token.ASSIGN)]
+                                )
+                            ]
+                        elif x == 'sum':
+                            i = Ident("_")
+                            m = Ident("s")
+                            loop_body = [
+                                m.assign(e, tok=token.ADD_ASSIGN)
+                            ]
                         return FuncLit(
                             Type=FuncType(
                                 Results=FieldList(List=[
@@ -1046,17 +1055,12 @@ class IterFuncs(NodeTransformerWithScope):
                                     Value=e,
                                     X=iterable,
                                     Tok=token.DEFINE,
-                                    Body=BlockStmt(List=[
-                                        i.eql(BasicLit.from_int(0)).or_(key).if_(
-                                            [
-                                                m.assign(e, tok=token.ASSIGN)
-                                            ]
-                                        )
-                                    ])
+                                    Body=BlockStmt(List=loop_body)
                                 ),
                                 ReturnStmt()
                             ])
                         ).call()
+
         return node
 
 class RemoveBadStmt(ast.NodeTransformer):

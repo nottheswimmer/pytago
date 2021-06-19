@@ -288,7 +288,7 @@ def token_type_to_go_type(t: token):
     if t == token.STRING:
         return GoBasicType.STRING.ident
     if t == token.IMAG:
-        return GoBasicType.COMPLEX64.ident
+        return GoBasicType.COMPLEX128.ident
     if t == token.CHAR:
         return GoBasicType.BYTE.ident
     raise ValueError(t)
