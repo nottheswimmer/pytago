@@ -210,7 +210,6 @@ OP_COMPLIMENTS = {
 }
 OP_COMPLIMENTS |= {v: k for k, v in OP_COMPLIMENTS.items()}
 
-
 def _type_annotation_to_go_type(node: ast.AST):
     match node:
         case ast.Name(id=x):
@@ -482,6 +481,10 @@ class Expr(GoAST):
 
     def if_(self, body: List['Stmt'], else_=None, **kwargs):
         return IfStmt(Cond=self, Body=BlockStmt(List=body.copy()), Else=else_, **kwargs)
+
+    def assign(self, *expr: 'Expr', tok=token.DEFINE, **kwargs) -> 'AssignStmt':
+        assert expr
+        return AssignStmt(Lhs=[self], Rhs=list(expr), Tok=tok, **kwargs)
 
     @property
     def basic_type(self) -> Optional[GoBasicType]:
@@ -858,6 +861,12 @@ class BinaryExpr(Expr):
                  X: Expr = None,
                  Y: Expr = None,
                  **kwargs) -> None:
+        # Quality of life
+        if isinstance(X, int):
+            X = BasicLit.from_int(X)
+        if isinstance(Y, int):
+            Y = BasicLit.from_int(Y)
+
         self.Op = Op
         self.OpPos = OpPos
         self.X = X
@@ -1083,10 +1092,6 @@ class Ident(Expr):
     @classmethod
     def from_str(cls, name: str, **kwargs):
         return cls(name, 0, None, **kwargs)
-
-    def assign(self, *expr: Expr, tok=token.DEFINE, **kwargs) -> AssignStmt:
-        assert expr
-        return AssignStmt(Lhs=[self], Rhs=list(expr), Tok=tok, **kwargs)
 
 class BranchStmt(Stmt):
     """A BranchStmt node represents a break, continue, goto, or fallthrough statement."""
@@ -2948,3 +2953,6 @@ def get_list_type(li: list):
 
 def set_list_type(li: list, typ: str):
     _LIST_TYPES[id(li)] = typ
+
+# Quality of life
+len_ = Ident("len").call

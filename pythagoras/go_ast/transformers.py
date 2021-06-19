@@ -6,7 +6,7 @@ from typing import Optional
 from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
     GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec, ArrayType, \
-    ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt
+    ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt, len_
 # Shortcuts
 from pythagoras.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS
 
@@ -1060,6 +1060,85 @@ class IterFuncs(NodeTransformerWithScope):
                                 ReturnStmt()
                             ])
                         ).call()
+                    case "reversed":
+                        i = Ident("i")
+                        e = Ident("e")
+                        arr = Ident("arr")
+                        arr2 = Ident("arr2")
+
+                        setup_body = [
+                            arr2.assign(Ident("make").call(t, len_(arr))),
+                        ]
+                        loop_body = [
+                            arr2[len_(arr)-i-1].assign(e, tok=token.ASSIGN)
+                        ]
+
+                        return FuncLit(
+                            Type=FuncType(
+                                Params=FieldList(List=[
+                                    Field(Names=[arr], Type=t)
+                                ]),
+                                Results=FieldList(List=[
+                                    Field(Type=t)
+                                ])
+                            ),
+                            Body=BlockStmt(List=[
+                                *setup_body,
+                                RangeStmt(
+                                    Key=i, Value=e, X=arr,
+                                    Body=BlockStmt(List=loop_body),
+                                    Tok=token.DEFINE,
+                                ),
+                                ReturnStmt(Results=[arr2])
+                            ])
+                        ).call(iterable)
+
+        return node
+
+class IterMethods(NodeTransformerWithScope):
+    def visit_CallExpr(self, node: CallExpr):
+        self.generic_visit(node)
+        if len(node.Args) != 0:
+            return node
+        if not isinstance(node.Fun, SelectorExpr):
+            return node
+
+        iterable = node.Fun.X
+        t = self.scope._get_type(iterable)
+
+        if not isinstance(t, ArrayType):  # TODO: Support other types that can be min'd/max'd/etc
+            return node
+
+        et = t.Elt
+        match node:
+            case CallExpr(Fun=SelectorExpr(Sel=Ident(Name=x))):
+                match x:
+                    case "reverse":
+                        i = Ident("i")
+                        j = Ident("j")
+                        arr = Ident("arr")
+                        init = AssignStmt(Lhs=[i, j], Rhs=[BasicLit.from_int(0), len_(arr)-1], Tok=token.DEFINE)
+                        cond = i < j
+                        post = AssignStmt(Lhs=[i, j], Rhs=[i+1, j-1], Tok=token.ASSIGN)
+                        loop_body = [
+                            AssignStmt(Lhs=[arr[i], arr[j]], Rhs=[arr[j], arr[i]])
+                        ]
+
+                        return FuncLit(
+                            Type=FuncType(
+                                Params=FieldList(List=[
+                                    Field(Names=[arr], Type=t)
+                                ])
+                            ),
+                            Body=BlockStmt(List=[
+                                ForStmt(
+                                    Init=init,
+                                    Cond=cond,
+                                    Post=post,
+                                    Body=BlockStmt(List=loop_body)
+                                ),
+                            ])
+                        ).call(iterable)
 
         return node
 
@@ -1082,13 +1161,14 @@ ALL_TRANSFORMS = [
 
     # Scope transformers
     YieldTransformer, # May need to be above other scope transformers because jank,
-    IterFuncs,
     ReplacePowWithMathPow,
     NodeTransformerWithScope,
     # AddMissingFunctionTypes,
     YieldRangeTransformer,
     RangeRangeToFor,
     UnpackRange,
+    IterFuncs,
+    IterMethods,
     NegativeIndexesSubtractFromLen,
     StringifyStringMember,
     HandleTypeCoercion,

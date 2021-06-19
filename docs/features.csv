@@ -176,7 +176,7 @@ property,,,,Built-ins
 quit,,,,Built-ins
 range,,X,Looping over a range produces a classic for loop.,Built-ins
 repr,,,,Built-ins
-reversed,,,,Built-ins
+reversed,,X,"Doesn't use a generator, just makes a reversed copy. .reverse also implemented which performs an in-place reversal.",Built-ins
 round,,,,Built-ins
 set,,X,,Built-ins
 setattr,,,,Built-ins

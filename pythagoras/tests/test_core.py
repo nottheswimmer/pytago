@@ -139,6 +139,9 @@ class Test(TestCase):
     def test_sum(self):
         self.assert_examples_match("sum")
 
+    def test_reverse(self):
+        self.assert_examples_match("reverse")
+
     # List methods
     def test_listappend(self):
         self.assert_examples_match("listappend")
