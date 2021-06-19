@@ -989,6 +989,25 @@ class FillDefaultsAndSortKeywords(NodeTransformerWithScope):
 
         return
 
+class Truthiness(NodeTransformerWithScope):
+    def visit_IfStmt(self, node: IfStmt):
+        self.generic_visit(node)
+        if node.Cond and (type_ := self.scope._get_type(node.Cond)):
+            node.Cond = node.Cond.cast(type_, Ident("bool"))
+        return node
+
+    def visit_ForStmt(self, node: ForStmt):
+        self.generic_visit(node)
+        if node.Cond and (type_ := self.scope._get_type(node.Cond)):
+            node.Cond = node.Cond.cast(type_, Ident("bool"))
+        return node
+
+    def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
+        if hasattr(node, "Cond"):
+            node.Cond = node.Cond.cast(type_, Ident("bool"))
+
+
+
 class RemoveBadStmt(ast.NodeTransformer):
     def visit_BadStmt(self, node: BadStmt):
         self.generic_visit(node)
@@ -1006,7 +1025,7 @@ ALL_TRANSFORMS = [
     PythonToGoTypes,
 
     # Scope transformers
-    YieldTransformer, # May need to be above other scope transformers because jank
+    YieldTransformer, # May need to be above other scope transformers because jank,
     ReplacePowWithMathPow,
     NodeTransformerWithScope,
     # AddMissingFunctionTypes,
@@ -1025,5 +1044,6 @@ ALL_TRANSFORMS = [
     AsyncTransformer,
     InitStmt,
     FillDefaultsAndSortKeywords,
+    Truthiness,
     RemoveBadStmt,  # Should be last as these are used for scoping
 ]

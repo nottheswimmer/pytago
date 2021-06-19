@@ -130,6 +130,9 @@ class Test(TestCase):
     def test_walrus(self):
         self.assert_examples_match("walrus")
 
+    def test_truthiness(self):
+        self.assert_examples_match("truthiness")
+
     # List methods
     def test_listappend(self):
         self.assert_examples_match("listappend")

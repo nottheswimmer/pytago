@@ -216,6 +216,8 @@ def _type_annotation_to_go_type(node: ast.AST):
                     return GoBasicType.INT.ident
                 case 'float':
                     return GoBasicType.FLOAT64.ident
+                case 'complex':
+                    return GoBasicType.COMPLEX128.ident
                 case 'bytes' | 'bytearray':
                     return ArrayType(Elt=GoBasicType.BYTE.ident)
                 case 'list' | 'tuple' | 'List' | 'Tuple':
@@ -476,6 +478,12 @@ class Expr(GoAST):
     def is_numeric_type(self):
         return bool(self.basic_type) and self.basic_type.is_numeric
 
+    @property
+    def is_type_with_length(self):
+        match self:
+            case Ident(Name=GoBasicType.STRING.value) | ArrayType() | MapType():
+                return True
+        return False
 
 
     def cast(self, type_1: 'Expr', type_2: 'Expr') -> 'Expr':
@@ -496,6 +504,8 @@ class Expr(GoAST):
                         BasicLit.from_int(0).return_()
                     ])
                 ).call()
+            case x, Ident(Name=GoBasicType.BOOL.value) if x.is_type_with_length:
+                return Ident("len").call(self).neq(BasicLit.from_int(0))
             case x, Ident(Name=GoBasicType.BOOL.value) if x.is_numeric_type:
                 return self.neq(BasicLit.from_int(0))
         return type_2.call(self)
@@ -543,6 +553,10 @@ class ArrayType(Expr):
         self.Lbrack = Lbrack
         self.Len = Len
         super().__init__(**kwargs)
+
+    @classmethod
+    def from_NoneType(cls, node: None, **kwargs):
+        return cls(InterfaceType(), **kwargs)
 
     @classmethod
     def from_BasicLit(cls, node: 'BasicLit', **kwargs):
@@ -1077,6 +1091,19 @@ class CallExpr(Expr):
         _type_help = None
         _py_context = None
         match node:
+            case ast.Call(func=ast.Name(id=x), args=[]):
+                match x:
+                    case 'set' | 'frozenset':
+                        return CompositeLit.from_Set(ast.Set(elts=[]))
+                    case 'list' | 'dict' | 'tuple' | 'int' | 'float' | 'bool' | 'complex' | 'string' | 'bytes':
+                        py_value = ast.parse(repr(__builtins__[x]()))
+                        expr = build_expr_list(py_value.body)[0]
+                        return expr
+                    case 'bytearray':
+                        py_value = ast.parse(repr(b''))  # Preferring bytes form for now
+                        expr = build_expr_list(py_value.body)[0]
+                        return expr
+        match node:
             # Special case to calls to the open function
             case ast.Call(func=ast.Name(id='open'), args=[filename_expr, ast.Constant(value=mode)]):
                 args, fun, _py_context, _type_help = cls._open_call_helper(_py_context, _type_help, filename_expr, mode)
@@ -1351,13 +1378,13 @@ class CompositeLit(Expr):
     @classmethod
     def from_Dict(cls, node: ast.Dict, **kwargs):
         key_elts = build_expr_list(node.keys)
-        value_elts = build_expr_list(node.values)  # TODO: Implement type hints
+        value_elts = build_expr_list(node.values)
         elts = [KeyValueExpr(Key=key, Value=value) for key, value in zip(key_elts, value_elts)]
         return cls(elts, **kwargs)
 
     @classmethod
     def from_Set(cls, node: ast.Set, **kwargs):
-        key_elts = build_expr_list(node.elts) # TODO: Implement type hints
+        key_elts = build_expr_list(node.elts)
         value_elts = [CompositeLit(Type=StructType()) for _ in key_elts]
         elts = [KeyValueExpr(Key=key, Value=value) for key, value in zip(key_elts, value_elts)]
         return cls(elts, Type=MapType(Value=StructType()), **kwargs)
