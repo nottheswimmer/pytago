@@ -105,6 +105,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
         self.current_globals = []
         self.current_nonlocals = []
         self.missing_type_info = []
+        self.exit_callbacks = []
 
     def generic_visit(self, node):
         self.stack.append(node)
@@ -157,6 +158,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
         self.stack.pop()
 
         if len(self.stack) == 0:
+            # Deal with stuff that was missing
             resolved_indices = []
             for i, (expr, val, scope, callbacks) in enumerate(self.missing_type_info):
                 resolved = False
@@ -177,6 +179,10 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                         callbacks.pop()(expr, val, t)
             for i in reversed(resolved_indices):
                 del self.missing_type_info[i]
+
+            # Deal with any other stuff we want to do when we're done
+            for callback in self.exit_callbacks:
+                callback()
         return node
 
     def visit_ValueSpec(self, node: ValueSpec):
@@ -890,6 +896,48 @@ class YieldRangeTransformer(NodeTransformerWithScope):
                 return for_stmt
         return node
 
+class InitStmt(NodeTransformerWithScope):
+    def visit_BadExpr(self, node: BadExpr):
+        self.generic_visit(node)
+        if not "NamedExpr" in node._py_context:
+            return node
+
+        assignment: AssignStmt = node._py_context["NamedExpr"]
+        for to_initialize in reversed(self.stack):
+            if hasattr(to_initialize, "Init"):
+                break
+        else:
+            prev = node
+            for i, to_insert_into in enumerate(reversed(self.stack)):
+                if isinstance(to_insert_into, BlockStmt):
+                    break
+                prev = to_insert_into
+            else:
+                return assignment.Lhs[0]
+
+            # Do this at the end because it messes with the transformer if we do it now
+            def exit_callback():
+                insert_at = to_insert_into.List.index(prev)
+                to_insert_into.List.insert(insert_at, assignment)
+            self.exit_callbacks.append(exit_callback)
+
+            return assignment.Lhs[0]
+
+        if to_initialize.Init and isinstance(to_initialize.Init, AssignStmt):
+            to_initialize.Init.Lhs += assignment.Lhs
+            to_initialize.Init.Rhs += assignment.Rhs
+        else:
+            to_initialize.Init = assignment
+
+        if isinstance(to_initialize, ForStmt):
+            if to_initialize.Post and isinstance(to_initialize.Post, AssignStmt):
+                to_initialize.Post.Lhs += assignment.Lhs
+                to_initialize.Post.Rhs += assignment.Rhs
+            else:
+                to_initialize.Post = AssignStmt(Lhs=assignment.Lhs.copy(), Rhs=assignment.Rhs.copy(), Tok=token.ASSIGN)
+
+        return assignment.Lhs[0]
+
 
 class FillDefaultsAndSortKeywords(NodeTransformerWithScope):
     def visit_CallExpr(self, node: CallExpr):
@@ -975,6 +1023,7 @@ ALL_TRANSFORMS = [
     SpecialComparators,
     AddTextTemplateImportForFStrings,
     AsyncTransformer,
+    InitStmt,
     FillDefaultsAndSortKeywords,
     RemoveBadStmt,  # Should be last as these are used for scoping
 ]

@@ -23,7 +23,7 @@ class Test(TestCase):
         self.assert_examples_match("helloworld")
 
     def test_boolnumcompare(self):
-        return self.assert_examples_match("boolnumcompare")
+        self.assert_examples_match("boolnumcompare")
 
     def test_add(self):
         self.assert_examples_match("add")
@@ -107,30 +107,33 @@ class Test(TestCase):
         self.assert_examples_match("asserts")
 
     def test_classes(self):
-        return self.assert_examples_match("classes")
+        self.assert_examples_match("classes")
 
     def test_globals(self):
-        return self.assert_examples_match("globals")
+        self.assert_examples_match("globals")
 
     def test_asyncawait(self):
-        return self.assert_examples_match("asyncawait")
+        self.assert_examples_match("asyncawait")
 
     def test_yields(self):
-        return self.assert_examples_match("yields")
+        self.assert_examples_match("yields")
 
     def test_isvseql(self):
-        return self.assert_examples_match("isvseql")
+        self.assert_examples_match("isvseql")
 
     def test_matchcase(self):
-        return self.assert_examples_match("matchcase")
+        self.assert_examples_match("matchcase")
 
     def test_defaultargs(self):
-        return self.assert_examples_match("defaultargs")
+        self.assert_examples_match("defaultargs")
+    
+    def test_walrus(self):
+        self.assert_examples_match("walrus")
 
     # List methods
     def test_listappend(self):
-        return self.assert_examples_match("listappend")
+        self.assert_examples_match("listappend")
 
     # Algorithms
     def test_algomajorityelement(self):
-        return self.assert_examples_match("algomajorityelement")
+        self.assert_examples_match("algomajorityelement")

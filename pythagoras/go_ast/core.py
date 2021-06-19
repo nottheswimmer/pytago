@@ -624,6 +624,12 @@ class AssignStmt(Stmt):
         lhs = build_expr_list([node.name], _type_help=rhs[0]._type())
         return cls(lhs, rhs, token.DEFINE, **kwargs)
 
+    @classmethod
+    def from_NamedExpr(cls, node: ast.NamedExpr, **kwargs):
+        lhs = build_expr_list([node.target])
+        rhs = build_expr_list([node.value])
+        return cls(lhs, rhs, token.DEFINE, **kwargs)
+
 
 class BadDecl(Decl):
     """A BadDecl node is a placeholder for declarations containing syntax errors for which no
@@ -657,6 +663,11 @@ class BadExpr(Expr):
         self.From = From
         self.To = To
         super().__init__(**kwargs)
+
+    @classmethod
+    def from_NamedExpr(cls, node: ast.NamedExpr, **kwargs):
+        # A transformer can go in and add this to the Init of if statements and such
+        return cls(_py_context={"NamedExpr": from_this(AssignStmt, node)}, **kwargs)
 
 
 class BadStmt(Stmt):
