@@ -133,6 +133,9 @@ class Test(TestCase):
     def test_truthiness(self):
         self.assert_examples_match("truthiness")
 
+    def test_minmax(self):
+        self.assert_examples_match("minmax")
+
     # List methods
     def test_listappend(self):
         self.assert_examples_match("listappend")

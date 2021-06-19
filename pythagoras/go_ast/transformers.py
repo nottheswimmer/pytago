@@ -55,7 +55,8 @@ class CapitalizeMathModuleCalls(ast.NodeTransformer):
         self.generic_visit(node)
         match node:
             case SelectorExpr(X=Ident(Name="math"), Sel=Ident()):
-                node.Sel.Name = node.Sel.Name.title()
+                if node.Sel.Name.islower():
+                    node.Sel.Name = node.Sel.Name.title()
         return node
 
 
@@ -1006,7 +1007,57 @@ class Truthiness(NodeTransformerWithScope):
         if hasattr(node, "Cond"):
             node.Cond = node.Cond.cast(type_, Ident("bool"))
 
+class IterFuncs(NodeTransformerWithScope):
+    def visit_CallExpr(self, node: CallExpr):
+        self.generic_visit(node)
+        if len(node.Args) == 0:
+            return node
+        if len(node.Args) == 1:
+            t = self.scope._get_type(node.Args[0])
+            iterable = node.Args[0]
+        else:
+            # TODO: This will create ugly functions so fix it
+            t = ArrayType(Elt=self.scope._get_type(node.Args[0]))
+            iterable = CompositeLit(Elts=node.Args, Type=t)
 
+        if not isinstance(t, ArrayType):  # TODO: Support other types that can be min'd/max'd/etc
+            return node
+
+        et = t.Elt
+        match node:
+            case CallExpr(Fun=Ident(Name=x)):
+                match x:
+                    case 'max' | 'min':
+                        iterable: Expr
+                        m = Ident('m')
+                        i = Ident('i')
+                        e = Ident('e')
+                        key = (e < m) if x == 'min' else (e > m)
+
+                        return FuncLit(
+                            Type=FuncType(
+                                Results=FieldList(List=[
+                                    Field(Names=[m], Type=et)
+                                ])
+                            ),
+                            Body=BlockStmt(List=[
+                                RangeStmt(
+                                    Key=i,
+                                    Value=e,
+                                    X=iterable,
+                                    Tok=token.DEFINE,
+                                    Body=BlockStmt(List=[
+                                        i.eql(BasicLit.from_int(0)).or_(key).if_(
+                                            [
+                                                m.assign(e, tok=token.ASSIGN)
+                                            ]
+                                        )
+                                    ])
+                                ),
+                                ReturnStmt()
+                            ])
+                        ).call()
+        return node
 
 class RemoveBadStmt(ast.NodeTransformer):
     def visit_BadStmt(self, node: BadStmt):
@@ -1024,8 +1075,10 @@ ALL_TRANSFORMS = [
     AppendSliceViaUnpacking,
     PythonToGoTypes,
 
+
     # Scope transformers
     YieldTransformer, # May need to be above other scope transformers because jank,
+    IterFuncs,
     ReplacePowWithMathPow,
     NodeTransformerWithScope,
     # AddMissingFunctionTypes,

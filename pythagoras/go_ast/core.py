@@ -44,13 +44,18 @@ class GoBasicType(Enum):
         return Ident.from_str(self.value)
 
     @cached_property
-    def is_integer(self):
+    def is_signed_integer(self):
         t = self.__class__
-        return self in [
-            t.UINT8, t.BYTE, t.UINT16, t.UINT32, t.UINT64,
-            t.INT8, t.INT16, t.INT32, t.RUNE, t.INT64, t.INT,
-            t.UINT, t.UINTPTR
-        ]
+        return self in [t.INT8, t.INT16, t.INT32, t.RUNE, t.INT64, t.INT]
+
+    @cached_property
+    def is_unsigned_integer(self):
+        t = self.__class__
+        return self in [t.UINT8, t.BYTE, t.UINT16, t.UINT32, t.UINT64, t.UINT, t.UINTPTR]
+
+    @cached_property
+    def is_integer(self):
+        return self.is_signed_integer or self.is_unsigned_integer
 
     @cached_property
     def is_float(self):
@@ -391,6 +396,33 @@ class Expr(GoAST):
     def __add__(self, Y: 'Expr') -> 'BinaryExpr':
         return BinaryExpr(Op=token.ADD, X=self, Y=Y)
 
+    def __le__(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.LEQ, X=self, Y=Y)
+
+    def __lt__(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.LSS, X=self, Y=Y)
+
+    def __ge__(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.GEQ, X=self, Y=Y)
+
+    def __gt__(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.GTR, X=self, Y=Y)
+
+    def __sub__(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.SUB, X=self, Y=Y)
+
+    def __truediv__(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.QUO, X=self, Y=Y)
+
+    def __lshift__(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.SHL, X=self, Y=Y)
+
+    def __rshift__(self, Y: 'Expr') -> 'BinaryExpr':
+        return BinaryExpr(Op=token.SHR, X=self, Y=Y)
+
+    def __neg__(self) -> 'UnaryExpr':
+        return UnaryExpr(Op=token.SUB, X=self)
+
     def or_(self, Y: 'Expr') -> 'BinaryExpr':
         """
         Shorthand way to describe the binary expression self || Y
@@ -463,6 +495,14 @@ class Expr(GoAST):
         return self.basic_type is not None
 
     @property
+    def is_unsigned_integer_type(self):
+        return bool(self.basic_type) and self.basic_type.is_unsigned_integer
+
+    @property
+    def is_signed_integer_type(self):
+        return bool(self.basic_type) and self.basic_type.is_signed_integer
+
+    @property
     def is_integer_type(self):
         return bool(self.basic_type) and self.basic_type.is_integer
 
@@ -485,6 +525,27 @@ class Expr(GoAST):
                 return True
         return False
 
+    @property
+    def min_val(self):
+        if self.is_numeric_type:
+            # https://stackoverflow.com/questions/6878590/the-maximum-value-for-an-int-type-in-go
+            if self.is_unsigned_integer_type:
+                return BasicLit.from_int(0)
+            if self.basic_type == GoBasicType.INT:
+                return (BasicLit.from_int(1) << Ident("bits").sel("UintSize")) / -BasicLit.from_int(2)
+            return Ident("math").sel(f"Min{self.basic_type.value.title()}")
+        if self.basic_type == GoBasicType.STRING:
+            return BasicLit(token.STRING, "")
+
+    @property
+    def max_val(self):
+        if self.is_numeric_type:
+            # https://stackoverflow.com/questions/6878590/the-maximum-value-for-an-int-type-in-go
+            if self.basic_type == GoBasicType.UINT:
+                return (BasicLit.from_int(1) << Ident("bits").sel("UintSize")) - BasicLit.from_int(1)
+            if self.basic_type == GoBasicType.INT:
+                return (BasicLit.from_int(1) << Ident("bits").sel("UintSize")) / BasicLit.from_int(2) - BasicLit.from_int(1)
+            return Ident("math").sel(f"Max{self.basic_type.value.title()}")
 
     def cast(self, type_1: 'Expr', type_2: 'Expr') -> 'Expr':
         if type_1 == type_2:
