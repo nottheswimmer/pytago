@@ -142,6 +142,12 @@ class Test(TestCase):
     def test_reverse(self):
         self.assert_examples_match("reverse")
 
+    def test_listcomp(self):
+        self.assert_examples_match("listcomp")
+
+    def test_ternary(self):
+        self.assert_examples_match("ternary")
+
     # List methods
     def test_listappend(self):
         self.assert_examples_match("listappend")

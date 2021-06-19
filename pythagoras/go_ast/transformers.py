@@ -191,18 +191,36 @@ class NodeTransformerWithScope(ast.NodeTransformer):
         return node
 
     def visit_FuncDecl(self, node: FuncDecl):
-        names = [node.Name]
-        values = [node.Type]
-        for p in node.Type.Params.List:
-            names += p.Names
-            values += [p.Type] * len(p.Names)
+        return self.visit_FuncDecl_or_FuncLit(node)
+
+    def visit_FuncLit(self, node: FuncLit):
+        return self.visit_FuncDecl_or_FuncLit(node)
+
+    def visit_FuncDecl_or_FuncLit(self, node: FuncDecl | FuncLit):
+        names = []
+        values = []
+        func_name = None
+        if isinstance(node, FuncLit):
+            if self.stack and isinstance(self.stack[-1], AssignStmt):
+                match self.stack[-1].Lhs:
+                    case [Ident(Name=name)]:
+                        func_name=name
+                        values.append(node.Type)
+        else:
+            func_name = node.Name
+        if func_name:
+            names.append(func_name)
+            values.append(node.Type)
+        if node.Type.Params:
+            for p in node.Type.Params.List:
+                names += p.Names
+                values += [p.Type] * len(p.Names)
         self.apply_eager_context(names, values, rhs_is_types=True)
         self.apply_to_scope(names, values, rhs_is_types=True)
         self.generic_visit(node)
 
         # Infer return type
-        # TODO: this is kind of bad at the moment -- it doesn't have the
-        #   right scope info available
+        # TODO: clean up this rat's nest
         if node.Type.Results is None:
             def finder(x: GoAST):
                 match x:
@@ -230,9 +248,10 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                         case _:
                             types = [None]
 
-                    if all(types):
+                    if all(types) and (func_name or not is_yield):
                         node.Type.Results = FieldList(List=[Field(Type=t) for t in types])
-                        self.apply_to_scope([node.Name], [node.Type])
+                        if func_name:
+                            self.apply_to_scope([node.Name], [node.Type])
                         break
                 node._is_yield = is_yield
 
@@ -248,7 +267,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                 node.Rhs = rhs
         self.apply_eager_context(node.Lhs, node.Rhs)
         self.generic_visit(node)
-        if node.Tok != token.DEFINE:
+        if node.Tok != token.DEFINE and all(self.scope._in_scope(x) or self.scope._in_outer_scope(x) for x in node.Lhs if isinstance(x, Ident)):
             return node
         declared = self.apply_to_scope(node.Lhs, node.Rhs)
         if not declared:
@@ -262,9 +281,12 @@ class NodeTransformerWithScope(ast.NodeTransformer):
             ctx.update(x._py_context)
         declared = False
         for i, expr in enumerate(lhs):
-            if not isinstance(expr, Ident):
-                continue
-            t = rhs[i] if rhs_is_types else next((self.scope._get_type(x) for x in rhs), None)
+            match expr:
+                case Ident():
+                    t = rhs[i] if rhs_is_types else next((self.scope._get_type(x) for x in rhs), None)
+                case _:
+                    continue
+
             obj = Object(
                 Data=None,
                 Decl=None,
@@ -281,14 +303,54 @@ class NodeTransformerWithScope(ast.NodeTransformer):
             )
             )):
                 self.scope.Insert(obj)
+
                 declared = True
-            if not self.scope._get_type(obj.Name):
+
+            type_from_scope = self.scope._get_type(obj.Name)
+            if isinstance(type_from_scope, ArrayType):
+                print()
+            if type_from_scope:
+                print()
+            else:
                 try:
                     t = rhs[i]
                 except IndexError:
                     pass
-                self.missing_type_info.append((expr, t, self.scope, [lambda *args, **kwargs: self.generic_missing_type_callback(*args, **kwargs)]))
+                self.report_missing(expr, t)
         return declared
+
+    def visit_InterfaceType(self, node: InterfaceType):
+        self.generic_visit(node)
+        elts = node._py_context.get("elts", [])
+        if not elts:
+            return node
+
+        for parent in reversed(self.stack):
+            elt_types = []
+
+            class MetaVisitor(NodeTransformerWithScope):
+                def visit_InterfaceType(s, node: InterfaceType):
+                    s.generic_visit(node)
+                    return node
+
+                def generic_visit(s, node):
+                    node = super().generic_visit(node)
+                    for elt in elts:
+                        t = s.scope._get_type(elt)
+                        if t:
+                            elt_types.append(t)
+                    return node
+            MetaVisitor().visit(parent)
+            if elt_types:
+                return next(x for x in elt_types)
+
+        return node
+
+    def report_missing(self, expr, val, extra_callbacks=None):
+        callbacks = [lambda *args, **kwargs: self.generic_missing_type_callback(*args, **kwargs)]
+        if extra_callbacks:
+            callbacks += extra_callbacks
+        self.missing_type_info.append((expr, val, self.scope, callbacks))
 
     def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
         return
@@ -1157,7 +1219,6 @@ ALL_TRANSFORMS = [
     ReplacePythonStyleAppends,
     AppendSliceViaUnpacking,
     PythonToGoTypes,
-
 
     # Scope transformers
     YieldTransformer, # May need to be above other scope transformers because jank,

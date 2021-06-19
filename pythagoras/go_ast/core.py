@@ -1,9 +1,11 @@
 import ast
+import copy
 import inspect
 import json
+from collections import defaultdict
 from enum import Enum
 from functools import cached_property
-from typing import List, Dict, Optional, Any, TypeVar, Type
+from typing import List, Dict, Optional, Any, TypeVar, Type, Callable
 
 from pythagoras.go_ast import ast_snippets
 
@@ -376,6 +378,10 @@ class GoAST(ast.AST):
 
         return True
 
+    def __repr__(self):
+        from pythagoras.go_ast import parsing
+        return parsing.dump(self)
+
 
 class Expr(GoAST):
     def __init__(self, *args, _type_help=None, _py_context=None, **kwargs):
@@ -613,7 +619,7 @@ class ArrayType(Expr):
                  Lbrack: int = 0,
                  Len: Expr = None,
                  **kwargs) -> None:
-        self.Elt = Elt
+        self.Elt = Elt or InterfaceType()
         self.Lbrack = Lbrack
         self.Len = Len
         super().__init__(**kwargs)
@@ -628,7 +634,8 @@ class ArrayType(Expr):
 
     @classmethod
     def from_Ident(cls, node: 'Ident', **kwargs):
-        return cls(node, 0, None, **kwargs)
+        obj = cls(node, **kwargs)
+        return obj
 
 
 class AssignStmt(Stmt):
@@ -1093,6 +1100,16 @@ class Ident(Expr):
     def from_str(cls, name: str, **kwargs):
         return cls(name, 0, None, **kwargs)
 
+    def field(self, type_: Optional[Expr]=None, named=True, **kwargs) -> 'Field':
+        return Field(
+            Names=[self] if named else None,
+            Type=type_ or self._type(),
+            **kwargs
+        )
+
+    def fieldlist(self, type_: Optional[Expr] = None, named=True, **kwargs) -> 'FieldList':
+        return FieldList(List=[self.field(type_, named)], **kwargs)
+
 class BranchStmt(Stmt):
     """A BranchStmt node represents a break, continue, goto, or fallthrough statement."""
     _fields = ("Label", "Tok")
@@ -1185,6 +1202,58 @@ class CallExpr(Expr):
         return cls(Args=args, Fun=fun, _type_help=_type_help, _py_context=_py_context)
 
     @classmethod
+    def from_IfExp(cls, node: ast.IfExp, **kwargs):
+        if not node.orelse:
+            raise NotImplementedError(node, "Cannot have a function with no return")
+        if_ = IfStmt.from_IfExp(node, action=lambda x: ReturnStmt(Results=[x]))
+        t = if_.Body.List[-1].Results[0]._type()
+        else_ = if_.Else.List
+        if_.Else = None
+        if t is None:
+            t = else_[-1].Results[0]._type()
+
+        fun = FuncLit(
+            Type=FuncType(
+                Results=FieldList(List=[Field(Type=t)])
+            ),
+            Body=BlockStmt(List=[
+                if_,
+                *else_
+            ])
+        )
+        return fun.call(**kwargs)
+
+    @classmethod
+    def from_ListComp(cls, node: ast.ListComp, **kwargs):
+        elt = build_expr_list([node.elt])[0]
+        comps = build_stmt_list(node.generators)
+        elts = Ident('elts')
+
+        def inner_body(b: BlockStmt):
+            while b.List:
+                b = b.List[0].Body
+            return b
+
+        comp: RangeStmt = comps.pop()
+        inner_body(comp.Body).List.append(
+            elts.assign(Ident("append").call(elts, elt), tok=token.ASSIGN)
+        )
+        while comps:
+            inner_body(comps[-1].Body).List.append(comp)
+            comp = comps.pop()
+
+        e_type = elt._type() or InterfaceType(_py_context={"elts": [elt]})
+        fun = FuncLit(
+            Type=FuncType(
+                Results=elts.fieldlist(type_=ArrayType(Elt=e_type))
+            ),
+            Body=BlockStmt(List=[
+                comp,
+                ReturnStmt()
+            ]))
+        return fun.call()
+
+    @classmethod
     def _open_call_helper(cls, _py_context, _type_help, filename_expr, mode):
         args = build_expr_list([filename_expr])
         os = Ident.from_str('os')
@@ -1256,13 +1325,23 @@ class CallExpr(Expr):
         t = node.targets[0]  # TODO: Support multiple deletes and slices
         return cls(Fun=Ident.from_str("delete"), Args=build_expr_list([t.value]) + build_expr_list([t.slice.value]))
 
-
-
     def _type(self, scope: Optional['Scope']=None):
         match self.Fun:
             # Maps and arrays
             case MapType() | ArrayType():
                 return self.Fun or super()._type(scope)
+            # Function literals
+            case FuncLit():
+                fun_type = self.Fun._type(scope)
+                match fun_type:
+                    case FuncType(Results=FieldList(List=[one])):
+                        return one.Type
+                    case FuncType(Results=FieldList(List=[one, *others])):
+                        return one.Type, *[other.Type for other in others]
+            case Ident(Name='append'):
+                element_type = self.Args[1]._type(scope)
+                if element_type:
+                    return ArrayType(Elt=element_type, _py_context=element_type._py_context)
             # Basic types
             case Ident(Name=x):
                 try:
@@ -1432,13 +1511,15 @@ class CompositeLit(Expr):
     @classmethod
     def from_List(cls, node: ast.List, **kwargs):
         elts = build_expr_list(node.elts)
-        typ = from_this(ArrayType, elts[0] if elts else None)
+        e_type = next((elt._type() for elt in elts), None) or InterfaceType(_py_context={"elts": elts})
+        typ = ArrayType(Elt=e_type)
         return cls(elts, False, 0, 0, typ, **kwargs)
 
     @classmethod
     def from_Tuple(cls, node: ast.Tuple, **kwargs):
         elts = build_expr_list(node.elts)
-        typ = from_this(ArrayType, elts[0] if elts else None)
+        e_type = next((elt._type() for elt in elts), None) or InterfaceType(_py_context={"elts": elts})
+        typ = ArrayType(Elt=e_type)
         return cls(elts, False, 0, 0, typ, **kwargs)
 
     @classmethod
@@ -1456,7 +1537,13 @@ class CompositeLit(Expr):
         return cls(elts, Type=MapType(Value=StructType()), **kwargs)
 
     def _type(self, scope: Optional['Scope']=None):
-        return self.Type or super()._type()
+        if scope:
+            match self.Type:
+                case ArrayType(Elt=Ident(Name=x)):
+                    x_type = scope._get_type(x)
+                    if x_type:
+                        return ArrayType(Elt=x_type)
+        return self.Type or super()._type(scope)
 
 
 class DeclStmt(Stmt):
@@ -1675,10 +1762,14 @@ class Field(GoAST):
         return cls(None, None, [], None, from_this(Ident, node), **kwargs)
 
     @classmethod
+    def from_Subscript(cls, node: ast.Subscript, **kwargs):
+        return cls(Type=_type_annotation_to_go_type(node), **kwargs)
+
+    @classmethod
     def from_GoBasicType(cls, node: GoBasicType, **kwargs):
         return cls(Type=from_this(Ident, node.value), **kwargs)
 
-    def _type(self):
+    def _type(self):  # TODO: Delete?
         return self.Type or super()._type()
 
 
@@ -1719,7 +1810,7 @@ class FieldList(Expr):
         fields = []
         for arg in node.args:
             fields.append(from_this(Field, arg))
-        return cls(0, fields,
+        return cls(List=fields,
                    _py_context={
                        "defaults": build_expr_list(node.defaults),
                        "kw_defaults":build_expr_list(node.kw_defaults),
@@ -1729,7 +1820,11 @@ class FieldList(Expr):
 
     @classmethod
     def from_Name(cls, node: ast.Name):
-        return cls(0, [from_this(Field, node)])
+        return cls(List=[from_this(Field, node)])
+
+    @classmethod
+    def from_Subscript(cls, node: ast.Subscript, **kwargs):
+        return cls(List=[from_this(Field, node)], **kwargs)
 
 
 class ImportSpec(GoAST):
@@ -2011,7 +2106,7 @@ class FuncType(Expr):
     @classmethod
     def from_Lambda(cls, node: ast.Lambda, **kwargs):
         params = from_this(FieldList, node.args)
-        results = FieldList(List=[from_this(Field, x._type()) for x in build_expr_list([node.body])])
+        results = FieldList(List=[Field(Type=x._type() or InterfaceType(_py_context={"elts": [x]})) for x in build_expr_list([node.body])])
         return cls(0, params, results, **kwargs)
 
 
@@ -2130,6 +2225,9 @@ class FuncLit(Expr):
         body = BlockStmt(List=[ReturnStmt(build_expr_list([node.body]))])
         _type = from_this(FuncType, node)
         return cls(body, _type, **kwargs)
+
+    def _type(self, scope: Optional['Scope']=None):
+        return self.Type or super()._type(scope)
 
 class GenDecl(Decl):
     """A GenDecl node (generic declaration node) represents an import, constant, type or
@@ -2315,11 +2413,11 @@ class IfStmt(Stmt):
         body = from_this(BlockStmt, node.body)
         cond = build_expr_list([node.test])[0]
         if len(node.orelse) == 1:
-            _else = build_stmt_list(node.orelse)[0] if node.orelse else None
+            _else = build_stmt_list(node.orelse)[0]
         elif len(node.orelse) == 0:
             _else = None
         else:
-            raise NotImplementedError(f"Multiple else???: {node.orelse}")
+            raise NotImplementedError(node)
         return cls(body, cond, _else, **kwargs)
 
     @classmethod
@@ -2329,6 +2427,18 @@ class IfStmt(Stmt):
         cond = UnaryExpr(X=build_expr_list([node.test])[0], Op=token.NOT)
         return cls(body, cond, **kwargs)
 
+    @classmethod
+    def from_IfExp(cls, node: ast.IfExp, action: Optional[Callable[['Expr'], 'Stmt']]=None, **kwargs):
+        if action is None:
+            action = lambda x: ExprStmt(X=x)
+
+        body = BlockStmt(List=[action(build_expr_list([node.body])[0])])
+        cond = build_expr_list([node.test])[0]
+        if node.orelse:
+            _else = BlockStmt(List=[action(build_expr_list([node.orelse])[0])])
+        else:
+            _else = None
+        return cls(body, cond, _else, **kwargs)
 
 class IncDecStmt(Stmt):
     """An IncDecStmt node represents an increment or decrement statement."""
@@ -2559,6 +2669,21 @@ class RangeStmt(Stmt):
         tok = token.DEFINE
         key = Ident.from_str("_")
         value = build_expr_list([node.target])[0]
+        x = build_expr_list([node.iter])[0]
+        return cls(Body=body, Key=key, Tok=tok, Value=value, X=x, **kwargs)
+
+    @classmethod
+    def from_comprehension(cls, node: ast.comprehension, **kwargs):
+        body = BlockStmt()
+        tok = token.DEFINE
+        key = Ident.from_str("_")
+        value = build_expr_list([node.target])[0]
+        ifs = build_expr_list(node.ifs)
+        ifs.reverse()
+        low = body
+        while ifs:
+            low.List.append(IfStmt(Body=BlockStmt(), Cond=ifs.pop()))
+            low = low.List[0].Body
         x = build_expr_list([node.iter])[0]
         return cls(Body=body, Key=key, Tok=tok, Value=value, X=x, **kwargs)
 
