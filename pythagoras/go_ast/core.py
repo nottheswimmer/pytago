@@ -1222,7 +1222,7 @@ class CallExpr(Expr):
         return fun.call(**kwargs)
 
     @classmethod
-    def from_ListComp_or_GeneratorExp(cls, node: ast.GeneratorExp, **kwargs):
+    def from_ListComp_or_GeneratorExp(cls, node: ast.ListComp | ast.GeneratorExp, **kwargs):
         gen_mode = isinstance(node, ast.GeneratorExp)
 
         elt = build_expr_list([node.elt])[0]
@@ -1270,11 +1270,12 @@ class CallExpr(Expr):
         return cls.from_ListComp_or_GeneratorExp(node, **kwargs)
 
     @classmethod
-    def from_DictComp(cls, node: ast.DictComp, **kwargs):
-        key = build_expr_list([node.key])[0]
-        value = build_expr_list([node.value])[0]
+    def from_DictComp_or_SetComp(cls, node: ast.SetComp, **kwargs):
+        set_mode = isinstance(node, ast.SetComp)
+        key = build_expr_list([node.elt if set_mode else node.key])[0]
+        value = CompositeLit(Type=StructType()) if set_mode else build_expr_list([node.value])[0]
         comps = build_stmt_list(node.generators)
-        d = Ident('d')
+        d = Ident('s') if set_mode else Ident('d')
 
         def inner_body(b: BlockStmt):
             while b.List:
@@ -1300,6 +1301,14 @@ class CallExpr(Expr):
                 ReturnStmt()
             ]))
         return fun.call(**kwargs)
+
+    @classmethod
+    def from_DictComp(cls, node: ast.DictComp, **kwargs):
+        return cls.from_DictComp_or_SetComp(node, **kwargs)
+
+    @classmethod
+    def from_SetComp(cls, node: ast.SetComp, **kwargs):
+        return cls.from_DictComp_or_SetComp(node, **kwargs)
 
     @classmethod
     def _open_call_helper(cls, _py_context, _type_help, filename_expr, mode):

@@ -148,6 +148,9 @@ class Test(TestCase):
     def test_dictcomp(self):
         self.assert_examples_match("dictcomp")
 
+    def test_setcomp(self):
+        self.assert_examples_match("setcomp")
+
     def test_generatorexp(self):
         self.assert_examples_match("generatorexp")
 
