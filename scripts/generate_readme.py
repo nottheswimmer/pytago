@@ -29,7 +29,10 @@ def main():
             else:
                 parts.append("""#### Go""")
             parts.append('```' + ("python" if is_python else "go"))
-            parts.append(f.read())
+            for line in f.read().splitlines(keepends=False):
+                if is_python and line.strip().startswith('#'):
+                    continue
+                parts.append(line)
             parts.append("```")
     example_code = '\n'.join(parts)
     with open(README_DESTINATION, "w") as f:

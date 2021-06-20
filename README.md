@@ -36,7 +36,6 @@ def gen():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -73,7 +72,6 @@ func gen() func() <-chan int {
 		return yield
 	}
 }
-
 ```
 ### writefile
 #### Python
@@ -121,12 +119,9 @@ def main():
     with open("file_8.tmp", "xb+") as f:
         f.write(b"This file was created by xb+ mode\n")
 
-    # with open("file_4.tmp", "x+") as f:
-    #     pass
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -434,7 +429,6 @@ func main() {
 		}()
 	}()
 }
-
 ```
 ### whileloop
 #### Python
@@ -481,7 +475,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -531,7 +524,6 @@ func main() {
 		break
 	}
 }
-
 ```
 ### walrus
 #### Python
@@ -572,7 +564,6 @@ def thing_2():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -613,7 +604,6 @@ func thing_1() int {
 func thing_2() int {
 	return 3
 }
-
 ```
 ### variables
 #### Python
@@ -635,7 +625,6 @@ def another_scope():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -657,7 +646,6 @@ func another_scope() {
 	a = a + b
 	fmt.Println(a + b)
 }
-
 ```
 ### tryfinally
 #### Python
@@ -682,7 +670,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -717,7 +704,6 @@ func main() {
 		}()
 	}
 }
-
 ```
 ### tryexcept
 #### Python
@@ -740,7 +726,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 
 ```
 #### Go
@@ -782,7 +767,6 @@ func main() {
 		}()
 	}
 }
-
 ```
 ### truthiness
 #### Python
@@ -915,7 +899,6 @@ func main() {
 		fmt.Println(t)
 	}
 }
-
 ```
 ### ternary
 #### Python
@@ -927,7 +910,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -944,7 +926,6 @@ func main() {
 	}()
 	fmt.Println(a)
 }
-
 ```
 ### sum
 #### Python
@@ -956,7 +937,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -984,7 +964,6 @@ func main() {
 		return
 	}())
 }
-
 ```
 ### strings
 #### Python
@@ -1005,7 +984,6 @@ def double_it(c: str) -> str:
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1026,156 +1004,24 @@ func main() {
 func double_it(c string) string {
 	return c + c
 }
-
 ```
 ### sets
 #### Python
 ```python
 def main():
     s = {1, 2, 3}
-    # other = {3, 4}
-    # another = {5, 6, 7}
     x = 1
 
-    # len(s)
     print(len(s))
 
-    # x in s
     print(x in s)
 
-    # x not in s
     print(x not in s)
 
-    # TODO:
-    # # isdisjoint(other)
-    # print(s.isdisjoint(other))
-    #
-    # # issubset(other)
-    # # set <= other
-    # # Test whether every element in the set is in other.
-    # print(s.issubset(other))
-    # print(s <= other)
-    #
-    # # set < other
-    # # Test whether the set is a proper subset of other, that is, set <= other and set != other.
-    # print(s < other)
-    #
-    # # issuperset(other)
-    # # Test whether every element in other is in the set.
-    # print(s >= other)
-    #
-    # # set > other
-    # # Test whether the set is a proper superset of other, that is, set >= other and set != other.
-    # print(s > other)
-    #
-    # # union(*others)
-    # # set | other | ...
-    # print(s.union(other))
-    # print(s.union(other, another))
-    # print(s | other)
-    # print(s | other | another)
-    #
-    # # intersection(*others)
-    # # set & other & ...
-    # print(s.intersection(other))
-    # print(s.intersection(other, another))
-    # print(s & other)
-    # print(s & other & another)
-    #
-    # # difference(*others)
-    # # set - other - ...
-    # # Return a new set with elements in the set that are not in the others.
-    # print(s.difference(other))
-    # print(s.difference(other, another))
-    # print(s - other)
-    # print(s - other - another)
-    #
-    # # symmetric_difference(other)
-    # # set ^ other
-    # # Return a new set with elements in either the set or other but not both.
-    # print(s.symmetric_difference(other))
-    # print(s ^ other)
-    #
-    # # copy()
-    # # Return a shallow copy of the set.
-    # print(s.copy())
-    #
-    # # The following table lists operations available for set that do not apply to
-    # # immutable instances of frozenset:
-    #
-    # # update(*others)
-    # # set |= other | ...
-    # # Update the set, adding elements from all others.
-    # s.update(other)
-    # print(s)
-    # s.update(other, another)
-    # print(s)
-    # another |= other
-    # print(another)
-    # another |= other | s
-    # print(another)
-    #
-    #
-    # # intersection_update(*others)
-    # # set &= other & ...
-    # # Update the set, keeping only elements found in it and all others.
-    # s.intersection_update(other)
-    # print(s)
-    # s.intersection_update(other, another)
-    # print(s)
-    # another &= other
-    # print(another)
-    # another &= other & s
-    # print(another)
-    #
-    # # difference_update(*others)
-    # # set -= other | ...
-    # # Update the set, removing elements found in others.
-    # s.difference_update(other)
-    # print(s)
-    # s.difference_update(other, another)
-    # print(s)
-    # another -= other
-    # print(another)
-    # another -= other | s
-    # print(another)
-    #
-    # # symmetric_difference_update(other)
-    # # set ^= other
-    # # Update the set, keeping only elements found in either set, but not in both.
-    # s.symmetric_difference_update(other)
-    # print(s)
-    # another ^= other
-    # print(another)
-    #
-    # # add(elem)
-    # # Add element elem to the set.
-    # s.add(x)
-    # print(s)
-    #
-    # # remove(elem)
-    # # Remove element elem from the set. Raises KeyError if elem is not contained in the set.
-    # s.remove(x)
-    # print(s)
-    #
-    # # discard(elem)
-    # # Remove element elem from the set if it is present.
-    # s.discard(x)
-    # print(s)
-    #
-    # # pop()
-    # # Remove and return an arbitrary element from the set. Raises KeyError if the set is empty.
-    # print(s.pop())
-    #
-    # # clear()
-    # # Remove all elements from the set.
-    # s.clear()
-    # print(s)
 
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1196,7 +1042,6 @@ func main() {
 		return ok
 	}())
 }
-
 ```
 ### setcomp
 #### Python
@@ -1210,7 +1055,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1243,7 +1087,6 @@ func main() {
     fmt.Println(a)
     fmt.Println(b)
 }
-
 ```
 ### reverse
 #### Python
@@ -1251,9 +1094,6 @@ func main() {
 def main():
     a = [1, 2, 3, 4, 5]
 
-    # Even though this is technically an iterator I'm going to let
-    # go just copy it for the initial implementation since that's
-    # probably what you'd do in go (or just reverse in-place -- .reverse() for that)
     for x in reversed(a):
         print(x)
 
@@ -1268,7 +1108,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1299,7 +1138,6 @@ func main() {
 		fmt.Println(x)
 	}
 }
-
 ```
 ### requestslib
 #### Python
@@ -1313,7 +1151,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1339,7 +1176,6 @@ func main() {
 		return string(body)
 	}())
 }
-
 ```
 ### pass
 #### Python
@@ -1349,7 +1185,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1357,7 +1192,6 @@ package main
 
 func main() {
 }
-
 ```
 ### numlist
 #### Python
@@ -1376,7 +1210,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1396,7 +1229,6 @@ func main() {
 	fmt.Println(a[4])
 	fmt.Println(a[len(a)-1])
 }
-
 ```
 ### nestedfstrings
 #### Python
@@ -1408,7 +1240,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1439,7 +1270,6 @@ func main() {
 		return buf.String()
 	}())
 }
-
 ```
 ### missingreturntype
 #### Python
@@ -1450,7 +1280,6 @@ def main():
 
 def add(a: int, b: int):
     return a + b
-
 ```
 #### Go
 ```go
@@ -1465,7 +1294,6 @@ func main() {
 func add(a int, b int) int {
 	return a + b
 }
-
 ```
 ### minmax
 #### Python
@@ -1478,7 +1306,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1520,7 +1347,6 @@ func main() {
 		return
 	}())
 }
-
 ```
 ### maths
 #### Python
@@ -1536,7 +1362,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1554,7 +1379,6 @@ func main() {
 	fmt.Println(math.Acosh(6))
 	fmt.Println(math.Atan2(4, 7))
 }
-
 ```
 ### matchcase
 #### Python
@@ -1578,7 +1402,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1603,7 +1426,6 @@ func main() {
 		fmt.Println("Nice, defaults!")
 	}
 }
-
 ```
 ### loops
 #### Python
@@ -1633,7 +1455,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1665,7 +1486,6 @@ func main() {
 		fmt.Println(j)
 	}
 }
-
 ```
 ### logical
 #### Python
@@ -1685,7 +1505,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1705,7 +1524,6 @@ func main() {
 	fmt.Println(a && !b)
 	fmt.Println(a || !b)
 }
-
 ```
 ### listcomp
 #### Python
@@ -1734,7 +1552,6 @@ def next_five_numbers_times_two(a: int) -> list[int]:
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1819,7 +1636,6 @@ func next_five_numbers_times_two(a int) []int {
 		return
 	}()
 }
-
 ```
 ### listappend
 #### Python
@@ -1831,7 +1647,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1844,7 +1659,6 @@ func main() {
 	a = append(a, 4)
 	fmt.Println(a)
 }
-
 ```
 ### isvseql
 #### Python
@@ -1861,7 +1675,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1882,7 +1695,6 @@ func main() {
 	fmt.Println(&a != &a)
 	fmt.Println(&a != &b)
 }
-
 ```
 ### helloworld
 #### Python
@@ -1893,7 +1705,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1904,7 +1715,6 @@ import "fmt"
 func main() {
 	fmt.Println("hello world")
 }
-
 ```
 ### globals
 #### Python
@@ -1939,7 +1749,6 @@ def other_2():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -1977,7 +1786,6 @@ func other_1() {
 func other_2() {
 	fmt.Println(AGE)
 }
-
 ```
 ### generatorexp
 #### Python
@@ -1993,7 +1801,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2043,7 +1850,6 @@ func main() {
 		fmt.Println(rest)
 	}
 }
-
 ```
 ### fstrings
 #### Python
@@ -2055,7 +1861,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2079,7 +1884,6 @@ func main() {
 		return buf.String()
 	}())
 }
-
 ```
 ### floats
 #### Python
@@ -2098,7 +1902,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2120,7 +1923,6 @@ func main() {
 	fmt.Println(a + b)
 	fmt.Println(float64(a) + c)
 }
-
 ```
 ### exponents
 #### Python
@@ -2131,7 +1933,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2145,7 +1946,6 @@ import (
 func main() {
 	fmt.Println(int(math.Pow(2, 8)))
 }
-
 ```
 ### ellipsis
 #### Python
@@ -2155,7 +1955,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2163,7 +1962,6 @@ package main
 
 func main() {
 }
-
 ```
 ### dictionary
 #### Python
@@ -2177,7 +1975,6 @@ def main():
     for k, v in a.items():
         print(k)
         print(v)
-
 
 ```
 #### Go
@@ -2196,7 +1993,6 @@ func main() {
 		fmt.Println(v)
 	}
 }
-
 ```
 ### dictcomp
 #### Python
@@ -2209,7 +2005,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2233,7 +2028,6 @@ func main() {
 		fmt.Println(k, v)
 	}
 }
-
 ```
 ### defaultargs
 #### Python
@@ -2255,7 +2049,6 @@ def increment(n: int, amount: int = 1, decrement: bool = False) -> int:
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2278,7 +2071,6 @@ func increment(n int, amount int, decrement bool) int {
 	}
 	return n + amount
 }
-
 ```
 ### continuestmt
 #### Python
@@ -2291,7 +2083,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2307,43 +2098,34 @@ func main() {
 		fmt.Println(i)
 	}
 }
-
 ```
 ### contains
 #### Python
 ```python
 def main():
-    # Iterables should compare the index of the element to -1
     a = [1, 2, 3]
     print(1 in a)
     print(4 in a)
     print(5 not in a)
 
-    # Strings should either use strings.Compare or use strings.Index with a comparison to -1
-    # While the former is more straight forward, I think the latter will be nicer for consistency
     b = "hello world"
     print("hello" in b)
     print("Hello" not in b)
 
-    # Checking for membership in a dictionary means we need to check if the key is in it
-    # ... Eventually this should behave well with mixed types
     c = {"hello": 1, "world": 2}
     print("hello" in c)
     print("Hello" not in c)
 
-    # Bytes
     d = b'hello world'
     print(b'hello' in d)
     print(b'Hello' not in d)
 
-    # Sets
     e = {1, 2, 3, "hello"}
     print("hello" in e)
     print(4 not in e)
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2406,7 +2188,6 @@ func main() {
 		return ok
 	}())
 }
-
 ```
 ### conditionals
 #### Python
@@ -2428,7 +2209,6 @@ def add(a: int, b: int) -> int:
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2451,7 +2231,6 @@ func main() {
 func add(a int, b int) int {
 	return a + b
 }
-
 ```
 ### classes
 #### Python
@@ -2481,7 +2260,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2512,7 +2290,6 @@ func main() {
 	welcome := NewWelcome("Hello World", []string{"This is a class!", "Support will be limited at first.", "Still, I hope you'll find them useful."})
 	welcome.greet()
 }
-
 ```
 ### breakstmt
 #### Python
@@ -2525,7 +2302,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2541,7 +2317,6 @@ func main() {
 		fmt.Println(i)
 	}
 }
-
 ```
 ### boolnumcompare
 #### Python
@@ -2566,7 +2341,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2592,7 +2366,6 @@ func main() {
 	fmt.Println()
 	fmt.Println(2 == 1)
 }
-
 ```
 ### asyncawait
 #### Python
@@ -2612,7 +2385,6 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-
 ```
 #### Go
 ```go
@@ -2637,7 +2409,6 @@ func main() {
 	r := <-myAsyncFunction()
 	fmt.Println(r)
 }
-
 ```
 ### asserts
 #### Python
@@ -2650,7 +2421,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2672,7 +2442,6 @@ func main() {
 		panic(fmt.Errorf("AssertionError: %v", "Math must be broken"))
 	}
 }
-
 ```
 ### algomajorityelement
 #### Python
@@ -2696,7 +2465,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2722,7 +2490,6 @@ func main() {
 	fmt.Println(majorityElement([]int{3, 2, 3}))
 	fmt.Println(majorityElement([]int{2, 2, 1, 1, 1, 2, 2}))
 }
-
 ```
 ### add
 #### Python
@@ -2737,7 +2504,6 @@ def add(a: int, b: int) -> int:
 
 if __name__ == '__main__':
     main()
-
 ```
 #### Go
 ```go
@@ -2752,6 +2518,5 @@ func main() {
 func add(a int, b int) int {
 	return a + b
 }
-
 ```
 
