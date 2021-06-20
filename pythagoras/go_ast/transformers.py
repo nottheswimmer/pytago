@@ -392,7 +392,11 @@ class NodeTransformerWithScope(ast.NodeTransformer):
 
             MetaVisitor().visit(parent)
             if elt_types:
-                return elt_types[-1]
+                for elt_type_1, elt_type_2 in zip(elt_types[:-1], elt_types[1:]):
+                    if elt_type_1 != elt_type_2:
+                        break
+                else:
+                    return elt_types[-1]
 
         return node
 

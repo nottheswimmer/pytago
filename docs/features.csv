@@ -154,7 +154,7 @@ hex,,,,Built-ins
 id,,,,Built-ins
 input,,,,Built-ins
 int,,X,Literal support exists. Function support untested.,Built-ins
-isinstance,,,,Built-ins
+isinstance,X,,,Built-ins
 issubclass,,,,Built-ins
 iter,,,,Built-ins
 len,,X,"Incidentally, len in Go is similar to len in Python. YMMV.",Built-ins
@@ -324,7 +324,7 @@ pickle,,,Python object serialization,Standard Library - Data Persistence
 copyreg,,,Register pickle support functions,Standard Library - Data Persistence
 shelve,,,Python object persistence,Standard Library - Data Persistence
 marshal,,,Internal Python object serialization,Standard Library - Data Persistence
-dbm,,,Interfaces to Unix “databases”,Standard Library - Data Persistence
+dbm,,,Interfaces to Unix ï¿½databasesï¿½,Standard Library - Data Persistence
 sqlite3,,,DB-API 2.0 interface for SQLite databases,Standard Library - Data Persistence
 zlib,,,Compression compatible with gzip,Standard Library - Data Compression and Archiving
 gzip,,,Support for gzip files,Standard Library - Data Compression and Archiving
@@ -353,7 +353,7 @@ curses,,,Terminal handling for character-cell displays,Standard Library - Generi
 curses.textpad,,,Text input widget for curses programs,Standard Library - Generic Operating System Services
 curses.ascii,,,Utilities for ASCII characters,Standard Library - Generic Operating System Services
 curses.panel,,,A panel stack extension for curses,Standard Library - Generic Operating System Services
-platform,,,Access to underlying platform’s identifying data,Standard Library - Generic Operating System Services
+platform,,,Access to underlying platformï¿½s identifying data,Standard Library - Generic Operating System Services
 errno,,,Standard errno system symbols,Standard Library - Generic Operating System Services
 ctypes,,,A foreign function library for Python,Standard Library - Generic Operating System Services
 threading,,,Thread-based parallelism,Standard Library - Concurrent Execution
@@ -468,7 +468,7 @@ ensurepip,,,Bootstrapping the pip installer,Standard Library - Software Packagin
 venv,,,Creation of virtual environments,Standard Library - Software Packaging and Distribution
 zipapp,,,Manage executable Python zip archives,Standard Library - Software Packaging and Distribution
 sys,,,System-specific parameters and functions,Standard Library - Python Runtime Services
-sysconfig,,,Provide access to Python’s configuration information,Standard Library - Python Runtime Services
+sysconfig,,,Provide access to Pythonï¿½s configuration information,Standard Library - Python Runtime Services
 builtins,,,Built-in objects,Standard Library - Python Runtime Services
 __main__,,,Top-level script environment,Standard Library - Python Runtime Services
 warnings,,,Warning control,Standard Library - Python Runtime Services
@@ -490,7 +490,7 @@ runpy,,,Locating and executing Python modules,Standard Library - Importing Modul
 importlib,,,The implementation of import,Standard Library - Importing Modules
 parser,,,Access Python parse trees,Standard Library - Python Language Services
 ast,,,Abstract Syntax Trees,Standard Library - Python Language Services
-symtable,,,Access to the compiler’s symbol tables,Standard Library - Python Language Services
+symtable,,,Access to the compilerï¿½s symbol tables,Standard Library - Python Language Services
 symbol,,,Constants used with Python parse trees,Standard Library - Python Language Services
 token,,,Constants used with Python parse trees,Standard Library - Python Language Services
 keyword,,,Testing for Python keywords,Standard Library - Python Language Services
@@ -517,6 +517,6 @@ pty,,,Pseudo-terminal utilities,Standard Library - Unix Specific Services
 fcntl,,,The fcntl and ioctl system calls,Standard Library - Unix Specific Services
 pipes,,,Interface to shell pipelines,Standard Library - Unix Specific Services
 resource,,,Resource usage information,Standard Library - Unix Specific Services
-nis,,,Interface to Sun’s NIS (Yellow Pages),Standard Library - Unix Specific Services
+nis,,,Interface to Sunï¿½s NIS (Yellow Pages),Standard Library - Unix Specific Services
 syslog,,,Unix syslog library routines,Standard Library - Unix Specific Services
 requests,,X,Experimental GET request support. HTTP library.,Third Party - Networking

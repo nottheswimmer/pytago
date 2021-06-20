@@ -162,6 +162,9 @@ class Test(TestCase):
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")
 
+    def test_isinstance(self):
+        self.assert_examples_match("isinstance")
+
     # In development
 
     # def test_forelse(self):

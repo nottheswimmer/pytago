@@ -2332,29 +2332,29 @@ package main
 import "fmt"
 
 func main() {
-    a := func() (s map[int]struct{}) {
-        s = make(map[int]struct{})
-        for x := 20; x < 39; x++ {
-            s[x] = struct{}{}
-        }
-        return
-    }()
-    b := func() (s map[[2]int]struct{}) {
-        s = make(map[[2]int]struct{})
-        for x := 0; x < 100; x++ {
-            for y := x; y < x+5; y++ {
-                if func() bool {
-                    _, ok := a[x%39]
-                    return ok
-                }() {
-                    s[[2]int{x, y}] = struct{}{}
-                }
-            }
-        }
-        return
-    }()
-    fmt.Println(a)
-    fmt.Println(b)
+	a := func() (s map[int]struct{}) {
+		s = make(map[int]struct{})
+		for x := 20; x < 39; x++ {
+			s[x] = struct{}{}
+		}
+		return
+	}()
+	b := func() (s map[[2]int]struct{}) {
+		s = make(map[[2]int]struct{})
+		for x := 0; x < 100; x++ {
+			for y := x; y < x+5; y++ {
+				if func() bool {
+					_, ok := a[x%39]
+					return ok
+				}() {
+					s[[2]int{x, y}] = struct{}{}
+				}
+			}
+		}
+		return
+	}()
+	fmt.Println(a)
+	fmt.Println(b)
 }
 ```
 ### generatorexp
@@ -2517,6 +2517,72 @@ func majorityElement(nums []int) int {
 func main() {
 	fmt.Println(majorityElement([]int{3, 2, 3}))
 	fmt.Println(majorityElement([]int{2, 2, 1, 1, 1, 2, 2}))
+}
+```
+### isinstance
+#### Python
+```python
+def main():
+    a = ["a", 1, "5", 2.3, 1.2j]
+    some_condition = True
+    for x in a:
+        if isinstance(x, (str, float)):
+            print("String or float!")
+        elif isinstance(x, int):
+            print("Integer!")
+        else:
+            print("Dunno!")
+            print(":)")
+
+        if isinstance(x, str) and some_condition:
+            print("String")
+        elif isinstance(x, int):
+            print("Integer!")
+        else:
+            print("Dunno!!")
+            print(":O")
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := []interface{}{"a", 1, "5", 2.3, 1.2i}
+	some_condition := true
+	for _, x := range a {
+		switch x.(type) {
+		case string, float64:
+			fmt.Println("String or float!")
+		case int:
+			fmt.Println("Integer!")
+		default:
+			fmt.Println("Dunno!")
+			fmt.Println(":)")
+		}
+		if func() bool {
+			switch x.(type) {
+			case string:
+				return true
+			}
+			return false
+		}() && some_condition {
+			fmt.Println("String")
+		} else {
+			switch x.(type) {
+			case int:
+				fmt.Println("Integer!")
+			default:
+				fmt.Println("Dunno!!")
+				fmt.Println(":O")
+			}
+		}
+	}
 }
 ```
 

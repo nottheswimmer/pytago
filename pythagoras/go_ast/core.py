@@ -232,6 +232,8 @@ def _type_annotation_to_go_type(node: ast.AST):
                     return MapType(Value=StructType())
                 case 'bool':
                     return Ident('bool')
+                case _:
+                    return Ident(x)
         case ast.Subscript(value=value, slice=index):
             value = _type_annotation_to_go_type(value)
             index = _type_annotation_to_go_type(index)
@@ -301,13 +303,25 @@ T = TypeVar('T')
 def from_this(cls: Type[T], node) -> T:
     return getattr(cls, from_method(node))(node)
 
+_sort_key_cache = {}
+def sort_key_for_node(x_node):
+    x_node_type = type(x_node)
+    if sort_key := _sort_key_cache.get(str(x_node_type)):
+        pass
+    else:
+        def sort_key(x_type):
+            if n := x_type.CONVERSION_ORDER.get(x_node_type):
+                return n
+            return 0
+        _sort_key_cache[str(x_node_type)] = sort_key
+    return sort_key
 
 def _build_x_list(x_types: list, x_name: str, nodes, **kwargs):
     li = []
     for x_node in nodes:
         method = from_method(x_node)
         errors = []
-        for x_type in x_types:
+        for x_type in sorted(x_types, key=sort_key_for_node(x_node)):
             if hasattr(x_type, method):
                 try:
                     result = getattr(x_type, method)(x_node, **kwargs)
@@ -358,6 +372,8 @@ def build_decl_list(nodes) -> list['Decl']:
 
 
 class GoAST(ast.AST):
+    CONVERSION_ORDER = {}
+
     _prefix = "ast."
 
     def __init__(self, **kwargs):
@@ -1186,6 +1202,23 @@ class CallExpr(Expr):
                         return expr
         match node:
             # Special case to calls to the open function
+            case ast.Call(func=ast.Name(id="isinstance"), args=[__expr, __types]):
+                _expr = build_expr_list([__expr])[0]
+                try:
+                    _types = [_type_annotation_to_go_type(x) for x in __types.elts]
+                except AttributeError:
+                    _types = [_type_annotation_to_go_type(__types)]
+                return FuncLit(
+                    Results=FieldList(List=[Field(Type=Ident("bool"))]),
+                    Body=BlockStmt(List=[
+                        TypeSwitchStmt(Assign=TypeAssertExpr(X=_expr).stmt(), Body=BlockStmt(List=[
+                            CaseClause(List=_types, Body=[
+                                Ident("true").return_()
+                            ]),
+                        ])),
+                        Ident("false").return_()
+                    ])
+                ).call()
             case ast.Call(func=ast.Name(id='open'), args=[filename_expr, ast.Constant(value=mode)]):
                 args, fun, _py_context, _type_help = cls._open_call_helper(_py_context, _type_help, filename_expr, mode)
             case _:
@@ -1568,16 +1601,31 @@ class CompositeLit(Expr):
     @classmethod
     def from_List(cls, node: ast.List, **kwargs):
         elts = build_expr_list(node.elts)
-        e_type = next((elt._type() for elt in elts), None) or InterfaceType(_py_context={"elts": elts})
+        e_type = cls.elt_type_from_elts(elts)
         typ = ArrayType(Elt=e_type)
         return cls(elts, False, 0, 0, typ, **kwargs)
 
     @classmethod
     def from_Tuple(cls, node: ast.Tuple, **kwargs):
         elts = build_expr_list(node.elts)
-        e_type = next((elt._type() for elt in elts), None) or InterfaceType(_py_context={"elts": elts})
+        e_type = cls.elt_type_from_elts(elts)
+
         typ = ArrayType(Elt=e_type, Len=BasicLit.from_int(len(elts)))
         return cls(elts, False, 0, 0, typ, **kwargs)
+
+    @classmethod
+    def elt_type_from_elts(cls, elts):
+        e_types = [elt._type() for elt in elts if elt._type()] or [InterfaceType(_py_context={"elts": elts})]
+        if len(e_types) == 1:
+            e_type = e_types[0]
+        else:
+            for e_type_1, e_type_2 in zip(e_types[:-1], e_types[1:]):
+                if e_type_1 != e_type_2:
+                    e_type = InterfaceType(_py_context={"elts": elts})
+                    break
+            else:
+                e_type = e_types[0]
+        return e_type
 
     @classmethod
     def from_Dict(cls, node: ast.Dict, **kwargs):
@@ -2469,12 +2517,13 @@ class IfStmt(Stmt):
     def from_If(cls, node: ast.If, **kwargs):
         body = from_this(BlockStmt, node.body)
         cond = build_expr_list([node.test])[0]
-        if len(node.orelse) == 1:
-            _else = build_stmt_list(node.orelse)[0]
-        elif len(node.orelse) == 0:
+        _else = build_stmt_list(node.orelse)
+        if len(_else) == 0:
             _else = None
+        elif len(_else) == 1:
+            _else = _else[0]
         else:
-            raise NotImplementedError(node)
+            _else = BlockStmt(List=_else)
         return cls(body, cond, _else, **kwargs)
 
     @classmethod
@@ -3016,7 +3065,7 @@ class TypeSpec(GoAST):
 
 class TypeSwitchStmt(Stmt):
     """A TypeSwitchStmt node represents a type switch statement."""
-    _fields = ("Body", "Init")
+    _fields = ("Body", "Init", "Assign")
     """x := y.(type) or y.(type)"""
     Assign: Expr
     """CaseClauses only"""
@@ -3025,6 +3074,10 @@ class TypeSwitchStmt(Stmt):
     Init: Expr
     """position of 'switch' keyword"""
     Switch: int
+
+    CONVERSION_ORDER = {
+        ast.If: -1
+    }
 
     def __init__(self,
                  Assign: Expr = None,
@@ -3037,6 +3090,41 @@ class TypeSwitchStmt(Stmt):
         self.Init = Init
         self.Switch = Switch
         super().__init__(**kwargs)
+
+    @classmethod
+    def from_If(cls, node: ast.If):
+        body = from_this(BlockStmt, node.body)
+
+        match node.test:
+            case ast.Call(func=ast.Name(id="isinstance"), args=[__expr, __types]):
+                _expr = build_expr_list([__expr])[0]
+                try:
+                    _types = [_type_annotation_to_go_type(x) for x in __types.elts]
+                except AttributeError:
+                    _types = [_type_annotation_to_go_type(__types)]
+            case _:
+                raise NotImplementedError()
+
+        _else = build_stmt_list(node.orelse)
+        if len(_else) == 0:
+            _else = None
+
+        assign = TypeAssertExpr(X=_expr).stmt()
+        cases = [CaseClause(Body=body.List.copy(), List=_types)]
+
+
+        match _else:
+            case None:
+                pass
+            case [TypeSwitchStmt(Body=BlockStmt(List=nested_cases))]:
+                cases += nested_cases
+            case [ExprStmt(), *others]:
+                cases += [CaseClause(Body=_else)]
+            case _:
+                raise NotImplementedError(node)
+
+        return cls(Assign=assign, Body=BlockStmt(List=cases))
+
 
 
 class UnaryExpr(Expr):
