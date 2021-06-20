@@ -58,9 +58,6 @@ class CapitalizeMathModuleCalls(ast.NodeTransformer):
         return node
 
 
-
-
-
 class ReplacePythonStyleAppends(ast.NodeTransformer):
     def visit_BlockStmt(self, block_node: BlockStmt):
         self.generic_visit(block_node)
@@ -158,8 +155,9 @@ class NodeTransformerWithScope(ast.NodeTransformer):
 
         if len(self.stack) == 0:
             # Deal with stuff that was missing
-            resolved_indices = []
-            for i, (expr, val, scope, callbacks) in enumerate(self.missing_type_info):
+            resolved_objs = []
+            for i, mti in enumerate(self.missing_type_info):
+                expr, val, scope, callbacks = mti
                 resolved = False
                 t = None
                 match val:
@@ -173,11 +171,15 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                                 expr._type_help = t
                                 resolved = True
                 if resolved:
-                    resolved_indices.append(i)
+                    if mti not in resolved_objs:
+                        resolved_objs.append(mti)
                     while callbacks:
                         callbacks.pop()(expr, val, t)
-            for i in reversed(resolved_indices):
-                del self.missing_type_info[i]
+            for obj in resolved_objs:
+                try:
+                    self.missing_type_info.remove(obj)
+                except ValueError:
+                    pass
 
             # Deal with any other stuff we want to do when we're done
             for callback in self.exit_callbacks:
@@ -204,7 +206,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
             if self.stack and isinstance(self.stack[-1], AssignStmt):
                 match self.stack[-1].Lhs:
                     case [Ident(Name=name)]:
-                        func_name=name
+                        func_name = name
                         values.append(node.Type)
         else:
             func_name = node.Name
@@ -229,6 +231,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                     case SendStmt(Chan=Ident(Name=name)):
                         return x if name == 'yield' else None
                 return None
+
             stmts = _find_nodes(
                 node.Body,
                 finder=finder,
@@ -257,6 +260,39 @@ class NodeTransformerWithScope(ast.NodeTransformer):
 
         return node
 
+    def visit_RangeStmt(self, node: RangeStmt):
+        lhs = []
+        rhs = []
+        rhs_is_types = True
+        x_type = self.scope._get_type(node.X)
+        match x_type:
+            case MapType(Key=key_type, Value=val_type):
+                if node.Key != Ident("_"):
+                    lhs.append(node.Key)
+                    rhs.append(key_type)
+                if node.Value and node.Value != Ident("_"):
+                    lhs.append(node.Value)
+                    rhs.append(val_type)
+            case ArrayType(Elt=elt_type):
+                if node.Key != Ident("_"):
+                    lhs.append(node.Key)
+                    rhs.append(GoBasicType.INT.ident)
+                if node.Value and node.Value != Ident("_"):
+                    lhs.append(node.Value)
+                    rhs.append(elt_type)
+            case _:
+                if node.Key != Ident("_"):
+                    lhs.append(node.Key)
+                if node.Value and node.Value != ("_"):
+                    lhs.append(node.Value)
+                if lhs:
+                    rhs.append(node.X)
+                rhs_is_types = False
+        self.apply_eager_context(lhs, rhs, rhs_is_types=rhs_is_types)
+        node = self.generic_visit(node)
+        self.apply_to_scope(lhs, rhs, rhs_is_types=rhs_is_types)
+        return node
+
     def visit_AssignStmt(self, node: AssignStmt):
         """Don't forget to super call this if you override it"""
         # Handle unpacking when both sides have multiple elements
@@ -267,7 +303,8 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                 node.Rhs = rhs
         self.apply_eager_context(node.Lhs, node.Rhs)
         self.generic_visit(node)
-        if node.Tok != token.DEFINE and all(self.scope._in_scope(x) or self.scope._in_outer_scope(x) for x in node.Lhs if isinstance(x, Ident)):
+        if node.Tok != token.DEFINE and all(
+                self.scope._in_scope(x) or self.scope._in_outer_scope(x) for x in node.Lhs if isinstance(x, Ident)):
             return node
         declared = self.apply_to_scope(node.Lhs, node.Rhs)
         if not declared:
@@ -336,12 +373,23 @@ class NodeTransformerWithScope(ast.NodeTransformer):
 
                 def generic_visit(s, node):
                     node = super().generic_visit(node)
+
                     if not elt_types:
                         for elt in elts:
                             t = s.scope._get_type(elt)
+
+                            if not t:
+                                match node:
+                                    case RangeStmt(Value=v, X=x) if v == elt:
+                                        x_type = s.scope._get_type(x)
+                                        match x_type:
+                                            case ArrayType(Elt=y) | MapType(Value=y):
+                                                t = y
                             if t:
                                 elt_types.append(t)
+
                     return node
+
             MetaVisitor().visit(parent)
             if elt_types:
                 return elt_types[-1]
@@ -383,7 +431,7 @@ class ReplacePowWithMathPow(NodeTransformerWithScope):
         match node:
             case BinaryExpr(Op=token.PLACEHOLDER_POW):
                 replacement = CallExpr(Args=[node.X, node.Y],
-                                Fun=SelectorExpr(X=v("math"), Sel=v("Pow")))
+                                       Fun=SelectorExpr(X=v("math"), Sel=v("Pow")))
                 x_type = self.scope._get_type(node.X)
                 y_type = self.scope._get_type(node.Y)
 
@@ -396,6 +444,7 @@ class ReplacePowWithMathPow(NodeTransformerWithScope):
                     return replacement.cast(GoBasicType.FLOAT64.ident, get_dominant_type(x_type, y_type))
                 return replacement
         return node
+
 
 class RangeRangeToFor(ast.NodeTransformer):
     def visit_RangeStmt(self, node: RangeStmt):
@@ -566,7 +615,7 @@ def _type_score(typ):
     ].index(str(typ.Name).lower())
 
 
-def get_dominant_type(type_a: Expr, type_b: Expr, op: Optional[token]=None):
+def get_dominant_type(type_a: Expr, type_b: Expr, op: Optional[token] = None):
     # Pick a type to coerce things to
     if isinstance(type_a, GoBasicType):
         type_a = type_a.ident
@@ -841,7 +890,6 @@ class SpecialComparators(NodeTransformerWithScope):
                                 result = result.not_()
                             return result
 
-
         return node
 
 
@@ -866,34 +914,43 @@ class AsyncTransformer(ast.NodeTransformer):
 #             print()
 #         return node
 #
-    # def visit_FuncDecl(self, node: FuncDecl):
-    #     node.Body.parent = node
-    #     self.generic_visit(node)
-    #     if node.Type.Results is None:
-    #         return_stmts = _find_nodes(
-    #             node.Body,
-    #             finder=lambda x: x if isinstance(x, ReturnStmt) else None,
-    #             skipper=lambda x: isinstance(x, FuncLit)
-    #         )
-    #
-    #         if return_stmts:
-    #             for return_stmt in return_stmts:
-    #                 return_stmt: ReturnStmt
-    #                 types = [x._type() for x in return_stmt.Results]
-    #                 if all(types):
-    #                     results = FieldList(List=[Field(Type=t) for t in types])
-    #                     node.Type.Results = results
-    #     return node
+# def visit_FuncDecl(self, node: FuncDecl):
+#     node.Body.parent = node
+#     self.generic_visit(node)
+#     if node.Type.Results is None:
+#         return_stmts = _find_nodes(
+#             node.Body,
+#             finder=lambda x: x if isinstance(x, ReturnStmt) else None,
+#             skipper=lambda x: isinstance(x, FuncLit)
+#         )
+#
+#         if return_stmts:
+#             for return_stmt in return_stmts:
+#                 return_stmt: ReturnStmt
+#                 types = [x._type() for x in return_stmt.Results]
+#                 if all(types):
+#                     results = FieldList(List=[Field(Type=t) for t in types])
+#                     node.Type.Results = results
+#     return node
 
 
 class YieldTransformer(NodeTransformerWithScope):
-    def visit_FuncDecl(self, node: FuncDecl):
-        node = super().visit_FuncDecl(node)
+    def visit_CallExpr(self, node: CallExpr):
+        self.generic_visit(node)
+        match node:
+            case CallExpr(Fun=Ident(Name="next"), Args=[chan]):
+                return chan.call().receive()
+        return node
+
+    def visit_FuncDecl_or_FuncLit(self, node: FuncDecl | FuncLit):
+        node = super().visit_FuncDecl_or_FuncLit(node)
+
         def finder(x: GoAST):
             match x:
                 case SendStmt(Chan=Ident(Name=name)):
                     return x if name == 'yield' else None
             return None
+
         stmts = _find_nodes(
             node.Body,
             finder=finder,
@@ -932,13 +989,14 @@ class YieldRangeTransformer(NodeTransformerWithScope):
     def visit_RangeStmt(self, node: RangeStmt, callback=False, callback_type=None, callback_parent=None):
         if not callback:
             self.generic_visit(node)
+        node.X = self.generic_visit(node.X)
         t = callback_type or self.scope._get_type(node.X)
         match t:
             case None:
                 _callback_parent = self.stack[-1] if len(self.stack) > 1 else None
-                self.add_callback_for_missing_type(node.X,                                             (lambda _, __, type_: self.visit_RangeStmt(
-                                                       node, callback=True, callback_type=type_, callback_parent=_callback_parent)))
-            case FuncType(Results=FieldList(List=[Field(Type=FuncType(Results=FieldList(List=[Field(Type=ChanType())])))])):
+                self.add_callback_for_missing_type(node.X, (lambda _, __, type_: self.visit_RangeStmt(
+                    node, callback=True, callback_type=type_, callback_parent=_callback_parent)))
+            case FuncType(Results=FieldList(List=[Field(Type=FuncType(Results=FieldList(List=[Field(Type=ChanType())])))])) | FuncType(Results=FieldList(List=[Field(Type=ChanType())])):
                 val = node.Value
                 gen = node.X
                 ok = Ident("ok")
@@ -958,6 +1016,7 @@ class YieldRangeTransformer(NodeTransformerWithScope):
                             raise NotImplementedError()
                 return for_stmt
         return node
+
 
 class InitStmt(NodeTransformerWithScope):
     def visit_BadExpr(self, node: BadExpr):
@@ -982,6 +1041,7 @@ class InitStmt(NodeTransformerWithScope):
             def exit_callback():
                 insert_at = to_insert_into.List.index(prev)
                 to_insert_into.List.insert(insert_at, assignment)
+
             self.exit_callbacks.append(exit_callback)
 
             return assignment.Lhs[0]
@@ -1007,12 +1067,11 @@ class FillDefaultsAndSortKeywords(NodeTransformerWithScope):
         self.generic_visit(node)
         return node
 
-
     def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
         if not isinstance(type_, FuncType):
             return
 
-        if "defaults" not in type_.Params._py_context:
+        if not type_.Params or "defaults" not in type_.Params._py_context:
             return
 
         match val:
@@ -1052,6 +1111,7 @@ class FillDefaultsAndSortKeywords(NodeTransformerWithScope):
 
         return
 
+
 class Truthiness(NodeTransformerWithScope):
     def visit_IfStmt(self, node: IfStmt):
         self.generic_visit(node)
@@ -1068,6 +1128,7 @@ class Truthiness(NodeTransformerWithScope):
     def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
         if hasattr(node, "Cond"):
             node.Cond = node.Cond.cast(type_, Ident("bool"))
+
 
 class IterFuncs(NodeTransformerWithScope):
     def visit_CallExpr(self, node: CallExpr):
@@ -1134,7 +1195,7 @@ class IterFuncs(NodeTransformerWithScope):
                             arr2.assign(Ident("make").call(t, len_(arr))),
                         ]
                         loop_body = [
-                            arr2[len_(arr)-i-1].assign(e, tok=token.ASSIGN)
+                            arr2[len_(arr) - i - 1].assign(e, tok=token.ASSIGN)
                         ]
 
                         return FuncLit(
@@ -1159,6 +1220,7 @@ class IterFuncs(NodeTransformerWithScope):
 
         return node
 
+
 class IterMethods(NodeTransformerWithScope):
     def visit_CallExpr(self, node: CallExpr):
         self.generic_visit(node)
@@ -1181,9 +1243,9 @@ class IterMethods(NodeTransformerWithScope):
                         i = Ident("i")
                         j = Ident("j")
                         arr = Ident("arr")
-                        init = AssignStmt(Lhs=[i, j], Rhs=[BasicLit.from_int(0), len_(arr)-1], Tok=token.DEFINE)
+                        init = AssignStmt(Lhs=[i, j], Rhs=[BasicLit.from_int(0), len_(arr) - 1], Tok=token.DEFINE)
                         cond = i < j
-                        post = AssignStmt(Lhs=[i, j], Rhs=[i+1, j-1], Tok=token.ASSIGN)
+                        post = AssignStmt(Lhs=[i, j], Rhs=[i + 1, j - 1], Tok=token.ASSIGN)
                         loop_body = [
                             AssignStmt(Lhs=[arr[i], arr[j]], Rhs=[arr[j], arr[i]])
                         ]
@@ -1217,11 +1279,11 @@ class InitializeNamedParamMaps(NodeTransformerWithScope):
                     node.Body.List.insert(0, name.assign(Ident("make").call(field.Type), tok=token.ASSIGN))
         return node
 
+
 class RemoveBadStmt(ast.NodeTransformer):
     def visit_BadStmt(self, node: BadStmt):
         self.generic_visit(node)
         pass  # It is removed by not being returned
-
 
 
 ALL_TRANSFORMS = [
@@ -1234,7 +1296,7 @@ ALL_TRANSFORMS = [
     PythonToGoTypes,
 
     # Scope transformers
-    YieldTransformer, # May need to be above other scope transformers because jank,
+    YieldTransformer,  # May need to be above other scope transformers because jank,
     ReplacePowWithMathPow,
     NodeTransformerWithScope,
     # AddMissingFunctionTypes,

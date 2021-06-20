@@ -148,6 +148,9 @@ class Test(TestCase):
     def test_dictcomp(self):
         self.assert_examples_match("dictcomp")
 
+    def test_generatorexp(self):
+        self.assert_examples_match("generatorexp")
+
     def test_ternary(self):
         self.assert_examples_match("ternary")
 

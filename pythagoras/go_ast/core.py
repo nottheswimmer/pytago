@@ -453,7 +453,7 @@ class Expr(GoAST):
     def return_(self, **kwargs) -> 'ReturnStmt':
         return ReturnStmt(Results=[self], **kwargs)
 
-    def receive(self, **kwargs):
+    def receive(self, **kwargs) -> 'UnaryExpr':
         return UnaryExpr(Op=token.ARROW, X=self, **kwargs)
 
     def send(self, value: 'Expr', **kwargs):
@@ -1222,10 +1222,13 @@ class CallExpr(Expr):
         return fun.call(**kwargs)
 
     @classmethod
-    def from_ListComp(cls, node: ast.ListComp, **kwargs):
+    def from_ListComp_or_GeneratorExp(cls, node: ast.GeneratorExp, **kwargs):
+        gen_mode = isinstance(node, ast.GeneratorExp)
+
         elt = build_expr_list([node.elt])[0]
         comps = build_stmt_list(node.generators)
-        elts = Ident('elts')
+        elts = Ident('yield' if gen_mode else 'elts')
+        wait = Ident('wait')
 
         def inner_body(b: BlockStmt):
             while b.List:
@@ -1233,23 +1236,38 @@ class CallExpr(Expr):
             return b
 
         comp: RangeStmt = comps.pop()
-        inner_body(comp.Body).List.append(
-            elts.assign(Ident("append").call(elts, elt), tok=token.ASSIGN)
-        )
+
+        if gen_mode:
+            inner_body(comp.Body).List += [elts.send(elt), wait.receive().stmt()]
+        else:
+            inner_body(comp.Body).List.append(
+                elts.assign(Ident("append").call(elts, elt), tok=token.ASSIGN)
+            )
         while comps:
             inner_body(comps[-1].Body).List.append(comp)
             comp = comps.pop()
 
         e_type = elt._type() or InterfaceType(_py_context={"elts": [elt]})
+        if gen_mode:
+            r_type = FieldList(List=[Field(Type=e_type)])
+        else:
+            r_type = elts.fieldlist(type_=ArrayType(Elt=e_type))
         fun = FuncLit(
             Type=FuncType(
-                Results=elts.fieldlist(type_=ArrayType(Elt=e_type))
+                Results=r_type
             ),
             Body=BlockStmt(List=[
                 comp,
-                ReturnStmt()
-            ]))
+            ] + ([] if gen_mode else [ReturnStmt()])))
         return fun.call(**kwargs)
+
+    @classmethod
+    def from_ListComp(cls, node: ast.ListComp, **kwargs):
+        return cls.from_ListComp_or_GeneratorExp(node, **kwargs)
+
+    @classmethod
+    def from_GeneratorExp(cls, node: ast.GeneratorExp, **kwargs):
+        return cls.from_ListComp_or_GeneratorExp(node, **kwargs)
 
     @classmethod
     def from_DictComp(cls, node: ast.DictComp, **kwargs):
