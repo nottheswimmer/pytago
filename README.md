@@ -2,7 +2,7 @@
 
 Transpiles some Python into human-readable Golang.
 
-## Support
+## Feature Support
 
 See docs/features.csv
 
@@ -10,3 +10,2748 @@ See docs/features.csv
 - Decent+ means there's at least extensive support, and I may not have thought of a way it could break yet. 
 - Limited means there's at least some facet of programming in place that deals with this (either explicitly or implicitly),
  although there may be serious limitations. Check the notes for more.
+
+## Examples
+
+All examples presented here are used as tests for the program.
+
+### yields
+#### Python
+```python
+def main():
+    my_gen = gen()
+    for x in my_gen:
+        print("Received next number!")
+        print(x)
+
+
+def gen():
+    print("Yielding next number...")
+    yield 1
+    print("Yielding next number...")
+    yield 2
+    print("Yielding next number...")
+    yield 3
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	my_gen := gen()
+	for x, ok := <-my_gen(); ok; x, ok = <-my_gen() {
+		fmt.Println("Received next number!")
+		fmt.Println(x)
+	}
+}
+
+func gen() func() <-chan int {
+	wait := make(chan struct{})
+	yield := make(chan int)
+	go func() {
+		defer close(yield)
+		<-wait
+		fmt.Println("Yielding next number...")
+		yield <- 1
+		<-wait
+		fmt.Println("Yielding next number...")
+		yield <- 2
+		<-wait
+		fmt.Println("Yielding next number...")
+		yield <- 3
+		<-wait
+	}()
+	return func() <-chan int {
+		wait <- struct{}{}
+		return yield
+	}
+}
+
+```
+### writefile
+#### Python
+```python
+def main():
+    with open("file_1.tmp", "w+") as f:
+        f.write("This file was created in w+ mode\n")
+
+    with open("file_2.tmp", "x") as f:
+        f.write("This file was created by x mode\n")
+
+    with open("file_2.tmp", "w") as f:
+        f.write("This file was created by x mode and then overwritten in w mode\n")
+
+    with open("file_2.tmp", "a") as f:
+        f.write("... And then appended to in a mode\n")
+
+    with open("file_2.tmp", "r") as f:
+        print(f.read())
+
+    with open("file_3.tmp", "a+") as f:
+        f.write("This file was created in a+ mode\n")
+
+    with open("file_4.tmp", "x+") as f:
+        f.write("This file was created by x+ mode\n")
+
+    with open("file_5.tmp", "wb+") as f:
+        f.write(b"This file was created in wb+ mode\n")
+
+    with open("file_6.tmp", "xb") as f:
+        f.write(b"This file was created by xb mode\n")
+
+    with open("file_6.tmp", "wb") as f:
+        f.write(b"This file was created by xb mode and then overwritten in wb mode\n")
+
+    with open("file_6.tmp", "ab") as f:
+        f.write(b"... And then appended to in ab mode\n")
+
+    with open("file_6.tmp", "rb") as f:
+        print(f.read().decode())
+
+    with open("file_7.tmp", "ab+") as f:
+        f.write(b"This file was created in ab+ mode\n")
+
+    with open("file_8.tmp", "xb+") as f:
+        f.write(b"This file was created by xb+ mode\n")
+
+    # with open("file_4.tmp", "x+") as f:
+    #     pass
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"io/ioutil"
+	"os"
+)
+
+func main() {
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_1.tmp", os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.WriteString("This file was created in w+ mode\n")
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_2.tmp", os.O_WRONLY|os.O_EXCL|os.O_CREATE, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.WriteString("This file was created by x mode\n")
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_2.tmp", os.O_WRONLY|os.O_TRUNC, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.WriteString("This file was created by x mode and then overwritten in w mode\n")
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_2.tmp", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.WriteString("... And then appended to in a mode\n")
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_2.tmp", os.O_RDONLY, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		fmt.Println(func() string {
+			content, err := ioutil.ReadAll(f)
+			if err != nil {
+				panic(err)
+			}
+			return string(content)
+		}())
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_3.tmp", os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.WriteString("This file was created in a+ mode\n")
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_4.tmp", os.O_RDWR|os.O_EXCL|os.O_CREATE, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.WriteString("This file was created by x+ mode\n")
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_5.tmp", os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.Write([]byte("This file was created in wb+ mode\n"))
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_6.tmp", os.O_WRONLY|os.O_EXCL|os.O_CREATE, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.Write([]byte("This file was created by xb mode\n"))
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_6.tmp", os.O_WRONLY|os.O_TRUNC, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.Write([]byte("This file was created by xb mode and then overwritten in wb mode\n"))
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_6.tmp", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.Write([]byte("... And then appended to in ab mode\n"))
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_6.tmp", os.O_RDONLY, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		fmt.Println(string(func() []byte {
+			content, err := ioutil.ReadAll(f)
+			if err != nil {
+				panic(err)
+			}
+			return content
+		}()))
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_7.tmp", os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.Write([]byte("This file was created in ab+ mode\n"))
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+	func() {
+		f := func() *os.File {
+			f, err := os.OpenFile("file_8.tmp", os.O_RDWR|os.O_EXCL|os.O_CREATE, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := f.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		func() int {
+			n, err := f.Write([]byte("This file was created by xb+ mode\n"))
+			if err != nil {
+				panic(err)
+			}
+			return n
+		}()
+	}()
+}
+
+```
+### whileloop
+#### Python
+```python
+def main():
+    i = 0
+    while True:
+        print(i)
+        i += 1
+        if i > 5:
+            break
+
+    j = 10
+    while j < 100:
+        print(j)
+        j += 10
+
+    while 1:
+        print(j + i)
+        break
+
+    while 0.1:
+        print(j + i)
+        break
+
+    while 0:
+        print("This never executes")
+
+    while 0.0:
+        print("This never executes")
+
+    while None:
+        print("This never executes")
+
+    while False:
+        print("This never executes")
+
+    while "":
+        print("This never executes")
+
+    while "hi":
+        print("This executes")
+        break
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	i := 0
+	for {
+		fmt.Println(i)
+		i += 1
+		if i > 5 {
+			break
+		}
+	}
+	j := 10
+	for j < 100 {
+		fmt.Println(j)
+		j += 10
+	}
+	for {
+		fmt.Println(j + i)
+		break
+	}
+	for {
+		fmt.Println(j + i)
+		break
+	}
+	for false {
+		fmt.Println("This never executes")
+	}
+	for false {
+		fmt.Println("This never executes")
+	}
+	for false {
+		fmt.Println("This never executes")
+	}
+	for false {
+		fmt.Println("This never executes")
+	}
+	for false {
+		fmt.Println("This never executes")
+	}
+	for {
+		fmt.Println("This executes")
+		break
+	}
+}
+
+```
+### walrus
+#### Python
+```python
+def main():
+    if (a := some_func()) == 7:
+        print(a)
+
+    for x in (y := [1, 2, 3]):
+        print(y)
+        print(x)
+
+    match j := 5:
+        case 5:
+            print(j)
+
+    while (t1 := thing_1()) < 5 and (t2 := thing_2()) == 3:
+        print(t1)
+        print(t2)
+
+
+def some_func():
+    return 7
+
+
+call_count = 0
+
+
+def thing_1():
+    global call_count
+    call_count += 1
+    return call_count
+
+
+def thing_2():
+    return 3
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	if a := some_func(); a == 7 {
+		fmt.Println(a)
+	}
+	y := []int{1, 2, 3}
+	for _, x := range y {
+		fmt.Println(y)
+		fmt.Println(x)
+	}
+	switch j := 5; j {
+	case 5:
+		fmt.Println(j)
+	}
+	for t1, t2 := thing_1(), thing_2(); t1 < 5 && t2 == 3; t1, t2 = thing_1(), thing_2() {
+		fmt.Println(t1)
+		fmt.Println(t2)
+	}
+}
+
+func some_func() int {
+	return 7
+}
+
+var call_count = 0
+
+func thing_1() int {
+	call_count += 1
+	return call_count
+}
+
+func thing_2() int {
+	return 3
+}
+
+```
+### variables
+#### Python
+```python
+def main():
+    a = 3
+    b = 7
+    a = a + b
+    print(a + b)
+    another_scope()
+
+
+def another_scope():
+    a = 1
+    b = 12
+    a = a + b
+    print(a + b)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := 3
+	b := 7
+	a = a + b
+	fmt.Println(a + b)
+	another_scope()
+}
+
+func another_scope() {
+	a := 1
+	b := 12
+	a = a + b
+	fmt.Println(a + b)
+}
+
+```
+### tryfinally
+#### Python
+```python
+def main():
+    a = [1, 2, 3]
+
+    for index in range(4):
+        try:
+            print(a[index])
+        except Exception:
+            pass
+        finally:
+            print("Finished an iteration")
+
+    for index in range(4):
+        try:
+            print(a[index])
+        finally:
+            print("Finished an iteration")
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := []int{1, 2, 3}
+	for index := 0; index < 4; index++ {
+		func() {
+			defer func() {
+				fmt.Println("Finished an iteration")
+			}()
+			defer func() {
+				if r := recover(); r != nil {
+					if _, ok := r.(error); ok {
+						return
+					}
+					panic(r)
+				}
+			}()
+			fmt.Println(a[index])
+		}()
+	}
+	for index := 0; index < 4; index++ {
+		func() {
+			defer func() {
+				fmt.Println("Finished an iteration")
+			}()
+			fmt.Println(a[index])
+		}()
+	}
+}
+
+```
+### tryexcept
+#### Python
+```python
+def main():
+    a = [1, 2, 3]
+    for index in range(4):
+        try:
+            print(a[index])
+            if index == 1:
+                raise ValueError(index)
+        except IndexError:
+            print("That index was out of bounds")
+        except (NotImplementedError, RuntimeError):
+            print("This won't actually happen...")
+        except Exception as e:
+            print("Some other exception occurred")
+            print(e)
+
+
+if __name__ == '__main__':
+    main()
+
+
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+func main() {
+	a := []int{1, 2, 3}
+	for index := 0; index < 4; index++ {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					if err, ok := r.(error); ok {
+						if strings.HasPrefix(err.Error(), "IndexError") || strings.HasPrefix(err.Error(), "runtime error: index out of range") {
+							fmt.Println("That index was out of bounds")
+							return
+						} else if strings.HasPrefix(err.Error(), "NotImplementedError") || (strings.HasPrefix(err.Error(), "RuntimeError") || strings.HasPrefix(err.Error(), "runtime error")) {
+							fmt.Println("This won't actually happen...")
+							return
+						} else {
+							e := err
+							fmt.Println("Some other exception occurred")
+							fmt.Println(e)
+							return
+						}
+					}
+					panic(r)
+				}
+			}()
+			fmt.Println(a[index])
+			if index == 1 {
+				panic(fmt.Errorf("ValueError: %v", index))
+			}
+		}()
+	}
+}
+
+```
+### truthiness
+#### Python
+```python
+def main():
+    if a := 1:
+        print(a)
+
+    if c := "":
+        print(c)
+
+    if d := b"":
+        print(d)
+
+    if e := "Hello":
+        print(e)
+
+    if f := b"Goodbye":
+        print(f)
+
+    if g := 1.0:
+        print(g)
+
+    if h := 1j:
+        print(h)
+
+    if i := 0.0:
+        print(i)
+
+    if j := 0j:
+        print(j)
+
+    if k := []:
+        print(k)
+
+    if l := [1, 2, 3]:
+        print(l)
+
+    if m := True:
+        print(m)
+
+    if n := False:
+        print(n)
+
+    if o := ():
+        print(o)
+
+    if p := (1, 2, 3):
+        print(p)
+
+    if q := set():
+        print(q)
+
+    if r := {1, 2, 3}:
+        print(r)
+
+    if s := {}:
+        print(s)
+
+    if t := {1: 2}:
+        print(t)
+
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	if a := 1; a != 0 {
+		fmt.Println(a)
+	}
+	if c := ""; len(c) != 0 {
+		fmt.Println(c)
+	}
+	if d := []byte(""); len(d) != 0 {
+		fmt.Println(d)
+	}
+	if e := "Hello"; len(e) != 0 {
+		fmt.Println(e)
+	}
+	if f := []byte("Goodbye"); len(f) != 0 {
+		fmt.Println(f)
+	}
+	if g := 1.0; g != 0 {
+		fmt.Println(g)
+	}
+	if h := 1.0i; h != 0 {
+		fmt.Println(h)
+	}
+	if i := 0.0; i != 0 {
+		fmt.Println(i)
+	}
+	if j := 0.0i; j != 0 {
+		fmt.Println(j)
+	}
+	if k := []interface{}{}; len(k) != 0 {
+		fmt.Println(k)
+	}
+	if l := []int{1, 2, 3}; len(l) != 0 {
+		fmt.Println(l)
+	}
+	if m := true; m {
+		fmt.Println(m)
+	}
+	if n := false; n {
+		fmt.Println(n)
+	}
+	if o := [0]interface{}{}; len(o) != 0 {
+		fmt.Println(o)
+	}
+	if p := [3]int{1, 2, 3}; len(p) != 0 {
+		fmt.Println(p)
+	}
+	if q := map[interface{}]struct{}{}; len(q) != 0 {
+		fmt.Println(q)
+	}
+	if r := map[interface{}]struct{}{1: {}, 2: {}, 3: {}}; len(r) != 0 {
+		fmt.Println(r)
+	}
+	if s := map[interface{}]interface{}{}; len(s) != 0 {
+		fmt.Println(s)
+	}
+	if t := map[interface{}]interface{}{1: 2}; len(t) != 0 {
+		fmt.Println(t)
+	}
+}
+
+```
+### ternary
+#### Python
+```python
+def main():
+    a = 1 if True else 2
+    print(a)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := func() int {
+		if true {
+			return 1
+		}
+		return 2
+	}()
+	fmt.Println(a)
+}
+
+```
+### sum
+#### Python
+```python
+def main():
+    print(sum([1, 2, 3]))
+    print(sum([1.5, 2.6, 3.7]))
+    print(sum([1j, 2j, 3j]))
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println(func() (s int) {
+		for _, e := range []int{1, 2, 3} {
+			s += e
+		}
+		return
+	}())
+	fmt.Println(func() (s float64) {
+		for _, e := range []float64{1.5, 2.6, 3.7} {
+			s += e
+		}
+		return
+	}())
+	fmt.Println(func() (s complex128) {
+		for _, e := range []complex128{1.0i, 2.0i, 3.0i} {
+			s += e
+		}
+		return
+	}())
+}
+
+```
+### strings
+#### Python
+```python
+def main():
+    a = "hello"
+    b = "world"
+    c = a + " " + b
+    print(c)
+    print(double_it(c))
+    print(c[1])
+    print(c[1:6])
+
+
+def double_it(c: str) -> str:
+    return c + c
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := "hello"
+	b := "world"
+	c := a + " " + b
+	fmt.Println(c)
+	fmt.Println(double_it(c))
+	fmt.Println(string(c[1]))
+	fmt.Println(c[1:6])
+}
+
+func double_it(c string) string {
+	return c + c
+}
+
+```
+### sets
+#### Python
+```python
+def main():
+    s = {1, 2, 3}
+    # other = {3, 4}
+    # another = {5, 6, 7}
+    x = 1
+
+    # len(s)
+    print(len(s))
+
+    # x in s
+    print(x in s)
+
+    # x not in s
+    print(x not in s)
+
+    # TODO:
+    # # isdisjoint(other)
+    # print(s.isdisjoint(other))
+    #
+    # # issubset(other)
+    # # set <= other
+    # # Test whether every element in the set is in other.
+    # print(s.issubset(other))
+    # print(s <= other)
+    #
+    # # set < other
+    # # Test whether the set is a proper subset of other, that is, set <= other and set != other.
+    # print(s < other)
+    #
+    # # issuperset(other)
+    # # Test whether every element in other is in the set.
+    # print(s >= other)
+    #
+    # # set > other
+    # # Test whether the set is a proper superset of other, that is, set >= other and set != other.
+    # print(s > other)
+    #
+    # # union(*others)
+    # # set | other | ...
+    # print(s.union(other))
+    # print(s.union(other, another))
+    # print(s | other)
+    # print(s | other | another)
+    #
+    # # intersection(*others)
+    # # set & other & ...
+    # print(s.intersection(other))
+    # print(s.intersection(other, another))
+    # print(s & other)
+    # print(s & other & another)
+    #
+    # # difference(*others)
+    # # set - other - ...
+    # # Return a new set with elements in the set that are not in the others.
+    # print(s.difference(other))
+    # print(s.difference(other, another))
+    # print(s - other)
+    # print(s - other - another)
+    #
+    # # symmetric_difference(other)
+    # # set ^ other
+    # # Return a new set with elements in either the set or other but not both.
+    # print(s.symmetric_difference(other))
+    # print(s ^ other)
+    #
+    # # copy()
+    # # Return a shallow copy of the set.
+    # print(s.copy())
+    #
+    # # The following table lists operations available for set that do not apply to
+    # # immutable instances of frozenset:
+    #
+    # # update(*others)
+    # # set |= other | ...
+    # # Update the set, adding elements from all others.
+    # s.update(other)
+    # print(s)
+    # s.update(other, another)
+    # print(s)
+    # another |= other
+    # print(another)
+    # another |= other | s
+    # print(another)
+    #
+    #
+    # # intersection_update(*others)
+    # # set &= other & ...
+    # # Update the set, keeping only elements found in it and all others.
+    # s.intersection_update(other)
+    # print(s)
+    # s.intersection_update(other, another)
+    # print(s)
+    # another &= other
+    # print(another)
+    # another &= other & s
+    # print(another)
+    #
+    # # difference_update(*others)
+    # # set -= other | ...
+    # # Update the set, removing elements found in others.
+    # s.difference_update(other)
+    # print(s)
+    # s.difference_update(other, another)
+    # print(s)
+    # another -= other
+    # print(another)
+    # another -= other | s
+    # print(another)
+    #
+    # # symmetric_difference_update(other)
+    # # set ^= other
+    # # Update the set, keeping only elements found in either set, but not in both.
+    # s.symmetric_difference_update(other)
+    # print(s)
+    # another ^= other
+    # print(another)
+    #
+    # # add(elem)
+    # # Add element elem to the set.
+    # s.add(x)
+    # print(s)
+    #
+    # # remove(elem)
+    # # Remove element elem from the set. Raises KeyError if elem is not contained in the set.
+    # s.remove(x)
+    # print(s)
+    #
+    # # discard(elem)
+    # # Remove element elem from the set if it is present.
+    # s.discard(x)
+    # print(s)
+    #
+    # # pop()
+    # # Remove and return an arbitrary element from the set. Raises KeyError if the set is empty.
+    # print(s.pop())
+    #
+    # # clear()
+    # # Remove all elements from the set.
+    # s.clear()
+    # print(s)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	s := map[interface{}]struct{}{1: {}, 2: {}, 3: {}}
+	x := 1
+	fmt.Println(len(s))
+	fmt.Println(func() bool {
+		_, ok := s[x]
+		return ok
+	}())
+	fmt.Println(!func() bool {
+		_, ok := s[x]
+		return ok
+	}())
+}
+
+```
+### setcomp
+#### Python
+```python
+def main():
+    a = {x for x in range(20, 39)}
+    b = {(x, y) for x in range(100) for y in range(x, x + 5) if x % 39 in a}
+    print(a)
+    print(b)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+    a := func() (s map[int]struct{}) {
+        s = make(map[int]struct{})
+        for x := 20; x < 39; x++ {
+            s[x] = struct{}{}
+        }
+        return
+    }()
+    b := func() (s map[[2]int]struct{}) {
+        s = make(map[[2]int]struct{})
+        for x := 0; x < 100; x++ {
+            for y := x; y < x+5; y++ {
+                if func() bool {
+                    _, ok := a[x%39]
+                    return ok
+                }() {
+                    s[[2]int{x, y}] = struct{}{}
+                }
+            }
+        }
+        return
+    }()
+    fmt.Println(a)
+    fmt.Println(b)
+}
+
+```
+### reverse
+#### Python
+```python
+def main():
+    a = [1, 2, 3, 4, 5]
+
+    # Even though this is technically an iterator I'm going to let
+    # go just copy it for the initial implementation since that's
+    # probably what you'd do in go (or just reverse in-place -- .reverse() for that)
+    for x in reversed(a):
+        print(x)
+
+    for x in a:
+        print(x)
+
+    a.reverse()
+
+    for x in a:
+        print(x)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := []int{1, 2, 3, 4, 5}
+	for _, x := range func(arr []int) []int {
+		arr2 := make([]int, len(arr))
+		for i, e := range arr {
+			arr2[len(arr)-i-1] = e
+		}
+		return arr2
+	}(a) {
+		fmt.Println(x)
+	}
+	for _, x := range a {
+		fmt.Println(x)
+	}
+	func(arr []int) {
+		for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
+			arr[i], arr[j] = arr[j], arr[i]
+		}
+	}(a)
+	for _, x := range a {
+		fmt.Println(x)
+	}
+}
+
+```
+### requestslib
+#### Python
+```python
+import requests
+
+
+def main():
+    resp = requests.get("http://tour.golang.org/welcome/1")
+    print(resp.text)
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
+)
+
+func main() {
+	resp, err := http.Get("http://tour.golang.org/welcome/1")
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	fmt.Println(func() string {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			panic(err)
+		}
+		return string(body)
+	}())
+}
+
+```
+### pass
+#### Python
+```python
+def main():
+    pass
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+func main() {
+}
+
+```
+### numlist
+#### Python
+```python
+def main():
+    a = [1, 2, 3]
+    print(a[0])
+    print(a[1])
+    print(a[2])
+    a.append(4)
+    print(a[3])
+    a += [5, 6, 7]
+    a = a + [8, 9, 10]
+    print(a[4])
+    print(a[-1])
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := []int{1, 2, 3}
+	fmt.Println(a[0])
+	fmt.Println(a[1])
+	fmt.Println(a[2])
+	a = append(a, 4)
+	fmt.Println(a[3])
+	a = append(a, []int{5, 6, 7}...)
+	a = append(a, []int{8, 9, 10}...)
+	fmt.Println(a[4])
+	fmt.Println(a[len(a)-1])
+}
+
+```
+### nestedfstrings
+#### Python
+```python
+def main():
+    name = "Michael"
+    age = 24
+    print(f"My name is {name} and I am {age} years old. Later this year I'll be {f'{age + 1}'}!")
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"text/template"
+)
+
+func main() {
+	name := "Michael"
+	age := 24
+	fmt.Println(func() string {
+		var buf bytes.Buffer
+		err := template.Must(template.New("f").Parse("My name is {{.name}} and I am {{.age}} years old. Later this year I'll be {{.expr1}}!")).Execute(&buf, map[string]interface{}{"name": name, "age": age, "expr1": func() string {
+			var buf bytes.Buffer
+			err := template.Must(template.New("f").Parse("{{.expr1}}")).Execute(&buf, map[string]interface{}{"expr1": age + 1})
+			if err != nil {
+				panic(err)
+			}
+			return buf.String()
+		}()})
+		if err != nil {
+			panic(err)
+		}
+		return buf.String()
+	}())
+}
+
+```
+### missingreturntype
+#### Python
+```python
+def main():
+    print(add(1, 3))
+
+
+def add(a: int, b: int):
+    return a + b
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println(add(1, 3))
+}
+
+func add(a int, b int) int {
+	return a + b
+}
+
+```
+### minmax
+#### Python
+```python
+def main():
+    print(max([1, 2, 3]))
+    print(min([1, 2, 3]))
+    print(max("a", "b", "c"))
+    print(min("a", "b", "c"))
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println(func() (m int) {
+		for i, e := range []int{1, 2, 3} {
+			if i == 0 || e > m {
+				m = e
+			}
+		}
+		return
+	}())
+	fmt.Println(func() (m int) {
+		for i, e := range []int{1, 2, 3} {
+			if i == 0 || e < m {
+				m = e
+			}
+		}
+		return
+	}())
+	fmt.Println(func() (m string) {
+		for i, e := range []string{"a", "b", "c"} {
+			if i == 0 || e > m {
+				m = e
+			}
+		}
+		return
+	}())
+	fmt.Println(func() (m string) {
+		for i, e := range []string{"a", "b", "c"} {
+			if i == 0 || e < m {
+				m = e
+			}
+		}
+		return
+	}())
+}
+
+```
+### maths
+#### Python
+```python
+import math
+
+def main():
+    print(math.sin(3))
+    print(math.cosh(3))
+    print(math.pi)
+    print(math.acosh(6))
+    print(math.atan2(4, 7))
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func main() {
+	fmt.Println(math.Sin(3))
+	fmt.Println(math.Cosh(3))
+	fmt.Println(math.Pi)
+	fmt.Println(math.Acosh(6))
+	fmt.Println(math.Atan2(4, 7))
+}
+
+```
+### matchcase
+#### Python
+```python
+def main():
+    a = 1
+    match a:
+        case 1:
+            print(1)
+        case 2:
+            print(2)
+        case 3:
+            print(3)
+
+    match a:
+        case 4:
+            print("Never gonna happen")
+        case _:
+            print("Nice, defaults!")
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := 1
+	switch a {
+	case 1:
+		fmt.Println(1)
+	case 2:
+		fmt.Println(2)
+	case 3:
+		fmt.Println(3)
+	}
+	switch a {
+	case 4:
+		fmt.Println("Never gonna happen")
+	default:
+		fmt.Println("Nice, defaults!")
+	}
+}
+
+```
+### loops
+#### Python
+```python
+def main():
+    a = [1, 2, 3]
+    for v in a:
+        print(v)
+
+    for i, v in enumerate(a):
+        print(i + v)
+
+    for i in range(5):
+        print(i)
+
+    for i in range(10, 15):
+        print(i)
+
+    for i in range(10, 15, 2):
+        print(i)
+
+    for j in range(15, 10, -1):
+        print(j)
+
+    for j in range(15, 10, -2):
+        print(j)
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := []int{1, 2, 3}
+	for _, v := range a {
+		fmt.Println(v)
+	}
+	for i, v := range a {
+		fmt.Println(i + v)
+	}
+	for i := 0; i < 5; i++ {
+		fmt.Println(i)
+	}
+	for i := 10; i < 15; i++ {
+		fmt.Println(i)
+	}
+	for i := 10; i < 15; i += 2 {
+		fmt.Println(i)
+	}
+	for j := 15; j > 10; j-- {
+		fmt.Println(j)
+	}
+	for j := 15; j > 10; j -= 2 {
+		fmt.Println(j)
+	}
+}
+
+```
+### logical
+#### Python
+```python
+def main():
+    a = True
+    b = False
+    print(a)
+    print(b)
+    print(a and b)
+    print(a or b)
+    print(not a)
+    print(not b)
+    print(a and not b)
+    print(a or not b)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := true
+	b := false
+	fmt.Println(a)
+	fmt.Println(b)
+	fmt.Println(a && b)
+	fmt.Println(a || b)
+	fmt.Println(!a)
+	fmt.Println(!b)
+	fmt.Println(a && !b)
+	fmt.Println(a || !b)
+}
+
+```
+### listcomp
+#### Python
+```python
+def main():
+    a = [x for x in range(10)]
+    b = [x for x in range(10) if x % 2 == 0]
+    c = [x if x % 2 == 0 else 777 for x in range(10)]
+    d = [x for i, x in enumerate(c) if i % 2 == 0 if i % 3 == 1]
+    e = [(x, y) for x in c for y in d]
+    f = [(x, y) for x in c for y in next_five_numbers_times_two(x)]
+    g = [(i, j) for i in range(10) for j in range(i)]
+
+    print(a)
+    print(b)
+    print(c)
+    print(d)
+    print(e)
+    print(f)
+    print(g)
+
+
+def next_five_numbers_times_two(a: int) -> list[int]:
+    return [(a + i) * 2 for i in range(1, 6)]
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := func() (elts []int) {
+		for x := 0; x < 10; x++ {
+			elts = append(elts, x)
+		}
+		return
+	}()
+	b := func() (elts []int) {
+		for x := 0; x < 10; x++ {
+			if x%2 == 0 {
+				elts = append(elts, x)
+			}
+		}
+		return
+	}()
+	c := func() (elts []int) {
+		for x := 0; x < 10; x++ {
+			elts = append(elts, func() int {
+				if x%2 == 0 {
+					return x
+				}
+				return 777
+			}())
+		}
+		return
+	}()
+	d := func() (elts []int) {
+		for i, x := range c {
+			if i%2 == 0 {
+				if i%3 == 1 {
+					elts = append(elts, x)
+				}
+			}
+		}
+		return
+	}()
+	e := func() (elts [][2]int) {
+		for _, x := range c {
+			for _, y := range d {
+				elts = append(elts, [2]int{x, y})
+			}
+		}
+		return
+	}()
+	f := func() (elts [][2]int) {
+		for _, x := range c {
+			for _, y := range next_five_numbers_times_two(x) {
+				elts = append(elts, [2]int{x, y})
+			}
+		}
+		return
+	}()
+	g := func() (elts [][2]int) {
+		for i := 0; i < 10; i++ {
+			for j := 0; j < i; j++ {
+				elts = append(elts, [2]int{i, j})
+			}
+		}
+		return
+	}()
+	fmt.Println(a)
+	fmt.Println(b)
+	fmt.Println(c)
+	fmt.Println(d)
+	fmt.Println(e)
+	fmt.Println(f)
+	fmt.Println(g)
+}
+
+func next_five_numbers_times_two(a int) []int {
+	return func() (elts []int) {
+		for i := 1; i < 6; i++ {
+			elts = append(elts, (a+i)*2)
+		}
+		return
+	}()
+}
+
+```
+### listappend
+#### Python
+```python
+def main():
+    a = [1, 2, 3]
+    a.append(4)
+    print(a)
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := []int{1, 2, 3}
+	a = append(a, 4)
+	fmt.Println(a)
+}
+
+```
+### isvseql
+#### Python
+```python
+def main():
+    a = [1, 2, 3]
+    b = [1, 2, 3]
+    print(a == b)  # True
+    print(a != b)  # False
+    print(a is a)  # True
+    print(a is b)  # False
+    print(a is not a)  # False
+    print(a is not b)  # True
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"reflect"
+)
+
+func main() {
+	a := []int{1, 2, 3}
+	b := []int{1, 2, 3}
+	fmt.Println(reflect.DeepEqual(a, b))
+	fmt.Println(!reflect.DeepEqual(a, b))
+	fmt.Println(&a == &a)
+	fmt.Println(&a == &b)
+	fmt.Println(&a != &a)
+	fmt.Println(&a != &b)
+}
+
+```
+### helloworld
+#### Python
+```python
+def main():
+    print("hello world")
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("hello world")
+}
+
+```
+### globals
+#### Python
+```python
+SITE = "https://www.google.com/"
+NAME = ["Michael", "Wayne", "Phelps"]
+KEYS = {1: 2, 3: 4}
+AGE = 1000
+BIRTH_YEAR = 2050
+
+
+def main():
+    global AGE
+    print(SITE)
+    print(NAME)
+    print(BIRTH_YEAR)
+    print(KEYS)
+    print(AGE)
+    AGE = 20  # This should use the variable from the global scope
+    other_1()
+    print(AGE)
+    other_2()
+
+
+def other_1():
+    AGE = 200  # This should declare a new variable age
+    print(AGE)
+
+def other_2():
+    print(AGE)  # This should still be able to access the global
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+var (
+	SITE = "https://www.google.com/"
+	NAME = []string{"Michael", "Wayne", "Phelps"}
+	KEYS = map[interface{}]interface{}{1: 2, 3: 4}
+)
+var (
+	AGE        = 1000
+	BIRTH_YEAR = 2050
+)
+
+func main() {
+	fmt.Println(SITE)
+	fmt.Println(NAME)
+	fmt.Println(BIRTH_YEAR)
+	fmt.Println(KEYS)
+	fmt.Println(AGE)
+	AGE = 20
+	other_1()
+	fmt.Println(AGE)
+	other_2()
+}
+
+func other_1() {
+	AGE := 200
+	fmt.Println(AGE)
+}
+
+func other_2() {
+	fmt.Println(AGE)
+}
+
+```
+### generatorexp
+#### Python
+```python
+def main():
+    a = ((x, y) for x in range(5) for y in range(x))
+    b = (w for w in ("Where", "Are", "You?", "And", "I'm", "So", "Sorry"))
+    for l in b:
+        print(l, next(a))
+    for rest in a:
+        print(rest)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := func() func() <-chan [2]int {
+		wait := make(chan struct{})
+		yield := make(chan [2]int)
+		go func() {
+			defer close(yield)
+			<-wait
+			for x := 0; x < 5; x++ {
+				for y := 0; y < x; y++ {
+					yield <- [2]int{x, y}
+					<-wait
+				}
+			}
+		}()
+		return func() <-chan [2]int {
+			wait <- struct{}{}
+			return yield
+		}
+	}()
+	b := func() func() <-chan string {
+		wait := make(chan struct{})
+		yield := make(chan string)
+		go func() {
+			defer close(yield)
+			<-wait
+			for _, w := range [7]string{"Where", "Are", "You?", "And", "I'm", "So", "Sorry"} {
+				yield <- w
+				<-wait
+			}
+		}()
+		return func() <-chan string {
+			wait <- struct{}{}
+			return yield
+		}
+	}()
+	for l, ok := <-b(); ok; l, ok = <-b() {
+		fmt.Println(l, <-a())
+	}
+	for rest, ok := <-a(); ok; rest, ok = <-a() {
+		fmt.Println(rest)
+	}
+}
+
+```
+### fstrings
+#### Python
+```python
+def main():
+    name = "Michael"
+    age = 24
+    print(f"My name is {name} and I am {age} years old. Later this year I'll be {age + 1}!")
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"text/template"
+)
+
+func main() {
+	name := "Michael"
+	age := 24
+	fmt.Println(func() string {
+		var buf bytes.Buffer
+		err := template.Must(template.New("f").Parse("My name is {{.name}} and I am {{.age}} years old. Later this year I'll be {{.expr1}}!")).Execute(&buf, map[string]interface{}{"name": name, "age": age, "expr1": age + 1})
+		if err != nil {
+			panic(err)
+		}
+		return buf.String()
+	}())
+}
+
+```
+### floats
+#### Python
+```python
+def main():
+    a = 7
+    b = 3
+    c = 4.5
+    print(a / b)
+    print(a // b)
+    print(a / c)
+    print(a // c)
+    print(a + b)
+    print(a + c)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func main() {
+	a := 7
+	b := 3
+	c := 4.5
+	fmt.Println(float64(a) / float64(b))
+	fmt.Println(a / b)
+	fmt.Println(float64(a) / c)
+	fmt.Println(math.Floor(float64(a) / c))
+	fmt.Println(a + b)
+	fmt.Println(float64(a) + c)
+}
+
+```
+### exponents
+#### Python
+```python
+def main():
+    print(2 ** 8)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func main() {
+	fmt.Println(int(math.Pow(2, 8)))
+}
+
+```
+### ellipsis
+#### Python
+```python
+def main():
+    ...
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+func main() {
+}
+
+```
+### dictionary
+#### Python
+```python
+def main():
+    a = {"name": "Michael", "age": 24, 1337: True}
+    print(a)
+    a["sleepiness"] = 1.0
+    del a[1337]
+
+    for k, v in a.items():
+        print(k)
+        print(v)
+
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := map[interface{}]interface{}{"name": "Michael", "age": 24, 1337: true}
+	fmt.Println(a)
+	a["sleepiness"] = 1.0
+	delete(a, 1337)
+	for k, v := range a {
+		fmt.Println(k)
+		fmt.Println(v)
+	}
+}
+
+```
+### dictcomp
+#### Python
+```python
+def main():
+    a = {(x, y): x*y for x in range(20) for y in range(5) if x*y != 0}
+    for k, v in a.items():
+        print(k, v)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := func() (d map[[2]int]int) {
+		d = make(map[[2]int]int)
+		for x := 0; x < 20; x++ {
+			for y := 0; y < 5; y++ {
+				if x*y != 0 {
+					d[[2]int{x, y}] = x * y
+				}
+			}
+		}
+		return
+	}()
+	for k, v := range a {
+		fmt.Println(k, v)
+	}
+}
+
+```
+### defaultargs
+#### Python
+```python
+def main():
+    a = increment(1)
+    print(a)
+    b = increment(a, 2)
+    print(b)
+    c = increment(a, decrement=True, amount=3)
+    print(c)
+
+
+def increment(n: int, amount: int = 1, decrement: bool = False) -> int:
+    if decrement:
+        return n - amount
+    return n + amount
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := increment(1, 1, false)
+	fmt.Println(a)
+	b := increment(a, 2, false)
+	fmt.Println(b)
+	c := increment(a, 3, true)
+	fmt.Println(c)
+}
+
+func increment(n int, amount int, decrement bool) int {
+	if decrement {
+		return n - amount
+	}
+	return n + amount
+}
+
+```
+### continuestmt
+#### Python
+```python
+def main():
+    for i in range(10):
+        if i < 3 or i > 7:
+            continue
+        print(i)
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	for i := 0; i < 10; i++ {
+		if i < 3 || i > 7 {
+			continue
+		}
+		fmt.Println(i)
+	}
+}
+
+```
+### contains
+#### Python
+```python
+def main():
+    # Iterables should compare the index of the element to -1
+    a = [1, 2, 3]
+    print(1 in a)
+    print(4 in a)
+    print(5 not in a)
+
+    # Strings should either use strings.Compare or use strings.Index with a comparison to -1
+    # While the former is more straight forward, I think the latter will be nicer for consistency
+    b = "hello world"
+    print("hello" in b)
+    print("Hello" not in b)
+
+    # Checking for membership in a dictionary means we need to check if the key is in it
+    # ... Eventually this should behave well with mixed types
+    c = {"hello": 1, "world": 2}
+    print("hello" in c)
+    print("Hello" not in c)
+
+    # Bytes
+    d = b'hello world'
+    print(b'hello' in d)
+    print(b'Hello' not in d)
+
+    # Sets
+    e = {1, 2, 3, "hello"}
+    print("hello" in e)
+    print(4 not in e)
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"strings"
+)
+
+func main() {
+	a := []int{1, 2, 3}
+	fmt.Println(func() int {
+		for i, v := range a {
+			if v == 1 {
+				return i
+			}
+		}
+		return -1
+	}() != -1)
+	fmt.Println(func() int {
+		for i, v := range a {
+			if v == 4 {
+				return i
+			}
+		}
+		return -1
+	}() != -1)
+	fmt.Println(func() int {
+		for i, v := range a {
+			if v == 5 {
+				return i
+			}
+		}
+		return -1
+	}() == -1)
+	b := "hello world"
+	fmt.Println(strings.Contains(b, "hello"))
+	fmt.Println(!strings.Contains(b, "Hello"))
+	c := map[interface{}]interface{}{"hello": 1, "world": 2}
+	fmt.Println(func() bool {
+		_, ok := c["hello"]
+		return ok
+	}())
+	fmt.Println(!func() bool {
+		_, ok := c["Hello"]
+		return ok
+	}())
+	d := []byte("hello world")
+	fmt.Println(bytes.Contains(d, []byte("hello")))
+	fmt.Println(!bytes.Contains(d, []byte("Hello")))
+	e := map[interface{}]struct{}{1: {}, 2: {}, 3: {}, "hello": {}}
+	fmt.Println(func() bool {
+		_, ok := e["hello"]
+		return ok
+	}())
+	fmt.Println(!func() bool {
+		_, ok := e[4]
+		return ok
+	}())
+}
+
+```
+### conditionals
+#### Python
+```python
+def main():
+    a = 7
+    b = add(a, -2)
+    if a > b:
+        print("It's bigger")
+    elif a == b:
+        print("They're equal")
+    else:
+        print("It's smaller")
+
+
+def add(a: int, b: int) -> int:
+    return a + b
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := 7
+	b := add(a, -2)
+	if a > b {
+		fmt.Println("It's bigger")
+	} else if a == b {
+		fmt.Println("They're equal")
+	} else {
+		fmt.Println("It's smaller")
+	}
+}
+
+func add(a int, b int) int {
+	return a + b
+}
+
+```
+### classes
+#### Python
+```python
+class Welcome:
+    greeting: str
+    instructions: list[str]
+
+    def __init__(self, greeting: str, instructions: list[str]) -> None:
+        self.greeting = greeting
+        self.instructions = instructions
+
+    def greet(self):
+        print(self.greeting)
+        for instruction in self.instructions:
+            print(instruction)
+
+
+def main():
+    welcome = Welcome("Hello World", [
+        "This is a class!",
+        "Support will be limited at first.",
+        "Still, I hope you'll find them useful."
+    ])
+    welcome.greet()
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+type Welcome struct {
+	greeting     string
+	instructions []string
+}
+
+func NewWelcome(greeting string, instructions []string) (self *Welcome) {
+	self = new(Welcome)
+	self.greeting = greeting
+	self.instructions = instructions
+	return
+}
+
+func (self *Welcome) greet() {
+	fmt.Println(self.greeting)
+	for _, instruction := range self.instructions {
+		fmt.Println(instruction)
+	}
+}
+
+func main() {
+	welcome := NewWelcome("Hello World", []string{"This is a class!", "Support will be limited at first.", "Still, I hope you'll find them useful."})
+	welcome.greet()
+}
+
+```
+### breakstmt
+#### Python
+```python
+def main():
+    for i in range(10):
+        if i > 7:
+            break
+        print(i)
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	for i := 0; i < 10; i++ {
+		if i > 7 {
+			break
+		}
+		fmt.Println(i)
+	}
+}
+
+```
+### boolnumcompare
+#### Python
+```python
+def main():
+    print(1 == True)
+    print(1 == False)
+    print(0 == True)
+    print(0 == False)
+    print()
+    print(1. == True)
+    print(1. == False)
+    print(0. == True)
+    print(0. == False)
+    print()
+    print(1+0j == True)
+    print(1+0j == False)
+    print(0+0j == True)
+    print(0+0j == False)
+    print()
+    print(2 == True)
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println(1 == 1)
+	fmt.Println(1 == 0)
+	fmt.Println(0 == 1)
+	fmt.Println(0 == 0)
+	fmt.Println()
+	fmt.Println(1.0 == 1)
+	fmt.Println(1.0 == 0)
+	fmt.Println(0.0 == 1)
+	fmt.Println(0.0 == 0)
+	fmt.Println()
+	fmt.Println(1+0.0i == 1)
+	fmt.Println(1+0.0i == 0)
+	fmt.Println(0+0.0i == 1)
+	fmt.Println(0+0.0i == 0)
+	fmt.Println()
+	fmt.Println(2 == 1)
+}
+
+```
+### asyncawait
+#### Python
+```python
+import asyncio
+
+
+async def myAsyncFunction() -> int:
+    await asyncio.sleep(2)
+    return 2
+
+
+async def main():
+    r = await myAsyncFunction()
+    print(r)
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
+
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func myAsyncFunction() <-chan int {
+	r := make(chan int)
+	go func() {
+		defer close(r)
+		time.Sleep(time.Second * 2)
+		r <- 2
+	}()
+	return r
+}
+
+func main() {
+	r := <-myAsyncFunction()
+	fmt.Println(r)
+}
+
+```
+### asserts
+#### Python
+```python
+def main():
+    assert 1 + 1 == 2
+    assert True
+    assert 1 + 3 == 5, "Math must be broken"
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+func main() {
+	if !(1+1 == 2) {
+		panic(errors.New("AssertionError"))
+	}
+	if !true {
+		panic(errors.New("AssertionError"))
+	}
+	if !(1+3 == 5) {
+		panic(fmt.Errorf("AssertionError: %v", "Math must be broken"))
+	}
+}
+
+```
+### algomajorityelement
+#### Python
+```python
+def majorityElement(nums: list[int]) -> int:
+    element, cnt = 0, 0
+
+    for e in nums:
+        if element == e:
+            cnt += 1
+        elif cnt == 0:
+            element, cnt = e, 1
+        else:
+            cnt -= 1
+
+    return element
+
+def main():
+    print(majorityElement([3,2,3]))  # 3
+    print(majorityElement([2,2,1,1,1,2,2]))  # 2
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func majorityElement(nums []int) int {
+	element, cnt := 0, 0
+	for _, e := range nums {
+		if element == e {
+			cnt += 1
+		} else if cnt == 0 {
+			element, cnt = e, 1
+		} else {
+			cnt -= 1
+		}
+	}
+	return element
+}
+
+func main() {
+	fmt.Println(majorityElement([]int{3, 2, 3}))
+	fmt.Println(majorityElement([]int{2, 2, 1, 1, 1, 2, 2}))
+}
+
+```
+### add
+#### Python
+```python
+def main():
+    print(add(2, 2))
+
+
+def add(a: int, b: int) -> int:
+    return a + b
+
+
+if __name__ == '__main__':
+    main()
+
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println(add(2, 2))
+}
+
+func add(a int, b int) int {
+	return a + b
+}
+
+```
+
