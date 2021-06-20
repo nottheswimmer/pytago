@@ -79,9 +79,6 @@ class Test(TestCase):
     def test_missingreturntype(self):
         self.assert_examples_match("missingreturntype")
 
-    # def test_lambdafunc(self):
-    #     self.assert_examples_match("lambdafunc")
-
     def test_continuestmt(self):
         self.assert_examples_match("continuestmt")
 
@@ -164,3 +161,14 @@ class Test(TestCase):
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")
+
+    # In development
+
+    # def test_forelse(self):
+    #     self.assert_examples_match("forelse")
+    #
+    # def test_iterunpacking(self):
+    #     self.assert_examples_match("iterunpacking")
+
+    # def test_lambdafunc(self):
+    #     self.assert_examples_match("lambdafunc")
