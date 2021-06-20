@@ -307,10 +307,8 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                 declared = True
 
             type_from_scope = self.scope._get_type(obj.Name)
-            if isinstance(type_from_scope, ArrayType):
-                print()
             if type_from_scope:
-                print()
+                pass
             else:
                 try:
                     t = rhs[i]
@@ -1205,7 +1203,18 @@ class IterMethods(NodeTransformerWithScope):
                                 ),
                             ])
                         ).call(iterable)
+        return node
 
+
+class InitializeNamedParamMaps(NodeTransformerWithScope):
+    def visit_FuncDecl_or_FuncLit(self, node: FuncDecl | FuncLit):
+        super().visit_FuncDecl_or_FuncLit(node)
+        if not node.Type.Results:
+            return node
+        for field in node.Type.Results.List:
+            if isinstance(field.Type, MapType):
+                for name in reversed(field.Names):
+                    node.Body.List.insert(0, name.assign(Ident("make").call(field.Type), tok=token.ASSIGN))
         return node
 
 class RemoveBadStmt(ast.NodeTransformer):
@@ -1247,5 +1256,6 @@ ALL_TRANSFORMS = [
     InitStmt,
     FillDefaultsAndSortKeywords,
     Truthiness,
+    InitializeNamedParamMaps,
     RemoveBadStmt,  # Should be last as these are used for scoping
 ]

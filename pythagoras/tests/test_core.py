@@ -145,6 +145,9 @@ class Test(TestCase):
     def test_listcomp(self):
         self.assert_examples_match("listcomp")
 
+    def test_dictcomp(self):
+        self.assert_examples_match("dictcomp")
+
     def test_ternary(self):
         self.assert_examples_match("ternary")
 

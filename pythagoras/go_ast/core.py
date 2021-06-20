@@ -1,8 +1,6 @@
 import ast
-import copy
 import inspect
 import json
-from collections import defaultdict
 from enum import Enum
 from functools import cached_property
 from typing import List, Dict, Optional, Any, TypeVar, Type, Callable
@@ -1251,7 +1249,39 @@ class CallExpr(Expr):
                 comp,
                 ReturnStmt()
             ]))
-        return fun.call()
+        return fun.call(**kwargs)
+
+    @classmethod
+    def from_DictComp(cls, node: ast.DictComp, **kwargs):
+        key = build_expr_list([node.key])[0]
+        value = build_expr_list([node.value])[0]
+        comps = build_stmt_list(node.generators)
+        d = Ident('d')
+
+        def inner_body(b: BlockStmt):
+            while b.List:
+                b = b.List[0].Body
+            return b
+
+        comp: RangeStmt = comps.pop()
+        inner_body(comp.Body).List.append(
+            d[key].assign(value, tok=token.ASSIGN)
+        )
+        while comps:
+            inner_body(comps[-1].Body).List.append(comp)
+            comp = comps.pop()
+
+        key_type = key._type() or InterfaceType(_py_context={"elts": [key]})
+        value_type = value._type() or InterfaceType(_py_context={"elts": [value]})
+        fun = FuncLit(
+            Type=FuncType(
+                Results=d.fieldlist(type_=MapType(Key=key_type, Value=value_type))
+            ),
+            Body=BlockStmt(List=[
+                comp,
+                ReturnStmt()
+            ]))
+        return fun.call(**kwargs)
 
     @classmethod
     def _open_call_helper(cls, _py_context, _type_help, filename_expr, mode):
@@ -1519,7 +1549,7 @@ class CompositeLit(Expr):
     def from_Tuple(cls, node: ast.Tuple, **kwargs):
         elts = build_expr_list(node.elts)
         e_type = next((elt._type() for elt in elts), None) or InterfaceType(_py_context={"elts": elts})
-        typ = ArrayType(Elt=e_type)
+        typ = ArrayType(Elt=e_type, Len=BasicLit.from_int(len(elts)))
         return cls(elts, False, 0, 0, typ, **kwargs)
 
     @classmethod

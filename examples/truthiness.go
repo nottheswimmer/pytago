@@ -42,10 +42,10 @@ func main() {
 	if n := false; n {
 		fmt.Println(n)
 	}
-	if o := []interface{}{}; len(o) != 0 {
+	if o := [0]interface{}{}; len(o) != 0 {
 		fmt.Println(o)
 	}
-	if p := []int{1, 2, 3}; len(p) != 0 {
+	if p := [3]int{1, 2, 3}; len(p) != 0 {
 		fmt.Println(p)
 	}
 	if q := map[interface{}]struct{}{}; len(q) != 0 {

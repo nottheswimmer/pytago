@@ -38,26 +38,26 @@ func main() {
 		}
 		return
 	}()
-	e := func() (elts [][]int) {
+	e := func() (elts [][2]int) {
 		for _, x := range c {
 			for _, y := range d {
-				elts = append(elts, []int{x, y})
+				elts = append(elts, [2]int{x, y})
 			}
 		}
 		return
 	}()
-	f := func() (elts [][]int) {
+	f := func() (elts [][2]int) {
 		for _, x := range c {
 			for _, y := range next_five_numbers_times_two(x) {
-				elts = append(elts, []int{x, y})
+				elts = append(elts, [2]int{x, y})
 			}
 		}
 		return
 	}()
-	g := func() (elts [][]int) {
+	g := func() (elts [][2]int) {
 		for i := 0; i < 10; i++ {
 			for j := 0; j < i; j++ {
-				elts = append(elts, []int{i, j})
+				elts = append(elts, [2]int{i, j})
 			}
 		}
 		return
