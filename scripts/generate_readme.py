@@ -4,18 +4,33 @@ from os.path import split
 HEADER_PATH = 'README_HEADER.md'
 EXAMPLES_PATH = "../examples"
 README_DESTINATION = "../README.md"
+TEST_FILE_PATH = "../pythagoras/tests/test_core.py"
 
 DISABLED_EXAMPLES = {
     "forelse",
-    "lambdafunc"
+    "lambdafunc",
+    "iterunpacking",
 }
 
 def main():
     parts = []
     with open(HEADER_PATH) as f:
         TEMPLATE = f.read()
+
+    with open(TEST_FILE_PATH) as f:
+        TEST_CODE = f.read()
+
+    def example_sort_key(a):
+        ext = a.split('.')[-1]
+        example_name = split(a)[-1].removesuffix(".py").removesuffix(".go")
+        try:
+            return TEST_CODE.index(example_name), 0 if ext == "py" else 1
+        except ValueError:
+            return -1, 0 if ext == "py" else 1
+
+
     examples = glob.glob(EXAMPLES_PATH + "/*")
-    examples.sort(reverse=True)
+    examples.sort(key=example_sort_key)
     for i, example in enumerate(examples):
         example_name = split(example)[-1].removesuffix(".py").removesuffix(".go")
         if example_name in DISABLED_EXAMPLES:
