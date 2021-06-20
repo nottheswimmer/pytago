@@ -5,7 +5,7 @@ def main():
     d = [x for i, x in enumerate(c) if i % 2 == 0 if i % 3 == 1]
     e = [(x, y) for x in c for y in d]
     f = [(x, y) for x in c for y in next_five_numbers_times_two(x)]
-    # g = [(a, b) for a in range(10) for b in range(a)]  # Bugged
+    g = [(i, j) for i in range(10) for j in range(i)]
 
     print(a)
     print(b)
@@ -13,7 +13,7 @@ def main():
     print(d)
     print(e)
     print(f)
-    # print(g)  # Bugged
+    print(g)
 
 
 def next_five_numbers_times_two(a: int) -> list[int]:

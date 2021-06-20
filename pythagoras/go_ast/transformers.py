@@ -329,20 +329,24 @@ class NodeTransformerWithScope(ast.NodeTransformer):
             elt_types = []
 
             class MetaVisitor(NodeTransformerWithScope):
+                def __init__(self):
+                    super().__init__()
+
                 def visit_InterfaceType(s, node: InterfaceType):
                     s.generic_visit(node)
                     return node
 
                 def generic_visit(s, node):
                     node = super().generic_visit(node)
-                    for elt in elts:
-                        t = s.scope._get_type(elt)
-                        if t:
-                            elt_types.append(t)
+                    if not elt_types:
+                        for elt in elts:
+                            t = s.scope._get_type(elt)
+                            if t:
+                                elt_types.append(t)
                     return node
             MetaVisitor().visit(parent)
             if elt_types:
-                return next(x for x in elt_types)
+                return elt_types[-1]
 
         return node
 
