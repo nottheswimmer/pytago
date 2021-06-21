@@ -238,6 +238,13 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                 finder=finder,
                 skipper=lambda x: isinstance(x, FuncLit)
             )
+
+            try:
+                is_go = isinstance(self.stack[-1], CallExpr) and isinstance(self.stack[-2], GoStmt)
+            except IndexError:
+                is_go = False
+
+            yielded = []
             if stmts:
                 is_yield = False
                 for stmt in stmts:
@@ -248,14 +255,9 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                         case SendStmt():
                             stmt: SendStmt
                             types = [self.scope._get_type(stmt.Value)]
-                            is_yield = True
+                            yielded.append(stmt.Value)
                         case _:
                             types = [None]
-
-                    try:
-                        is_go = isinstance(self.stack[-1], CallExpr) and isinstance(self.stack[-2], GoStmt)
-                    except IndexError:
-                        is_go = False
 
                     # if all(types) and (func_name or not is_yield or (node.Type.Results is None and not is_go)):
                     if all(types) and not (is_yield and is_go):
@@ -263,6 +265,11 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                         if func_name:
                             self.apply_to_scope([node.Name], [node.Type])
                         break
+                else:
+                    if yielded and not is_go and node.Type.Results == None:
+                        t = next((y for x in yielded if (y := x._type(interface_ok=True))), None)
+                        node.Type.Results = FieldList(List=[Field(Type=t)])
+
                 node._is_yield = is_yield
 
         return node
@@ -395,6 +402,10 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                                         match x_type:
                                             case ArrayType(Elt=y) | MapType(Value=y):
                                                 t = y
+                                    case FuncDecl() if isinstance(elt, CallExpr) and isinstance(elt.Fun, Ident):
+                                        if elt.Fun == node.Name:
+                                            if node.Type.Results and node.Type.Results.List:
+                                                t = node.Type.Results.List[0].Type  # TODO: Another multi result issue
                             if t:
                                 elt_types.append(t)
 
@@ -1302,6 +1313,14 @@ class InitializeNamedParamMaps(NodeTransformerWithScope):
                     node.Body.List.insert(0, name.assign(Ident("make").call(field.Type), tok=token.ASSIGN))
         return node
 
+class RemoveGoCallReturns(ast.NodeTransformer):
+    """
+    Hack to remove erroneously annotated function calls
+    """
+    def visit_GoStmt(self, node: GoStmt):
+        self.generic_visit(node)
+        node.Call.Fun.Type.Results = None
+        return node
 
 class RemoveBadStmt(ast.NodeTransformer):
     def visit_BadStmt(self, node: BadStmt):
@@ -1341,5 +1360,6 @@ ALL_TRANSFORMS = [
     FillDefaultsAndSortKeywords,
     Truthiness,
     InitializeNamedParamMaps,
+    RemoveGoCallReturns,
     RemoveBadStmt,  # Should be last as these are used for scoping
 ]

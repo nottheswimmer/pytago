@@ -93,6 +93,12 @@ def go_abs(a: int):
     return math.Abs(a)
 
 
+@Bindable.add("map")
+def go_map(f, iterable):
+    for x in iterable:
+        yield f(x)
+
+
 def find_call_funclit(node: ast.Call) -> 'go_ast.FuncLit':
     match node:
         case ast.Call(func=ast.Name(id=x), args=args):

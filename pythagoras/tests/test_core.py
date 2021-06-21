@@ -163,6 +163,9 @@ class Test(TestCase):
     def test_zip(self):
         self.assert_examples_match("zip")
 
+    def test_map(self):
+        self.assert_examples_match("map")
+
     # List methods
     def test_listappend(self):
         self.assert_examples_match("listappend")

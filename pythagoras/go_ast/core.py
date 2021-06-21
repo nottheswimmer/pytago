@@ -2,6 +2,7 @@ import ast
 import inspect
 import json
 import traceback
+import warnings
 from enum import Enum
 from functools import cached_property
 from typing import List, Dict, Optional, Any, TypeVar, Type, Callable
@@ -636,7 +637,7 @@ class Expr(GoAST):
             return IndexExpr(X=self, Index=BasicLit(Value=item, Kind=token.STRING))
         return IndexExpr(X=self, Index=item)
 
-    def _type(self, scope: Optional['Scope'] = None):
+    def _type(self, scope: Optional['Scope'] = None, interface_ok=False):
         return self._type_help
 
 
@@ -890,8 +891,8 @@ class BasicLit(Expr):
         return obj
 
 
-    def _type(self, scope: Optional['Scope']=None):
-        return token_type_to_go_type(self.Kind) or super()._type()
+    def _type(self, scope: Optional['Scope']=None, **kwargs):
+        return token_type_to_go_type(self.Kind) or super()._type(scope, **kwargs)
 
 
 class BinaryExpr(Expr):
@@ -1011,12 +1012,12 @@ class BinaryExpr(Expr):
         Y = build_expr_list([node.right])[0]
         return cls(op, 0, X, Y, **kwargs)
 
-    def _type(self, scope: Optional['Scope'] = None):
+    def _type(self, scope: Optional['Scope'] = None, **kwargs):
         if self.Op in COMPARISON_OPS or self.Op in BOOL_OPS:
             return GoBasicType.BOOL.ident
         if scope:
-            return scope._get_type(self.X) or scope._get_type(self.Y) or super()._type(scope)
-        return self.X._type() or self.Y._type() or super()._type()
+            return scope._get_type(self.X, **kwargs) or scope._get_type(self.Y, **kwargs) or super()._type(scope, **kwargs)
+        return self.X._type(**kwargs) or self.Y._type(**kwargs) or super()._type(**kwargs)
 
 
 class BlockStmt(Stmt):
@@ -1449,31 +1450,34 @@ class CallExpr(Expr):
         t = node.targets[0]  # TODO: Support multiple deletes and slices
         return cls(Fun=Ident.from_str("delete"), Args=build_expr_list([t.value]) + build_expr_list([t.slice.value]))
 
-    def _type(self, scope: Optional['Scope']=None):
+    def _type(self, scope: Optional['Scope']=None, **kwargs):
         match self.Fun:
             # Maps and arrays
             case MapType() | ArrayType():
-                return self.Fun or super()._type(scope)
+                return self.Fun or super()._type(scope, **kwargs)
             # Function literals
             case FuncLit():
-                fun_type = self.Fun._type(scope)
+                fun_type = self.Fun._type(scope, **kwargs)
                 match fun_type:
                     case FuncType(Results=FieldList(List=[one])):
                         return one.Type
                     case FuncType(Results=FieldList(List=[one, *others])):
                         return one.Type, *[other.Type for other in others]
             case Ident(Name='append'):
-                element_type = self.Args[1]._type(scope)
+                element_type = self.Args[1]._type(scope, **kwargs)
                 if element_type:
                     return ArrayType(Elt=element_type, _py_context=element_type._py_context)
             # Basic types
             case Ident(Name=x):
                 try:
-                    return GoBasicType(x).ident or super()._type(scope)
+                    return GoBasicType(x).ident or super()._type(scope, **kwargs)
                 except ValueError:
                     pass
 
-        return super()._type(scope)
+        if kwargs.get("interface_ok"):
+            return InterfaceType(_py_context={"elts": [self]})
+
+        return super()._type(scope, **kwargs)
 
 
 class CaseClause(Stmt):
@@ -1676,14 +1680,14 @@ class CompositeLit(Expr):
         elts = [KeyValueExpr(Key=key, Value=value) for key, value in zip(key_elts, value_elts)]
         return cls(elts, Type=MapType(Value=StructType()), **kwargs)
 
-    def _type(self, scope: Optional['Scope']=None):
+    def _type(self, scope: Optional['Scope']=None, **kwargs):
         if scope:
             match self.Type:
                 case ArrayType(Elt=Ident(Name=x)):
-                    x_type = scope._get_type(x)
+                    x_type = scope._get_type(x, **kwargs)
                     if x_type:
                         return ArrayType(Elt=x_type)
-        return self.Type or super()._type(scope)
+        return self.Type or super()._type(scope, **kwargs)
 
 
 class DeclStmt(Stmt):
@@ -2034,14 +2038,14 @@ class Scope(GoAST):
             return False
         return obj.Name in self.Outer.Objects or self.Outer._in_outer_scope(obj)
 
-    def _get_type(self, x):
+    def _get_type(self, x, **kwargs):
         match x:
             case Ident():
               obj_name = x.Name
             case str():
               obj_name = x
             case Expr():
-                return x._type(scope=self)
+                return x._type(scope=self, **kwargs)
             case _:
                 warnings.warn(f"Failed to get type for {x}")  # TODO
                 return None
@@ -2049,6 +2053,8 @@ class Scope(GoAST):
             return GoBasicType.BOOL.ident
         if obj := self._from_scope_or_outer(obj_name):
             return obj.Type
+        if kwargs.get("interface_ok"):
+            return InterfaceType(_py_context={"elts": [obj_name]})
 
     def _get_ctx(self, x):
         match x:
@@ -2367,8 +2373,8 @@ class FuncLit(Expr):
         _type = from_this(FuncType, node)
         return cls(body, _type, **kwargs)
 
-    def _type(self, scope: Optional['Scope']=None):
-        return self.Type or super()._type(scope)
+    def _type(self, scope: Optional['Scope']=None, interface_ok=False, **kwargs):
+        return self.Type or super()._type(scope, interface_ok, **kwargs)
 
 class GenDecl(Decl):
     """A GenDecl node (generic declaration node) represents an import, constant, type or
@@ -2636,16 +2642,16 @@ class IndexExpr(Expr):
         x = build_expr_list([node.value])[0]
         return cls(index, X=x, **kwargs)
 
-    def _type(self, scope: Optional['Scope']=None):
-        x_type = self.X._type()
-        index_type = self.Index._type()
+    def _type(self, scope: Optional['Scope']=None, **kwargs):
+        x_type = self.X._type(scope, **kwargs)
+        index_type = self.Index._type(scope, **kwargs)
         # If we're taking a slice, the type doesn't change
         if index_type != GoBasicType.INT.ident:
             return x_type or super()._type()
         # If X is a string and we're indexing it, it's a byte
         if x_type == GoBasicType.STRING.ident:
             return GoBasicType.BYTE.ident
-        return super()._type()
+        return super()._type(scope, **kwargs)
 
 
 class InterfaceType(Expr):
@@ -3202,10 +3208,10 @@ class UnaryExpr(Expr):
         self.X = X
         super().__init__(**kwargs)
 
-    def _type(self, scope: Optional['Scope'] = None):
+    def _type(self, scope: Optional['Scope'] = None, **kwargs):
         if scope:
-            scope._get_type(self.X) or super()._type(scope)
-        return self.X._type() or super()._type()
+            scope._get_type(self.X, **kwargs) or super()._type(scope, **kwargs)
+        return self.X._type(scope, **kwargs) or super()._type(scope, **kwargs)
 
 
 class ValueSpec(Expr):
