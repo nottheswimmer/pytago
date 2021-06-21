@@ -1217,7 +1217,7 @@ class CallExpr(Expr):
     def from_Call(cls, node: ast.Call):
         f = find_call_funclit(node)
         if f:
-            return f.call()
+            return f
 
         _type_help = None
         _py_context = None

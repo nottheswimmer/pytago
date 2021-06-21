@@ -154,6 +154,15 @@ class Test(TestCase):
     def test_ternary(self):
         self.assert_examples_match("ternary")
 
+    def test_abs(self):
+        self.assert_examples_match("abs")
+
+    def test_isinstance(self):
+        self.assert_examples_match("isinstance")
+
+    def test_zip(self):
+        self.assert_examples_match("zip")
+
     # List methods
     def test_listappend(self):
         self.assert_examples_match("listappend")
@@ -161,12 +170,6 @@ class Test(TestCase):
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")
-
-    def test_isinstance(self):
-        self.assert_examples_match("isinstance")
-
-    def test_zip(self):
-        self.assert_examples_match("zip")
 
     # In development
 

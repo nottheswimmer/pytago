@@ -15,6 +15,30 @@ See docs/features.csv
 
 All examples presented here are used as tests for the program.
 
+### abs
+#### Python
+```python
+def main():
+    print(abs(-6))
+    print(abs(3))
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func main() {
+	fmt.Println(math.Abs(-6))
+	fmt.Println(math.Abs(3))
+}
+```
 ### helloworld
 #### Python
 ```python
@@ -2448,77 +2472,6 @@ func main() {
 	fmt.Println(a)
 }
 ```
-### listappend
-#### Python
-```python
-def main():
-    a = [1, 2, 3]
-    a.append(4)
-    print(a)
-
-if __name__ == '__main__':
-    main()
-```
-#### Go
-```go
-package main
-
-import "fmt"
-
-func main() {
-	a := []int{1, 2, 3}
-	a = append(a, 4)
-	fmt.Println(a)
-}
-```
-### algomajorityelement
-#### Python
-```python
-def majorityElement(nums: list[int]) -> int:
-    element, cnt = 0, 0
-
-    for e in nums:
-        if element == e:
-            cnt += 1
-        elif cnt == 0:
-            element, cnt = e, 1
-        else:
-            cnt -= 1
-
-    return element
-
-def main():
-    print(majorityElement([3,2,3]))  # 3
-    print(majorityElement([2,2,1,1,1,2,2]))  # 2
-
-if __name__ == '__main__':
-    main()
-```
-#### Go
-```go
-package main
-
-import "fmt"
-
-func majorityElement(nums []int) int {
-	element, cnt := 0, 0
-	for _, e := range nums {
-		if element == e {
-			cnt += 1
-		} else if cnt == 0 {
-			element, cnt = e, 1
-		} else {
-			cnt -= 1
-		}
-	}
-	return element
-}
-
-func main() {
-	fmt.Println(majorityElement([]int{3, 2, 3}))
-	fmt.Println(majorityElement([]int{2, 2, 1, 1, 1, 2, 2}))
-}
-```
 ### isinstance
 #### Python
 ```python
@@ -2629,6 +2582,77 @@ func main() {
 	for pair, ok := <-zipped(); ok; pair, ok = <-zipped() {
 		fmt.Println(pair)
 	}
+}
+```
+### listappend
+#### Python
+```python
+def main():
+    a = [1, 2, 3]
+    a.append(4)
+    print(a)
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	a := []int{1, 2, 3}
+	a = append(a, 4)
+	fmt.Println(a)
+}
+```
+### algomajorityelement
+#### Python
+```python
+def majorityElement(nums: list[int]) -> int:
+    element, cnt = 0, 0
+
+    for e in nums:
+        if element == e:
+            cnt += 1
+        elif cnt == 0:
+            element, cnt = e, 1
+        else:
+            cnt -= 1
+
+    return element
+
+def main():
+    print(majorityElement([3,2,3]))  # 3
+    print(majorityElement([2,2,1,1,1,2,2]))  # 2
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func majorityElement(nums []int) int {
+	element, cnt := 0, 0
+	for _, e := range nums {
+		if element == e {
+			cnt += 1
+		} else if cnt == 0 {
+			element, cnt = e, 1
+		} else {
+			cnt -= 1
+		}
+	}
+	return element
+}
+
+func main() {
+	fmt.Println(majorityElement([]int{3, 2, 3}))
+	fmt.Println(majorityElement([]int{2, 2, 1, 1, 1, 2, 2}))
 }
 ```
 

@@ -1,6 +1,7 @@
 import ast
 import inspect
 from collections import defaultdict
+from enum import Enum
 from typing import TYPE_CHECKING, Generic, TypeVar, Generator
 
 if TYPE_CHECKING:
@@ -9,10 +10,15 @@ if TYPE_CHECKING:
 BINDABLES: dict['Bindable', list] = defaultdict(list)
 __InterfaceOf = Generic
 
+class BindType(Enum):
+    PARAMLESS_FUNC_LIT = 0
+    EXPR = 1
+
 class Bindable:
-    def __init__(self, f: callable, name: str):
+    def __init__(self, f: callable, name: str, bind_type: BindType):
         self.f = f
         self.name = name
+        self.bind_type = bind_type
 
     @property
     def src(self):
@@ -29,9 +35,9 @@ class Bindable:
         return inspect.signature(self.f)
 
     @classmethod
-    def add(cls, name):
+    def add(cls, name, bind_type=BindType.PARAMLESS_FUNC_LIT):
         def inner(f):
-            BINDABLES[name].append(cls(f, name))
+            BINDABLES[name].append(cls(f, name, bind_type))
             return f
 
         return inner
@@ -61,10 +67,16 @@ class Bindable:
         return binded
 
     def binded_go_ast(self, binding):
-        from pythagoras.go_ast import FuncLit
         binded_ast = self.binded_ast(binding)
-        funclit = FuncLit.from_FunctionDef(binded_ast)
-        return funclit
+        if self.bind_type == BindType.PARAMLESS_FUNC_LIT:
+            from pythagoras.go_ast import FuncLit
+            go_ast = FuncLit.from_FunctionDef(binded_ast).call()
+        elif self.bind_type == BindType.EXPR:
+            from pythagoras.go_ast import build_expr_list
+            go_ast = build_expr_list([binded_ast.body[0].value])[0]
+        else:
+            raise NotImplementedError()
+        return go_ast
 
 
 
@@ -74,6 +86,11 @@ def go_zip(a: list, b: list):
         if i >= len(b):
             break
         yield e, b[i]
+
+
+@Bindable.add("abs", bind_type=BindType.EXPR)
+def go_abs(a: int):
+    return math.Abs(a)
 
 
 def find_call_funclit(node: ast.Call) -> 'go_ast.FuncLit':
@@ -90,7 +107,7 @@ def find_call_funclit(node: ast.Call) -> 'go_ast.FuncLit':
                 # to infinitely recurse
                 del BINDABLES[x][i]
                 go_ast = b.binded_go_ast(binding)
-                BINDABLES[x].insert(i, x)
+                BINDABLES[x].insert(i, b)
                 return go_ast
 
 if __name__ == '__main__':
