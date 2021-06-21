@@ -99,6 +99,11 @@ def go_map(f, iterable):
         yield f(x)
 
 
+@Bindable.add("repr", bind_type=BindType.EXPR)
+def go_repr(a: object):
+    return fmt.Sprintf("%#v", a)
+
+
 def find_call_funclit(node: ast.Call) -> 'go_ast.FuncLit':
     match node:
         case ast.Call(func=ast.Name(id=x), args=args):

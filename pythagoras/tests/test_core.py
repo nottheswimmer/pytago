@@ -166,6 +166,9 @@ class Test(TestCase):
     def test_map(self):
         self.assert_examples_match("map")
 
+    def test_repr(self):
+        self.assert_examples_match("repr")
+
     # List methods
     def test_listappend(self):
         self.assert_examples_match("listappend")
