@@ -8,7 +8,8 @@ from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, Bin
     GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec, ArrayType, \
     ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt, len_
 # Shortcuts
-from pythagoras.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS
+from pythagoras.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS, \
+    GoStmt
 
 v = Ident.from_str
 
@@ -251,7 +252,13 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                         case _:
                             types = [None]
 
-                    if all(types) and (func_name or not is_yield):
+                    try:
+                        is_go = isinstance(self.stack[-1], CallExpr) and isinstance(self.stack[-2], GoStmt)
+                    except IndexError:
+                        is_go = False
+
+                    # if all(types) and (func_name or not is_yield or (node.Type.Results is None and not is_go)):
+                    if all(types) and not (is_yield and is_go):
                         node.Type.Results = FieldList(List=[Field(Type=t) for t in types])
                         if func_name:
                             self.apply_to_scope([node.Name], [node.Type])
@@ -315,7 +322,10 @@ class NodeTransformerWithScope(ast.NodeTransformer):
         # TODO: This was only built to handle one type, but zipping is much better sometimes
         ctx = {}
         for x in rhs:
-            ctx.update(x._py_context)
+            if isinstance(x, tuple):
+                warnings.warn(f"Did not apply to scope context: {x}")  # TODO
+            else:
+                ctx.update(x._py_context)
         declared = False
         for i, expr in enumerate(lhs):
             match expr:
@@ -410,11 +420,17 @@ class NodeTransformerWithScope(ast.NodeTransformer):
         return
 
     def apply_eager_context(self, lhs: list[Expr], rhs: list[Expr], rhs_is_types=False):
-        # TODO: This was only built to handle one type, but zipping is much better sometimes
+        if len(lhs) == len(rhs) and len(lhs) > 1:
+            for x, y in zip(lhs, rhs):
+                self.apply_eager_context([x], [y], rhs_is_types=rhs_is_types)
+            return
         eager_type_hint = next((self.scope._get_type(x) for x in rhs), None)
         eager_context = {}
         for x in rhs:
-            eager_context.update(x._py_context)
+            if isinstance(x, tuple):
+                warnings.warn(f"Did not apply to eager context: {x}")  # TODO
+            else:
+                eager_context.update(x._py_context)
         for i, expr in enumerate(lhs):
             if not expr._type_help:
                 expr._type_help = rhs[i] if rhs_is_types else eager_type_hint
@@ -947,7 +963,7 @@ class YieldTransformer(NodeTransformerWithScope):
         return node
 
     def visit_FuncDecl_or_FuncLit(self, node: FuncDecl | FuncLit):
-        node = super().visit_FuncDecl_or_FuncLit(node)
+        super().visit_FuncDecl_or_FuncLit(node)
 
         def finder(x: GoAST):
             match x:
@@ -960,10 +976,12 @@ class YieldTransformer(NodeTransformerWithScope):
             finder=finder,
             skipper=lambda x: isinstance(x, FuncLit)
         )
+
+
         if any(stmts):
             # TODO: Multi-support
             original_type = None
-            for f in node.Type.Results.List:
+            for f in (node.Type.Results.List if node.Type.Results else []):
                 original_type = f.Type
                 f.Type = ChanType(Value=f.Type, Dir=2)
             if original_type is None:
@@ -986,6 +1004,7 @@ class YieldTransformer(NodeTransformerWithScope):
                     _yield.return_()
                 ])).return_()
             ]
+
         return node
 
 
@@ -1289,7 +1308,6 @@ class RemoveBadStmt(ast.NodeTransformer):
         self.generic_visit(node)
         pass  # It is removed by not being returned
 
-
 ALL_TRANSFORMS = [
     UseConstructorIfAvailable,
     PrintToFmtPrintln,
@@ -1298,15 +1316,15 @@ ALL_TRANSFORMS = [
     ReplacePythonStyleAppends,
     AppendSliceViaUnpacking,
     PythonToGoTypes,
+    UnpackRange,
+    RangeRangeToFor,
 
     # Scope transformers
     YieldTransformer,  # May need to be above other scope transformers because jank,
+    YieldRangeTransformer,
     ReplacePowWithMathPow,
     NodeTransformerWithScope,
     # AddMissingFunctionTypes,
-    YieldRangeTransformer,
-    RangeRangeToFor,
-    UnpackRange,
     IterFuncs,
     IterMethods,
     NegativeIndexesSubtractFromLen,

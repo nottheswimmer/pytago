@@ -1,11 +1,13 @@
 import ast
 import inspect
 import json
+import traceback
 from enum import Enum
 from functools import cached_property
 from typing import List, Dict, Optional, Any, TypeVar, Type, Callable
 
 from pythagoras.go_ast import ast_snippets
+from pythagoras.go_ast.py_snippets import find_call_funclit
 
 
 class ObjKind(Enum):
@@ -257,6 +259,8 @@ def _type_annotation_to_go_type(node: ast.AST):
         case _:
             raise NotImplementedError(node)
 
+def _only_truthy(elts):
+    return [elt for elt in elts if elt]
 
 def _find_nodes(node: ast.AST, finder: callable, skipper: callable=None):
     results = []
@@ -370,14 +374,40 @@ def build_stmt_list(nodes, **kwargs) -> list['Stmt']:
 def build_decl_list(nodes) -> list['Decl']:
     return _build_x_list(_DECL_TYPES, "Decl", nodes)
 
+import sys
+import types
+
+def exception_with_traceback():
+    tb = None
+    depth = 0
+    while True:
+        try:
+            frame = sys._getframe(depth)
+            depth += 1
+        except ValueError as exc:
+            break
+
+        tb = types.TracebackType(tb, frame, frame.f_lasti, frame.f_lineno)
+
+    trace_list = traceback.format_list(traceback.extract_tb(tb))
+    pretty_trace_list = []
+    for t in reversed(trace_list):
+        if "pythagoras" not in t:
+            continue
+        pretty_trace_list.append(t.rsplit('pythagoras', 1)[-1])
+    return pretty_trace_list
 
 class GoAST(ast.AST):
     CONVERSION_ORDER = {}
+    STORY = []
 
     _prefix = "ast."
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.TRACE = exception_with_traceback()  # Debugging
+        GoAST.STORY.append(self)  # Debugging
+        self.STORY_INDEX = len(GoAST.STORY)  # Debugging
 
     def remove_falsy_fields(self):
         self._fields = [f for f in self._fields if getattr(self, f, None)]
@@ -1185,6 +1215,10 @@ class CallExpr(Expr):
 
     @classmethod
     def from_Call(cls, node: ast.Call):
+        f = find_call_funclit(node)
+        if f:
+            return f.call()
+
         _type_help = None
         _py_context = None
         match node:
@@ -1568,6 +1602,20 @@ class CommentGroup(GoAST):
         self.List = List or []
         super().__init__(**kwargs)
 
+def elt_type_from_elts(elts, is_type=False):
+    type_func = lambda elt: elt if is_type else elt._type()
+    ctx_elts = [x for x in elts if isinstance(x, Ident)]
+    e_types = [type_func(elt) for elt in elts if type_func(elt)] or [InterfaceType(_py_context={"elts": ctx_elts})]
+    if len(e_types) == 1:
+        e_type = e_types[0]
+    else:
+        for e_type_1, e_type_2 in zip(e_types[:-1], e_types[1:]):
+            if e_type_1 != e_type_2:
+                e_type = InterfaceType(_py_context={"elts": ctx_elts})
+                break
+        else:
+            e_type = e_types[0]
+    return e_type
 
 class CompositeLit(Expr):
     """A CompositeLit node represents a composite literal."""
@@ -1601,31 +1649,18 @@ class CompositeLit(Expr):
     @classmethod
     def from_List(cls, node: ast.List, **kwargs):
         elts = build_expr_list(node.elts)
-        e_type = cls.elt_type_from_elts(elts)
+        e_type = elt_type_from_elts(elts)
         typ = ArrayType(Elt=e_type)
         return cls(elts, False, 0, 0, typ, **kwargs)
 
     @classmethod
     def from_Tuple(cls, node: ast.Tuple, **kwargs):
         elts = build_expr_list(node.elts)
-        e_type = cls.elt_type_from_elts(elts)
+        e_type = elt_type_from_elts(elts)
 
         typ = ArrayType(Elt=e_type, Len=BasicLit.from_int(len(elts)))
         return cls(elts, False, 0, 0, typ, **kwargs)
 
-    @classmethod
-    def elt_type_from_elts(cls, elts):
-        e_types = [elt._type() for elt in elts if elt._type()] or [InterfaceType(_py_context={"elts": elts})]
-        if len(e_types) == 1:
-            e_type = e_types[0]
-        else:
-            for e_type_1, e_type_2 in zip(e_types[:-1], e_types[1:]):
-                if e_type_1 != e_type_2:
-                    e_type = InterfaceType(_py_context={"elts": elts})
-                    break
-            else:
-                e_type = e_types[0]
-        return e_type
 
     @classmethod
     def from_Dict(cls, node: ast.Dict, **kwargs):
@@ -2008,7 +2043,8 @@ class Scope(GoAST):
             case Expr():
                 return x._type(scope=self)
             case _:
-                raise ValueError(x)
+                warnings.warn(f"Failed to get type for {x}")  # TODO
+                return None
         if obj_name in ['true', 'false']:
             return GoBasicType.BOOL.ident
         if obj := self._from_scope_or_outer(obj_name):

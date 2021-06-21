@@ -165,6 +165,9 @@ class Test(TestCase):
     def test_isinstance(self):
         self.assert_examples_match("isinstance")
 
+    def test_zip(self):
+        self.assert_examples_match("zip")
+
     # In development
 
     # def test_forelse(self):
