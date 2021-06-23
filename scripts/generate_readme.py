@@ -10,6 +10,9 @@ DISABLED_EXAMPLES = {
     "forelse",
     "lambdafunc",
     "iterunpacking",
+    "dunders",
+    "pop",
+    "ingenerator"
 }
 
 def main():
