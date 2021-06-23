@@ -260,6 +260,7 @@ def _type_annotation_to_go_type(node: ast.AST):
                     return InterfaceType(_py_context={"elts": [index]})
                 case StarExpr():
                     return StarExpr(X=index)
+                    return InterfaceType(_py_context={"elts": [subscript]})
                 case _:
                     raise NotImplementedError(value)
             return value
@@ -341,7 +342,7 @@ def _build_x_list(x_types: list, x_name: str, nodes, **kwargs):
                 try:
                     result = getattr(x_type, method)(x_node, **kwargs)
                 except NotImplementedError as e:
-                    errors.append(e)
+                    errors.append((x_type, e))
                     continue
                 if isinstance(result, list):
                     li += result
@@ -416,9 +417,9 @@ class GoAST(ast.AST):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.TRACE = exception_with_traceback()  # Debugging
-        GoAST.STORY.append(self)  # Debugging
-        self.STORY_INDEX = len(GoAST.STORY)  # Debugging
+        # self.TRACE = exception_with_traceback()  # Debugging
+        # GoAST.STORY.append(self)  # Debugging
+        # self.STORY_INDEX = len(GoAST.STORY)  # Debugging
 
     def remove_falsy_fields(self):
         self._fields = [f for f in self._fields if getattr(self, f, None)]
@@ -1273,13 +1274,12 @@ class CallExpr(Expr):
         super().__init__(**kwargs)
 
     @classmethod
-    def from_Call(cls, node: ast.Call):
+    def from_Call(cls, node: ast.Call, _py_context=None):
         f = find_call_funclit(node)
         if f:
             return f
 
         _type_help = None
-        _py_context = None
         match node:
             case ast.Call(func=ast.Name(id=x), args=[]):
                 match x:
@@ -1862,7 +1862,18 @@ class ExprStmt(Stmt):
             case ast.Constant(value=Ellipsis()) | ast.Yield() | ast.YieldFrom():
                 raise NotImplementedError(node, node.value)
 
-        return cls(build_expr_list([node.value])[0])
+        # We may occasionally decide to bubble up multiple statements in favor of one
+        exprs = build_expr_list([node.value])
+        results = []
+        for expr in exprs:
+            # In some rare cases, we may want to bubble up a stmt from build_expr_list to return instead
+            if isinstance(expr, Stmt):
+                results.append(expr)
+            else:
+                results.append(cls(expr))
+        if len(results) == 1:
+            return results[0]
+        return results
 
     @classmethod
     def from_Delete(cls, node: ast.Delete):
@@ -1976,7 +1987,6 @@ class Field(GoAST):
     @classmethod
     def from_Starred(cls, node: ast.Starred):
         print()
-
 
     @classmethod
     def from_Name(cls, node: ast.Name, **kwargs):

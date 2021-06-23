@@ -9,7 +9,7 @@ from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, Bin
     ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt, len_
 # Shortcuts
 from pythagoras.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS, \
-    GoStmt
+    GoStmt, TypeSwitchStmt
 
 v = Ident.from_str
 
@@ -1278,6 +1278,65 @@ class RemoveBadStmt(ast.NodeTransformer):
         pass  # It is removed by not being returned
 
 
+class PySnippetSwitches(NodeTransformerWithScope):
+    def visit_CallExpr(self, node: CallExpr):
+        node = self.generic_visit(node)
+        if 'py_snippet' not in node._py_context:
+            return node
+
+        snippet = node._py_context["py_snippet"]
+
+        if not isinstance(node.Fun, FuncLit):
+            return node
+        match node.Fun.Body.List:
+            case [TypeSwitchStmt() as x]:
+                x_param = x.Assign.X.X
+                x_param_index = -1
+                for i, field in enumerate(node.Fun.Type.Params.List):
+                    if x_param in field.Names:
+                        x_param_index = i
+
+                x_arg = node.Args[x_param_index]
+                x_type = self.scope._get_type(x_arg)
+                for case in x.Body.List:
+                    match case.List:
+                        case [y_type]:
+                            if y_type == x_type:
+                                break
+
+                param_mapping = {}
+                for param, arg in zip(node.Fun.Type.Params.List, node.Args):
+                    for name in param.Names:
+                        param_mapping[name.Name] = arg
+
+                keep_params = False
+                match snippet.name:
+                    case '(.*)\.index':
+                        match x_type:
+                            case Ident(Name="string"):
+                                keep_params = True
+
+                stmts = case.Body
+                if not keep_params:
+                    class Transformer(ast.NodeTransformer):
+                        def visit_Ident(self, node: Ident):
+                            self.generic_visit(node)
+                            return param_mapping.get(node.Name, node)
+
+                    for stmt in stmts:
+                        Transformer().visit(stmt)
+
+                if len(stmts) == 1:
+                    if isinstance(stmts[0], ExprStmt):
+                        return stmts[0].X
+                    return stmts[0]
+
+                if not keep_params:
+                    node.Args[:] = []
+                    node.Fun.Type.Params.List[:] = []
+                node.Fun.Body.List[:] = stmts
+        return node
+
 class NodeTransformerWithInterfaceTypes(NodeTransformerWithScope):
     # TODO: Optimize. This is way too f**ing slow
     def visit_InterfaceType(self, node: InterfaceType):
@@ -1330,6 +1389,8 @@ class NodeTransformerWithInterfaceTypes(NodeTransformerWithScope):
 
         return node
 
+
+
 ALL_TRANSFORMS = [
     UseConstructorIfAvailable,
     PrintToFmtPrintln,
@@ -1364,6 +1425,7 @@ ALL_TRANSFORMS = [
     FillDefaultsAndSortKeywords,
     Truthiness,
     InitializeNamedParamMaps,
+    PySnippetSwitches,
     RemoveGoCallReturns,
     RemoveBadStmt,  # Should be last as these are used for scoping
 ]

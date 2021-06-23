@@ -25,6 +25,9 @@ class Test(TestCase):
     def test_string_methods(self):
         self.assert_examples_match("string_methods")
 
+    def test_list_methods(self):
+        self.assert_examples_match("list_methods")
+
     def test_boolnumcompare(self):
         self.assert_examples_match("boolnumcompare")
 
@@ -171,10 +174,6 @@ class Test(TestCase):
 
     def test_repr(self):
         self.assert_examples_match("repr")
-
-    # List methods
-    def test_listappend(self):
-        self.assert_examples_match("listappend")
 
     # Algorithms
     def test_algomajorityelement(self):

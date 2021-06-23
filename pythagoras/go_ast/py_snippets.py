@@ -10,9 +10,14 @@ if TYPE_CHECKING:
 
 BINDABLES: dict['Bindable', list] = defaultdict(list)
 
-# List is used simply because it's easy to subscript
-PyInterfaceType = List
-PyStarExpr = List
+
+class InfinitelySubscriptable:
+    def __getitem__(self, item):
+        return InfinitelySubscriptable()
+
+
+PyInterfaceType = InfinitelySubscriptable()
+PyStarExpr = InfinitelySubscriptable()
 
 
 class BindType(Enum):
@@ -66,7 +71,7 @@ class Bindable:
         root = self.ast
 
         match self.bind_type:
-            case BindType.PARAMLESS_FUNC_LIT | BindType.EXPR:
+            case BindType.PARAMLESS_FUNC_LIT | BindType.EXPR | BindType.STMT:
                 class Transformer(ast.NodeTransformer):
                     def visit_arg(self, node: ast.arg):
                         if node.arg in binding.arguments:
@@ -93,8 +98,6 @@ class Bindable:
                         return self.generic_visit(node)
 
                 binded = Transformer().visit(root)
-            case BindType.STMT:
-                ...  # TODO
         return binded
 
     def binded_go_ast(self, binding):
@@ -103,7 +106,7 @@ class Bindable:
         match self.bind_type:
             case BindType.PARAMLESS_FUNC_LIT:
                 from pythagoras.go_ast import FuncLit
-                goast = FuncLit.from_FunctionDef(binded_ast).call()
+                goasts = [FuncLit.from_FunctionDef(binded_ast).call()]
             case BindType.FUNC_LIT:
                 from pythagoras.go_ast import build_expr_list, FuncLit, UnaryExpr, token
 
@@ -114,23 +117,33 @@ class Bindable:
                     if should_deref:
                         arg = UnaryExpr(Op=token.AND, X=arg)
                     go_args.append(arg)
-                goast = FuncLit.from_FunctionDef(binded_ast).call(*go_args)
+                goasts = FuncLit.from_FunctionDef(binded_ast, _py_context={"py_snippet": self}).call(*go_args, _py_context={"py_snippet": self})
             case BindType.EXPR:
                 from pythagoras.go_ast import build_expr_list
-                goast = build_expr_list([binded_ast.body[0].value])[0]
+                goasts = build_expr_list([binded_ast.body[0].value], _py_context={"py_snippet": self})
+            case BindType.STMT:
+                from pythagoras.go_ast import build_stmt_list
+                goasts = build_stmt_list(binded_ast.body)
             case _:
                 raise NotImplementedError()
 
-        if self.results:
-            from pythagoras.go_ast import Ident
-            match self.bind_type:
-                case BindType.PARAMLESS_FUNC_LIT | BindType.FUNC_LIT:
-                    for field, name in zip(goast.Fun.Type.Results.List, self.results):
-                        field.Names.append(Ident(name))
-                case _:
-                    raise NotImplementedError()
+        if not isinstance(goasts, list):
+            goasts = [goasts]
 
-        return goast
+        for goast in goasts:
+            if self.results:
+                from pythagoras.go_ast import Ident
+                match self.bind_type:
+                    case BindType.PARAMLESS_FUNC_LIT | BindType.FUNC_LIT:
+                        for field, name in zip(goast.Fun.Type.Results.List, self.results):
+                            field.Names.append(Ident(name))
+                    case _:
+                        raise NotImplementedError()
+
+        if len(goasts) == 1:
+            return goasts[0]
+
+        return goasts
 
 # Built-in functions
 
@@ -144,7 +157,7 @@ def go_zip(a: list, b: list):
 
 @Bindable.add("abs", bind_type=BindType.EXPR)
 def go_abs(a: int):
-    math.Abs(a)
+    return math.Abs(a)
 
 
 @Bindable.add("map")
@@ -186,52 +199,73 @@ def go_list(a):
 
 # List methods
 
-X = TypeVar("X")
-popped = TypeVar("popped")
-@Bindable.add(r"(.*)\.pop", bind_type=BindType.FUNC_LIT, deref_args=['X'])
-def go_pop(X: PyStarExpr[PyInterfaceType[X]]) -> PyInterfaceType[popped]:
-    i = len('*'@X) - 1
-    popped = ('*'@X)[i]
-    X @= ('*'@X)[:i]
-    return popped
+# Handled via transformer
+# @Bindable.add(r"(.*)\.append", bind_type=BindType.STMT)
+# def go_append(X, other):
+#     X = append(X, other)
 
+@Bindable.add(r"(.*)\.extend", bind_type=BindType.STMT)
+def go_extend(X, other):
+    X = append(X, *other)
 
-@Bindable.add(r"(.*)\.pop", bind_type=BindType.FUNC_LIT, deref_args=['X'])
-def go_pop(X: PyStarExpr[PyInterfaceType[X]], i: int) -> PyInterfaceType[popped]:
-    popped = ('*'@X)[i]
-    X @= append(('*'@X)[:i], *('*'@X)[i+1:])
-    return popped
-
-
-# TODO: Conflict with strings.index and bytes.index
-# @Bindable.add(r"(.*)\.index")
-# def go_index(X: list, val2) -> int:
-#     for i, val in enumerate(X):
-#         if val == val2:
-#             return i
-#     raise ValueError()
-
-# TODO: Conflict with requests.get
-# @Bindable.add(r"(.*)\.get", bind_type=BindType.EXPR)
-# def go_get(X: dict, val2):
-#     return X[val2]
-
-@Bindable.add(r"(.*)\.get")
-def go_get_with_default(X: dict, val2, default):
-    if r := X[val2]:
-        return r
-    return default
-
-@Bindable.add(r"(.*)\.remove", bind_type=BindType.EXPR)
-def go_remove(X: list, val):
-    return delete(X, X.index(val))
-
-@Bindable.add(r"(.*).insert")
-def go_insert(s, i, val):
-    s = append(s, val)
+@Bindable.add(r"(.*)\.insert", bind_type=BindType.STMT)
+def go_insert(s, i: int, elt):
+    s = append(s, elt)
     copy(s[i+1:], s[i:])
-    s[i] = val
+    s[i] = elt
 
+# See go_count in strings methods for count
+
+# TODO: Sort by key and reverse sort
+@Bindable.add(r"(.*)\.sort", bind_type=BindType.FUNC_LIT)
+def go_sort(s: PyInterfaceType):
+    if isinstance(s, list[str]):
+        sort.Strings(s)
+    elif isinstance(s, list[float]):
+        sort.Float64s(s)
+    elif isinstance(s, list[int]):
+        sort.Ints(s)
+    else:
+        sort.Sort(s)
+
+
+
+s = TypeVar("s")
+popped = TypeVar("popped")
+@Bindable.add(r"(.*)\.pop", bind_type=BindType.FUNC_LIT, deref_args=['s'])
+def go_pop(s: PyStarExpr[PyInterfaceType[s]]) -> PyInterfaceType[popped]:
+    i = len('*'@s) - 1
+    popped = ('*'@s)[i]
+    s @= ('*'@s)[:i]
+    return popped
+
+
+# See strings methods for index
+val = TypeVar("val")  # Name of each element we're searching through
+@Bindable.add(r"(.*)\.remove", bind_type=BindType.FUNC_LIT, deref_args=['s'])
+def go_remove(s: PyStarExpr[PyInterfaceType[s]], x: PyInterfaceType[val]):
+    for i, val in enumerate(('*'@s)):
+        if val == x:
+            s @= append(('*'@s)[:i], *('*'@s)[i+1:])
+            return
+    panic(errors.New("ValueError: element not found"))
+
+
+@Bindable.add(r"(.*)\.pop", bind_type=BindType.FUNC_LIT, deref_args=['s'])
+def go_pop(s: PyStarExpr[PyInterfaceType[s]], i: int) -> PyInterfaceType[popped]:
+    popped = ('*'@s)[i]
+    s @= append(('*'@s)[:i], *('*'@s)[i+1:])
+    return popped
+
+@Bindable.add(r"(.*)\.clear", bind_type=BindType.STMT)
+def go_clear(s: PyStarExpr[PyInterfaceType[s]]):
+    s = nil
+
+# @Bindable.add(r"(.*)\.copy", bind_type=BindType.FUNC_LIT, deref_args=['s'] results=["tmp"])
+# def go_copy(s: PyStarExpr[PyInterfaceType[s]]) -> PyInterfaceType[s]:
+#     tmp = tmp[:len(('*'@s))]
+#     copy(tmp, ('*'@s))
+#     return
 
 # Dict methods
 
@@ -244,6 +278,17 @@ def go_keys(X: dict):
 def go_update(d1, d2):
     for k, v in d2.items():
         d1[k] = v
+
+@Bindable.add(r"(.*)\.get")
+def go_get_with_default(X: dict, val2, default):
+    if r := X[val2]:
+        return r
+    return default
+
+# TODO: Conflict with requests.get
+# @Bindable.add(r"(.*)\.get", bind_type=BindType.EXPR)
+# def go_get(X: dict, val2):
+#     return X[val2]
 
 # String methods
 # TODO: Find a way to dispatch the appropriate calls for "bytes" -- e.g. bytes.ReplaceAll
@@ -279,9 +324,15 @@ def go_find(X: str, substr: str, start: int, end: int) -> int:
 
 @Bindable.add(r"(.*)\.index", bind_type=BindType.FUNC_LIT)
 def go_index(X: str, sub: str) -> int:
-    if (i := X.find(sub)) != -1:
-        return i
-    panic(errors.New("ValueError: substring not found"))
+    if isinstance(X, str):
+        if (i := X.find(sub)) != -1:
+            return i
+        panic(errors.New("ValueError: substring not found"))
+    elif isinstance(X, list):
+        for i, val in enumerate(X):
+            if val == sub:
+                return i
+        panic(errors.New("ValueError: element not found"))
 
 @Bindable.add(r"(.*)\.index", bind_type=BindType.FUNC_LIT)
 def go_index(X: str, sub: str, start: int) -> int:
@@ -507,10 +558,16 @@ def go_title(s: str) -> str:
 # TODO: zfill
 
 
-@Bindable.add(r"(.*)\.count", bind_type=BindType.EXPR)
+@Bindable.add(r"(.*)\.count", bind_type=BindType.FUNC_LIT)
 def go_count(X: str, elt: str) -> int:
-    # TODO: Address conflict with List.count
-    return strings.Count(X, elt)
+    if isinstance(X, str):
+        return strings.Count(X, elt)
+    elif isinstance(X, list):  # Probably only works because it's last
+        n = 0
+        for v in X:
+            if v == elt:
+                n += 1
+        return n
 
 # TODO: migrate encode from transformer
 
