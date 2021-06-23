@@ -199,7 +199,7 @@ func main() {
 				return false
 			}
 		}
-		return len(X) != 0
+		return true
 	}(hearts))
 	fmt.Println(func(X string) bool {
 		for _, r := range X {
@@ -244,7 +244,7 @@ func main() {
 				return false
 			}
 		}
-		return len(X) != 0
+		return true
 	}(hearts))
 	fmt.Println(func(X string) bool {
 		for _, r := range X {

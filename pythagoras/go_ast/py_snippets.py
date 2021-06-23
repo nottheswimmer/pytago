@@ -314,7 +314,7 @@ def go_isascii(X: str) -> bool:
     for r in X:
         if r > unicode.MaxASCII:
             return False
-    return len(X) != 0
+    return True
 
 # TODO: Dear god are these even right?
 @Bindable.add(r"(.*)\.isdecimal", bind_type=BindType.FUNC_LIT)
@@ -356,10 +356,10 @@ def go_isprintable(X: str) -> bool:
     for r in X:
         if not unicode.IsPrint(r):
             return False
-    return len(X) != 0
+    return True
 
 @Bindable.add(r"(.*)\.isspace", bind_type=BindType.FUNC_LIT)
-def go_isprintable(X: str) -> bool:
+def go_isspace(X: str) -> bool:
     for r in X:
         if not unicode.IsSpace(r):
             return False
