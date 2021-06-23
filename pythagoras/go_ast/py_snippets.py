@@ -251,7 +251,7 @@ def go_update(d1, d2):
 
 @Bindable.add(r"(.*)\.capitalize", bind_type=BindType.EXPR)
 def go_capitalize(s: str) -> str:
-    return s[0].title() + s[1:].lower()
+    return s[0:1].upper() + s[1:].lower()
 
 # TODO: casefold : issue = complicated
 # TODO: center : issue = complicated

@@ -18,22 +18,7 @@ func main() {
 	whitespace := " \u000b\f\t\r\n"
 	s_hello_s := whitespace + lower + whitespace
 	multiline := lower + "\n" + crazy + "\r\n" + upper + "\n"
-	fmt.Println(func(s string) string {
-		ws := true
-		var sb strings.Builder
-		for _, r := range s {
-			if unicode.IsSpace(r) {
-				ws = true
-				sb.WriteRune(r)
-			} else if ws {
-				ws = false
-				sb.WriteRune(unicode.ToUpper(r))
-			} else {
-				sb.WriteRune(unicode.ToLower(r))
-			}
-		}
-		return sb.String()
-	}(string(crazy[0])) + strings.ToLower(crazy[1:]))
+	fmt.Println(strings.ToUpper(crazy[0:1]) + strings.ToLower(crazy[1:]))
 	fmt.Println(strings.HasSuffix(lower, "world"))
 	fmt.Println(strings.Index(lower, " "))
 	fmt.Println(func() int {
