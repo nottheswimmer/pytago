@@ -42,7 +42,7 @@ def unparse(go_tree: GoAST, apply_transformations=True, debugging=True):
             for i, line in enumerate(lines, start=1):
                 print(str(i).rjust(max_i_size), line)
             print(f"=== End Compilation Code ===")
-        with open(tmp_file.name, "w") as f:
+        with open(tmp_file.name, "w", encoding="utf_8") as f:
             f.write(compilation_code)
         code = _gorun(tmp_file.name)
     finally:
@@ -123,7 +123,7 @@ def dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
             return f'[]{list_type} {{%s%s}}' % (prefix, sep.join(_format(x, level)[0] for x in node)), False
         # Prefer json.dumps over repr
         try:
-            return json.dumps(node), True
+            return json.dumps(node, ensure_ascii=False), True
         except:
             return repr(node), True
 

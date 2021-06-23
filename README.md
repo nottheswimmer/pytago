@@ -59,6 +59,312 @@ func main() {
 	fmt.Println("hello world")
 }
 ```
+### string_methods
+#### Python
+```python
+def main():
+    lower = "hello world"
+    crazy = "HeLLo WoRlD"
+    upper = "HELLO WORLD"
+    lol = "---LOL---"
+    hearts = "🧡💛💚💙💜"
+    arabic_indic_digit = "٠"
+    whitespace = " \v\f\t\r\n"
+    s_hello_s = whitespace + lower + whitespace
+    multiline = lower + "\n" + crazy + "\r\n" + upper + "\n"
+
+    print(crazy.capitalize())
+    print(lower.endswith("world"))
+    print(lower.find(" "))
+    print(lower.find(" ", 2))
+    print(upper.find(" ", 7, 8))
+    print(lower.index(" "))
+    print(lower.index(" ", 2))
+    print(upper.index(" ", 2, 8))
+    print(lower.isalnum())
+    print(hearts.isascii())
+    print(arabic_indic_digit.isdecimal())
+    print(arabic_indic_digit.isdigit())
+    print(lower.islower())
+    print(arabic_indic_digit.isnumeric())
+    print(hearts.isprintable())
+    print(whitespace.isspace())
+    print(upper.isupper())
+    print(hearts.join([lower, crazy, upper]))
+    print(crazy.lower())
+    print(s_hello_s.lstrip() + "|")
+    print(lower.lstrip("h"))
+    print(lower.removeprefix("hello "))
+    print(lower.removesuffix(" world"))
+    print(lower.replace("world", "gophers"))
+    print(upper.replace("O", "OOOOO", 1))
+    print(upper.rfind("O"))
+    print(upper.rfind("O", 1))
+    print(upper.rfind("O", 1, 6))
+    print(upper.rindex("O"))
+    print(upper.rindex("O", 1))
+    print(upper.rindex("O", 1, 6))
+    print(s_hello_s.rstrip() + "|")
+    print(lower.rstrip("d"))
+    print(lower.split())
+    print(upper.split("L"))
+    print(upper.split("L", 1))
+    print(multiline.splitlines())
+    print(upper.startswith("HELLO"))
+    print(s_hello_s.strip() + "|")
+    print(lol.strip("-"))
+    print(crazy.title())
+    print(crazy.upper())
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"strings"
+	"unicode"
+)
+
+func main() {
+	lower := "hello world"
+	crazy := "HeLLo WoRlD"
+	upper := "HELLO WORLD"
+	lol := "---LOL---"
+	hearts := "🧡💛💚💙💜"
+	arabic_indic_digit := "٠"
+	whitespace := " \u000b\f\t\r\n"
+	s_hello_s := whitespace + lower + whitespace
+	multiline := lower + "\n" + crazy + "\r\n" + upper + "\n"
+	fmt.Println(func(s string) string {
+		ws := true
+		var sb strings.Builder
+		for _, r := range s {
+			if unicode.IsSpace(r) {
+				ws = true
+				sb.WriteRune(r)
+			} else if ws {
+				ws = false
+				sb.WriteRune(unicode.ToUpper(r))
+			} else {
+				sb.WriteRune(unicode.ToLower(r))
+			}
+		}
+		return sb.String()
+	}(string(crazy[0])) + strings.ToLower(crazy[1:]))
+	fmt.Println(strings.HasSuffix(lower, "world"))
+	fmt.Println(strings.Index(lower, " "))
+	fmt.Println(func() int {
+		if r := strings.Index(lower[2:], " "); r != -1 {
+			return r + 2
+		}
+		return -1
+	}())
+	fmt.Println(func() int {
+		if r := strings.Index(upper[7:8], " "); r != -1 {
+			return r + 7
+		}
+		return -1
+	}())
+	fmt.Println(func(X string, sub string) int {
+		if i := strings.Index(X, sub); i != -1 {
+			return i
+		}
+		panic(errors.New("ValueError: substring not found"))
+	}(lower, " "))
+	fmt.Println(func(X string, sub string, start int) int {
+		if i := func() int {
+			if r := strings.Index(X[start:], sub); r != -1 {
+				return r + start
+			}
+			return -1
+		}(); i != -1 {
+			return i
+		}
+		panic(errors.New("ValueError: substring not found"))
+	}(lower, " ", 2))
+	fmt.Println(func(X string, sub string, start int, end int) int {
+		if i := func() int {
+			if r := strings.Index(X[start:end], sub); r != -1 {
+				return r + start
+			}
+			return -1
+		}(); i != -1 {
+			return i
+		}
+		panic(errors.New("ValueError: substring not found"))
+	}(upper, " ", 2, 8))
+	fmt.Println(func(X string) bool {
+		for _, r := range X {
+			if !((unicode.IsLetter(r) || unicode.IsDigit(r)) && (unicode.IsDigit(r) || unicode.IsNumber(r))) {
+				return false
+			}
+		}
+		return true
+	}(lower))
+	fmt.Println(func(X string) bool {
+		for _, r := range X {
+			if r > unicode.MaxASCII {
+				return false
+			}
+		}
+		return len(X) != 0
+	}(hearts))
+	fmt.Println(func(X string) bool {
+		for _, r := range X {
+			if !unicode.Is(unicode.Nd, r) {
+				return false
+			}
+		}
+		return len(X) != 0
+	}(arabic_indic_digit))
+	fmt.Println(func(X string) bool {
+		for _, r := range X {
+			if !unicode.IsDigit(r) {
+				return false
+			}
+		}
+		return len(X) != 0
+	}(arabic_indic_digit))
+	fmt.Println(func(X string) bool {
+		lower_found := false
+		for _, r := range X {
+			if !unicode.IsLower(r) {
+				if !unicode.IsSpace(r) {
+					return false
+				}
+			} else {
+				lower_found = true
+			}
+		}
+		return lower_found && len(X) != 0
+	}(lower))
+	fmt.Println(func(X string) bool {
+		for _, r := range X {
+			if !(unicode.IsDigit(r) || unicode.IsNumber(r)) {
+				return false
+			}
+		}
+		return len(X) != 0
+	}(arabic_indic_digit))
+	fmt.Println(func(X string) bool {
+		for _, r := range X {
+			if !unicode.IsPrint(r) {
+				return false
+			}
+		}
+		return len(X) != 0
+	}(hearts))
+	fmt.Println(func(X string) bool {
+		for _, r := range X {
+			if !unicode.IsSpace(r) {
+				return false
+			}
+		}
+		return len(X) != 0
+	}(whitespace))
+	fmt.Println(func(X string) bool {
+		upper_found := false
+		for _, r := range X {
+			if !unicode.IsUpper(r) {
+				if !unicode.IsSpace(r) {
+					return false
+				}
+			} else {
+				upper_found = true
+			}
+		}
+		return upper_found && len(X) != 0
+	}(upper))
+	fmt.Println(strings.Join([]string{lower, crazy, upper}, hearts))
+	fmt.Println(strings.ToLower(crazy))
+	fmt.Println(strings.TrimLeftFunc(s_hello_s, unicode.IsSpace) + "|")
+	fmt.Println(strings.TrimLeft(lower, "h"))
+	fmt.Println(strings.TrimPrefix(lower, "hello "))
+	fmt.Println(strings.TrimSuffix(lower, " world"))
+	fmt.Println(strings.ReplaceAll(lower, "world", "gophers"))
+	fmt.Println(strings.Replace(upper, "O", "OOOOO", 1))
+	fmt.Println(strings.LastIndex(upper, "O"))
+	fmt.Println(func() int {
+		if r := strings.LastIndex(upper[1:], "O"); r != -1 {
+			return r + 1
+		}
+		return -1
+	}())
+	fmt.Println(func() int {
+		if r := strings.LastIndex(upper[1:6], "O"); r != -1 {
+			return r + 1
+		}
+		return -1
+	}())
+	fmt.Println(func(X string, sub string) int {
+		if i := strings.LastIndex(X, sub); i != -1 {
+			return i
+		}
+		panic(errors.New("ValueError: substring not found"))
+	}(upper, "O"))
+	fmt.Println(func(X string, sub string, start int) int {
+		if i := func() int {
+			if r := strings.LastIndex(X[start:], sub); r != -1 {
+				return r + start
+			}
+			return -1
+		}(); i != -1 {
+			return i
+		}
+		panic(errors.New("ValueError: substring not found"))
+	}(upper, "O", 1))
+	fmt.Println(func(X string, sub string, start int, end int) int {
+		if i := func() int {
+			if r := strings.LastIndex(X[start:end], sub); r != -1 {
+				return r + start
+			}
+			return -1
+		}(); i != -1 {
+			return i
+		}
+		panic(errors.New("ValueError: substring not found"))
+	}(upper, "O", 1, 6))
+	fmt.Println(strings.TrimRightFunc(s_hello_s, unicode.IsSpace) + "|")
+	fmt.Println(strings.TrimRight(lower, "d"))
+	fmt.Println(strings.Fields(lower))
+	fmt.Println(strings.Split(upper, "L"))
+	fmt.Println(strings.SplitN(upper, "L", 1))
+	fmt.Println(func(s string) (lines []string) {
+		sc := bufio.NewScanner(strings.NewReader(s))
+		for sc.Scan() {
+			lines = append(lines, sc.Text())
+		}
+		return
+	}(multiline))
+	fmt.Println(strings.HasPrefix(upper, "HELLO"))
+	fmt.Println(strings.TrimSpace(s_hello_s) + "|")
+	fmt.Println(strings.Trim(lol, "-"))
+	fmt.Println(func(s string) string {
+		ws := true
+		var sb strings.Builder
+		for _, r := range s {
+			if unicode.IsSpace(r) {
+				ws = true
+				sb.WriteRune(r)
+			} else if ws {
+				ws = false
+				sb.WriteRune(unicode.ToUpper(r))
+			} else {
+				sb.WriteRune(unicode.ToLower(r))
+			}
+		}
+		return sb.String()
+	}(crazy))
+	fmt.Println(strings.ToUpper(crazy))
+}
+```
 ### boolnumcompare
 #### Python
 ```python
@@ -2634,6 +2940,30 @@ func increment(n int) int {
 	return n + 1
 }
 ```
+### repr
+#### Python
+```python
+def main():
+    nums = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    s = repr(nums)
+    print(s + s)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	nums := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	s := fmt.Sprintf("%#v", nums)
+	fmt.Println(s + s)
+}
+```
 ### listappend
 #### Python
 ```python
@@ -2705,4 +3035,119 @@ func main() {
 	fmt.Println(majorityElement([]int{2, 2, 1, 1, 1, 2, 2}))
 }
 ```
+### ingenerator
+#### Python
+```python
+def main():
+    n = 111
+    gen = (n * 7 for x in range(10))
+    if 777 in gen:
+        print("Yes!")
 
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	x := []int{1, 2, 3, 4}
+	for len(x) != 0 {
+		fmt.Println(func() int {
+			i := len(x) - 1
+			popped := x[i]
+			x = x[:i]
+			return popped
+		}())
+	}
+}
+```
+### dunders
+#### Python
+```python
+def main():
+    print("Hello".__len__())
+    a = 1
+    b = 2
+    print(a.__add__(b))
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+```
+### pop
+#### Python
+```python
+def main():
+    x = [1, 2, 3, 4]
+    while x:
+        print(x.pop())
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	x := []int{1, 2, 3, 4}
+	for len(x) != 0 {
+		fmt.Println(func() int {
+			i := len(x) - 1
+			popped := x[i]
+			x = x[:i]
+			return popped
+		}())
+	}
+}
+```
+### index
+#### Python
+```python
+def main():
+    x = [1, 2, 3, 7, 3]
+    print(x.index(7))
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+func main() {
+	x := []int{1, 2, 3, 7, 3}
+	fmt.Println(func() int {
+		for i, val := range x {
+			if val == 7 {
+				return i
+			}
+		}
+		panic(errors.New("ValueError"))
+	}())
+}
+```
+
+## TODOs
+
+Some things I'd like to add soon...
+
+- "value in range(start, stop, step)" => a conditional statement
+- Exhaustive implementation of list/dict/int/float/bytes methods
+- 

@@ -235,6 +235,10 @@ def _type_annotation_to_go_type(node: ast.AST):
                     return MapType(Value=StructType())
                 case 'bool':
                     return Ident('bool')
+                case 'PyInterfaceType':
+                    return InterfaceType()
+                case 'PyStarExpr':
+                    return StarExpr()
                 case _:
                     return Ident(x)
         case ast.Subscript(value=value, slice=index):
@@ -252,11 +256,17 @@ def _type_annotation_to_go_type(node: ast.AST):
                         # A set?
                         key = index
                         value.Key = key
+                case InterfaceType():
+                    return InterfaceType(_py_context={"elts": [index]})
+                case StarExpr():
+                    return StarExpr(X=index)
                 case _:
                     raise NotImplementedError(value)
             return value
         case ast.Tuple(elts=elts):
             return tuple(_type_annotation_to_go_type(elt) for elt in elts)
+        case ast.Attribute():
+            return build_expr_list([node])[0]
         case _:
             raise NotImplementedError(node)
 
@@ -637,7 +647,7 @@ class Expr(GoAST):
             return IndexExpr(X=self, Index=BasicLit(Value=item, Kind=token.STRING))
         return IndexExpr(X=self, Index=item)
 
-    def _type(self, scope: Optional['Scope'] = None, interface_ok=False):
+    def _type(self, scope: Optional['Scope'] = None, interface_ok=False, **kwargs):
         return self._type_help
 
 
@@ -710,11 +720,26 @@ class AssignStmt(Stmt):
 
     @classmethod
     def from_Assign(cls, node: ast.Assign, **kwargs):
-        rhs = build_expr_list([node.value])
+        _rhs = build_expr_list([node.value])
+
+        # Ugly code to try and spot unpacking into a tuple
+        if len(_rhs) == 1 \
+                and (len(node.targets) > 1 or (len(node.targets) == 1 and hasattr(node.targets[0], "elts"))) \
+                and hasattr(_rhs[0], "Elts"):
+            rhs = _rhs[0].Elts
+        else:
+            rhs = _rhs
         ctx = {}
         for rh_expr in rhs:
             ctx.update(rh_expr._py_context)
-        lhs = build_expr_list(node.targets, _type_help=rhs[0]._type(), _py_context=ctx)
+        _lhs = build_expr_list(node.targets, _type_help=rhs[0]._type(), _py_context=ctx)
+        lhs = []
+        for l in _lhs:
+            if isinstance(l, CompositeLit):
+                lhs += l.Elts
+            else:
+                lhs.append(l)
+
         return cls(lhs, rhs, token.DEFINE, 0, **kwargs)
 
     @classmethod
@@ -744,6 +769,10 @@ class AssignStmt(Stmt):
             case ast.RShift(): op = token.SHR_ASSIGN
             # case ast.FloorDiv() | ast.Pow():  # TODO
             #     ...
+            case ast.MatMult():
+                # Special case: Way to express an assignment to a reference.
+                lhs = [StarExpr(X=x) for x in lhs]
+                op = token.ASSIGN
             case _:
                 raise NotImplementedError(node.op)
         return cls(lhs, rhs, op, **kwargs)
@@ -828,6 +857,20 @@ class BadStmt(Stmt):
     def from_Nonlocal(cls, node: ast.Nonlocal, **kwargs):
         return cls(_pyAST=node, **kwargs)
 
+    @classmethod
+    def from_Import(cls, node: ast.Import, **kwargs):
+        return cls(_pyAST=node, **kwargs)  # TODO: Bubble these to top
+
+    @classmethod
+    def from_ImportFrom(cls, node: ast.ImportFrom, **kwargs):
+        return cls(_pyAST=node, **kwargs)  # TODO: Bubble these to top
+
+    @classmethod
+    def from_ClassDef(cls, node: ast.ClassDef, **kwargs):
+        # decls = from_this(GenDecl, node)
+        return cls(_pyAST=node, **kwargs)
+
+
 class BasicLit(Expr):
     """A BasicLit node represents a literal of basic type.
 
@@ -849,7 +892,7 @@ class BasicLit(Expr):
                  ValuePos: int = 0,
                  **kwargs) -> None:
         self.Kind = Kind
-        self.Value = json.dumps(Value)
+        self.Value = json.dumps(Value, ensure_ascii=False)
         self.ValuePos = ValuePos
         super().__init__(**kwargs)
 
@@ -972,19 +1015,34 @@ class BinaryExpr(Expr):
         return expr
 
     @classmethod
-    def from_BoolOp(cls, node: ast.BoolOp, **kwargs):
-        if len(node.values) != 2:
-            raise NotImplementedError(f"Currently only supports BoolOps with 2 values")
-        left, right = node.values
-        py_op = node.op
+    def from_left_boolop_right(cls, node_left, py_op, node_right, **kwargs):
         match py_op:
-            case ast.And(): op = token.LAND
-            case ast.Or():  op = token.LOR
+            case ast.And():
+                op = token.LAND
+            case ast.Or():
+                op = token.LOR
             case _:
                 raise NotImplementedError(f"Unimplemented boolop: {py_op}")
-        X = build_expr_list([left])[0]
-        Y = build_expr_list([right])[0]
-        return cls(op, 0, X, Y, **kwargs)
+        X = node_left if isinstance(node_left, Expr) else build_expr_list([node_left])[0]
+        Y = node_right if isinstance(node_right, Expr) else build_expr_list([node_right])[0]
+        expr = cls(op, 0, X, Y, **kwargs)
+        return expr
+
+    @classmethod
+    def from_BoolOp(cls, node: ast.BoolOp, **kwargs):
+        py_op = node.op
+        node_left = node.values[0]
+        node_right = node.values[1]
+        expr = cls.from_left_boolop_right(node_left, py_op, node_right, **kwargs)
+        py_op_remaining = [py_op] * (len(node.values) - 2)
+        py_op_remaining.reverse()
+        node_right_remaining = node.values[2:]
+        node_right_remaining.reverse()
+        while py_op_remaining and node_right_remaining:
+            py_op = py_op_remaining.pop()
+            node_right = node_right_remaining.pop()
+            expr = expr.and_(cls.from_left_boolop_right(expr.Y, py_op, node_right, **kwargs))
+        return expr
 
     @classmethod
     def from_BinOp(cls, node: ast.BinOp, **kwargs):
@@ -1207,7 +1265,7 @@ class CallExpr(Expr):
                  Rparen: int = 0,
                  **kwargs) -> None:
         self.Args = Args or []
-        set_list_type(Args, "ast.Expr")
+        set_list_type(self.Args, "ast.Expr")
         self.Ellipsis = Ellipsis
         self.Fun = Fun
         self.Lparen = Lparen
@@ -1235,6 +1293,8 @@ class CallExpr(Expr):
                         py_value = ast.parse(repr(b''))  # Preferring bytes form for now
                         expr = build_expr_list(py_value.body)[0]
                         return expr
+
+        ellipsis = 0
         match node:
             # Special case to calls to the open function
             case ast.Call(func=ast.Name(id="isinstance"), args=[__expr, __types]):
@@ -1257,7 +1317,12 @@ class CallExpr(Expr):
             case ast.Call(func=ast.Name(id='open'), args=[filename_expr, ast.Constant(value=mode)]):
                 args, fun, _py_context, _type_help = cls._open_call_helper(_py_context, _type_help, filename_expr, mode)
             case _:
-                args = build_expr_list(node.args)
+                args = []
+                for arg_node in node.args:
+                    if isinstance(arg_node, ast.Starred):
+                        ellipsis = 1  # TODO: These can only appear at the end of the call and there can only be one
+                        arg_node = arg_node.value
+                    args += build_expr_list([arg_node])
 
                 # Must be dealt with by a transformer later
                 kwargs = build_expr_list([x.value for x in node.keywords])
@@ -1265,7 +1330,7 @@ class CallExpr(Expr):
                     kwarg._py_context.update({"keyword": kw.arg})
                 args += kwargs
                 fun = build_expr_list([node.func])[0]
-        return cls(Args=args, Fun=fun, _type_help=_type_help, _py_context=_py_context)
+        return cls(Args=args, Fun=fun, Ellipsis=ellipsis, _type_help=_type_help, _py_context=_py_context)
 
     @classmethod
     def from_IfExp(cls, node: ast.IfExp, **kwargs):
@@ -1448,7 +1513,15 @@ class CallExpr(Expr):
     @classmethod
     def from_Delete(cls, node: ast.Delete):
         t = node.targets[0]  # TODO: Support multiple deletes and slices
-        return cls(Fun=Ident.from_str("delete"), Args=build_expr_list([t.value]) + build_expr_list([t.slice.value]))
+
+        if not hasattr(t, "slice"):
+            rest = []
+        elif hasattr(t.slice, "value"):
+            rest = build_expr_list([t.slice.value])
+        else:
+            rest = build_expr_list([t.slice])
+
+        return cls(Fun=Ident.from_str("delete"), Args=build_expr_list([t.value]) + rest)
 
     def _type(self, scope: Optional['Scope']=None, **kwargs):
         match self.Fun:
@@ -1643,7 +1716,7 @@ class CompositeLit(Expr):
                  Type: Expr = None,
                  **kwargs) -> None:
         self.Elts = Elts or []
-        set_list_type(Elts, 'ast.Expr')
+        set_list_type(self.Elts, 'ast.Expr')
         self.Incomplete = Incomplete
         self.Lbrace = Lbrace
         self.Rbrace = Rbrace
@@ -1704,7 +1777,7 @@ class DeclStmt(Stmt):
 
     @classmethod
     def from_AnnAssign(cls, node: ast.AnnAssign, **kwargs):
-        return cls(Decl=from_this(GenDecl, node), **kwargs)
+        return cls(Decl=build_decl_list([node])[0], **kwargs)
 
 
 class DeferStmt(Stmt):
@@ -1890,7 +1963,7 @@ class Field(GoAST):
         self.Comment = Comment
         self.Doc = Doc
         self.Names = Names or []
-        set_list_type(Names, '*ast.Ident')
+        set_list_type(self.Names, '*ast.Ident')
         self.Tag = Tag
         self.Type = Type or InterfaceType()
         super().__init__(**kwargs)
@@ -1899,6 +1972,10 @@ class Field(GoAST):
     def from_arg(cls, node: ast.arg):
         return cls(None, None, [from_this(Ident, node.arg)], None, _type_annotation_to_go_type(node.annotation)
         if node.annotation else InterfaceType())
+
+    @classmethod
+    def from_Starred(cls, node: ast.Starred):
+        print()
 
 
     @classmethod
@@ -2408,7 +2485,7 @@ class GenDecl(Decl):
         self.Lparen = Lparen
         self.Rparen = Rparen
         self.Specs = Specs or []
-        set_list_type(Specs, "ast.Spec")
+        set_list_type(self.Specs, "ast.Spec")
         self.Tok = Tok
         self.TokPos = TokPos
         super().__init__(**kwargs)
@@ -2442,7 +2519,10 @@ class GenDecl(Decl):
                     methods.append(obj)
                     func_def = build_stmt_list([obj])[0]
                     f = func_def.Rhs[0]
-                    self_name = f.Params.List[0].Names[0].Name
+                    try:
+                        self_name = f.Params.List[0].Names[0].Name
+                    except IndexError:  # staticmethod
+                        self_name = "static"
                     def _matcher(_node: 'ast.AST'):
                         match _node:
                             case AssignStmt(Lhs=[SelectorExpr(X=Ident(Name=x))]):
@@ -2467,18 +2547,21 @@ class GenDecl(Decl):
         decls = [cls(Tok=token.TYPE, Specs=specs, **kwargs)]
         method_decls = build_decl_list(methods)
         for method in method_decls:
-            recv = FieldList(List=[method.Type.Params.List[0]])
-            recv.List[0].Type = StarExpr(X=self_ident)
-            del method.Type.Params.List[0]
-            match method.Name.Name:
-                case '__init__':
-                    method.Body.List.insert(0, AssignStmt(Lhs=list(recv.List[0].Names),
-                                                          Rhs=[Ident.from_str("new").call(self_ident)]))
-                    method.Body.List.append(ReturnStmt())
-                    method.Name = Ident.from_str(f"New{node.name}")
-                    method.Type.Results = recv
-                case _:
-                    method.Recv = recv
+            try:
+                recv = FieldList(List=[method.Type.Params.List[0]])
+                recv.List[0].Type = StarExpr(X=self_ident)
+                del method.Type.Params.List[0]
+                match method.Name.Name:
+                    case '__init__':
+                        method.Body.List.insert(0, AssignStmt(Lhs=list(recv.List[0].Names),
+                                                              Rhs=[Ident.from_str("new").call(self_ident)]))
+                        method.Body.List.append(ReturnStmt())
+                        method.Name = Ident.from_str(f"New{node.name}")
+                        method.Type.Results = recv
+                    case _:
+                        method.Recv = recv
+            except IndexError:
+                pass  # TODO: determine ramifications of ignoring this case
         decls += method_decls
         return decls
 
@@ -2635,7 +2718,7 @@ class IndexExpr(Expr):
     @classmethod
     def from_Subscript(cls, node: ast.Subscript, **kwargs):
         match node.slice:
-            case ast.Constant() | ast.UnaryOp() | ast.Name():
+            case ast.Constant() | ast.UnaryOp() | ast.Name() | ast.Call():
                 index = build_expr_list([node.slice])[0]
             case _:
                 raise NotImplementedError((node, node.slice))
@@ -2643,15 +2726,26 @@ class IndexExpr(Expr):
         return cls(index, X=x, **kwargs)
 
     def _type(self, scope: Optional['Scope']=None, **kwargs):
-        x_type = self.X._type(scope, **kwargs)
-        index_type = self.Index._type(scope, **kwargs)
+        if scope:
+            x_type = scope._get_type(self.X, **kwargs)
+            index_type = scope._get_type(self.Index, **kwargs)
+        else:
+            x_type = self.X._type(scope, **kwargs)
+            index_type = self.Index._type(scope, **kwargs)
         # If we're taking a slice, the type doesn't change
-        if index_type != GoBasicType.INT.ident:
-            return x_type or super()._type()
+        t = None
+
+        # TODO: General refactoring, this is simply written poorly. Also we probably need explicit MapType support etc
+        if index_type == GoBasicType.INT.ident and isinstance(x_type, ArrayType):
+            t = x_type.Elt
+        elif index_type and (index_type != GoBasicType.INT.ident) and not isinstance(index_type, InterfaceType):
+            t = x_type
+
         # If X is a string and we're indexing it, it's a byte
         if x_type == GoBasicType.STRING.ident:
-            return GoBasicType.BYTE.ident
-        return super()._type(scope, **kwargs)
+            t = t or GoBasicType.BYTE.ident
+
+        return t or super()._type(scope, **kwargs)
 
 
 class InterfaceType(Expr):
@@ -2849,13 +2943,13 @@ class ReturnStmt(Stmt):
                  Return: int = 0,
                  **kwargs) -> None:
         self.Results = Results or []
-        set_list_type(Results, "ast.Expr")
+        set_list_type(self.Results, "ast.Expr")
         self.Return = Return
         super().__init__(**kwargs)
 
     @classmethod
     def from_Return(cls, node: ast.Return, **kwargs):
-        return cls(build_expr_list([node.value]), 0, **kwargs)
+        return cls(build_expr_list([node.value]) if node.value else None, **kwargs)
 
 
 class SelectStmt(Stmt):
@@ -2968,12 +3062,19 @@ class SliceExpr(Expr):
     def from_Subscript(cls, node: ast.Subscript, **kwargs):
         match node.slice:
             case ast.Slice():
-                low = build_expr_list([node.slice.lower])[0]
-                high = build_expr_list([node.slice.upper])[0]
+                low = build_expr_list([node.slice.lower])[0] if node.slice.lower else None
+                high = build_expr_list([node.slice.upper])[0] if node.slice.upper else None
             case _:
                 raise NotImplementedError((node, node.slice))
         x = build_expr_list([node.value])[0]
         return cls(High=high, Low=low, X=x, **kwargs)
+
+    def _type(self, scope: Optional[Scope] = None, **kwargs):
+        if scope:
+            x_type = scope._get_type(self.X, **kwargs)
+            if x_type:
+                return x_type
+        return super()._type(scope, **kwargs)
 
 
 class StarExpr(Expr):
@@ -2993,6 +3094,34 @@ class StarExpr(Expr):
         self.Star = Star
         self.X = X
         super().__init__(**kwargs)
+
+    @classmethod
+    def from_BinOp(cls, node: ast.BinOp, **kwargs):
+        """
+        '*'@X -> *X
+        This isn't a Python thing. It's just a way to explicitly reference starred expressions
+        """
+        match node:
+            case ast.BinOp(left=ast.Constant(value='*')):
+                pass
+            case _:
+                raise ValueError()
+        X = build_expr_list([node.right])[0]
+        return cls(X=X, **kwargs)
+
+    def _type(self, scope: Optional['Scope'] = None, interface_ok=False, **kwargs):
+        x_type = None
+        if scope:
+            if t := scope._get_type(self.X, interface_ok=interface_ok, **kwargs):
+                x_type = t
+        else:
+            if t := self.X._type(scope, interface_ok, **kwargs):
+                x_type = t
+        if x_type:
+            match x_type:
+                case StarExpr():
+                    return x_type.X
+        return super()._type(scope, interface_ok, **kwargs)
 
 
 class StructType(Expr):
@@ -3209,9 +3338,15 @@ class UnaryExpr(Expr):
         super().__init__(**kwargs)
 
     def _type(self, scope: Optional['Scope'] = None, **kwargs):
+        wrapper = lambda x: StarExpr(X=x) if self.Op == token.AND else x
         if scope:
-            scope._get_type(self.X, **kwargs) or super()._type(scope, **kwargs)
-        return self.X._type(scope, **kwargs) or super()._type(scope, **kwargs)
+            t = scope._get_type(self.X, **kwargs) or super()._type(scope, **kwargs)
+        else:
+            t = self.X._type(scope, **kwargs) or super()._type(scope, **kwargs)
+        if t:
+            wrapped = wrapper(t)
+            return wrapped
+        return super()._type(scope, **kwargs)
 
 
 class ValueSpec(Expr):
@@ -3240,10 +3375,10 @@ class ValueSpec(Expr):
         self.Comment = Comment
         self.Doc = Doc
         self.Names = Names or []
-        set_list_type(Names, '*ast.Ident')
+        set_list_type(self.Names, '*ast.Ident')
         self.Type = Type
         self.Values = Values or []
-        set_list_type(Values, 'ast.Expr')
+        set_list_type(self.Values, 'ast.Expr')
         super().__init__(**kwargs)
 
 

@@ -371,56 +371,6 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                 self.report_missing(expr, t)
         return declared
 
-    def visit_InterfaceType(self, node: InterfaceType):
-        self.generic_visit(node)
-        elts = node._py_context.get("elts", [])
-        if not elts:
-            return node
-
-        for parent in reversed(self.stack):
-            elt_types = []
-
-            class MetaVisitor(NodeTransformerWithScope):
-                def __init__(self):
-                    super().__init__()
-
-                def visit_InterfaceType(s, node: InterfaceType):
-                    s.generic_visit(node)
-                    return node
-
-                def generic_visit(s, node):
-                    node = super().generic_visit(node)
-
-                    if not elt_types:
-                        for elt in elts:
-                            t = s.scope._get_type(elt)
-
-                            if not t:
-                                match node:
-                                    case RangeStmt(Value=v, X=x) if v == elt:
-                                        x_type = s.scope._get_type(x)
-                                        match x_type:
-                                            case ArrayType(Elt=y) | MapType(Value=y):
-                                                t = y
-                                    case FuncDecl() if isinstance(elt, CallExpr) and isinstance(elt.Fun, Ident):
-                                        if elt.Fun == node.Name:
-                                            if node.Type.Results and node.Type.Results.List:
-                                                t = node.Type.Results.List[0].Type  # TODO: Another multi result issue
-                            if t:
-                                elt_types.append(t)
-
-                    return node
-
-            MetaVisitor().visit(parent)
-            if elt_types:
-                for elt_type_1, elt_type_2 in zip(elt_types[:-1], elt_types[1:]):
-                    if elt_type_1 != elt_type_2:
-                        break
-                else:
-                    return elt_types[-1]
-
-        return node
-
     def report_missing(self, expr, val, extra_callbacks=None):
         callbacks = [lambda *args, **kwargs: self.generic_missing_type_callback(*args, **kwargs)]
         if extra_callbacks:
@@ -1327,6 +1277,59 @@ class RemoveBadStmt(ast.NodeTransformer):
         self.generic_visit(node)
         pass  # It is removed by not being returned
 
+
+class NodeTransformerWithInterfaceTypes(NodeTransformerWithScope):
+    # TODO: Optimize. This is way too f**ing slow
+    def visit_InterfaceType(self, node: InterfaceType):
+        self.generic_visit(node)
+        elts = node._py_context.get("elts", [])
+        if not elts:
+            return node
+
+        for parent in reversed(self.stack):
+            elt_types = []
+
+            class MetaVisitor(NodeTransformerWithScope):
+                def __init__(self):
+                    super().__init__()
+
+                def visit_InterfaceType(s, node: InterfaceType):
+                    s.generic_visit(node)
+                    return node
+
+                def generic_visit(s, node):
+                    node = super().generic_visit(node)
+
+                    if not elt_types:
+                        for elt in elts:
+                            t = s.scope._get_type(elt)
+
+                            if not t:
+                                match node:
+                                    case RangeStmt(Value=v, X=x) if v == elt:
+                                        x_type = s.scope._get_type(x)
+                                        match x_type:
+                                            case ArrayType(Elt=y) | MapType(Value=y):
+                                                t = y
+                                    case FuncDecl() if isinstance(elt, CallExpr) and isinstance(elt.Fun, Ident):
+                                        if elt.Fun == node.Name:
+                                            if node.Type.Results and node.Type.Results.List:
+                                                t = node.Type.Results.List[0].Type  # TODO: Another multi result issue
+                            if t:
+                                elt_types.append(t)
+
+                    return node
+
+            MetaVisitor().visit(parent)
+            if elt_types:
+                for elt_type_1, elt_type_2 in zip(elt_types[:-1], elt_types[1:]):
+                    if elt_type_1 != elt_type_2:
+                        break
+                else:
+                    return elt_types[-1]
+
+        return node
+
 ALL_TRANSFORMS = [
     UseConstructorIfAvailable,
     PrintToFmtPrintln,
@@ -1339,6 +1342,8 @@ ALL_TRANSFORMS = [
     RangeRangeToFor,
 
     # Scope transformers
+    SpecialComparators,
+    NodeTransformerWithInterfaceTypes,
     YieldTransformer,  # May need to be above other scope transformers because jank,
     YieldRangeTransformer,
     ReplacePowWithMathPow,
@@ -1353,7 +1358,6 @@ ALL_TRANSFORMS = [
     HTTPErrors,
     FileWritesAndErrors,
     HandleUnhandledErrorsAndDefers,
-    SpecialComparators,
     AddTextTemplateImportForFStrings,
     AsyncTransformer,
     InitStmt,

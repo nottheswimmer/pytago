@@ -15,12 +15,15 @@ class Test(TestCase):
         self.maxDiff = None
 
     def assert_examples_match(self, example: str):
-        with open(f"../../examples/{example}.py") as a, \
-                open(f"../../examples/{example}.go") as b:
+        with open(f"../../examples/{example}.py", encoding="utf_8") as a, \
+                open(f"../../examples/{example}.go", encoding="utf_8") as b:
             self.assertEqual(b.read(), python_to_go(a.read()))
 
     def test_hello_world(self):
         self.assert_examples_match("helloworld")
+
+    def test_string_methods(self):
+        self.assert_examples_match("string_methods")
 
     def test_boolnumcompare(self):
         self.assert_examples_match("boolnumcompare")
@@ -123,7 +126,7 @@ class Test(TestCase):
 
     def test_defaultargs(self):
         self.assert_examples_match("defaultargs")
-    
+
     def test_walrus(self):
         self.assert_examples_match("walrus")
 
@@ -187,3 +190,15 @@ class Test(TestCase):
 
     # def test_lambdafunc(self):
     #     self.assert_examples_match("lambdafunc")
+
+    # def test_ingenerator(self):
+    #     self.assert_examples_match("ingenerator")
+
+    #     def test_dunders(self):
+    #         self.assert_examples_match("dunders")
+
+    # def test_pop(self):
+    #     self.assert_examples_match("pop")
+    #
+    # def test_index(self):
+    #     self.assert_examples_match("index")

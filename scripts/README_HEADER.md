@@ -17,3 +17,10 @@ All examples presented here are used as tests for the program.
 
 {% examples %}
 
+## TODOs
+
+Some things I'd like to add soon...
+
+- "value in range(start, stop, step)" => a conditional statement
+- Exhaustive implementation of list/dict/int/float/bytes methods
+- 
