@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-import pythagoras.go_ast.core as ast
+import pytago.go_ast.core as ast
 
 
 def fstring(template_str: str, key_value_elements=list['ast.KeyValueExpr']) -> 'ast.CallExpr':

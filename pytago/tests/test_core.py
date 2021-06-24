@@ -1,7 +1,7 @@
 import os
 from unittest import TestCase
 
-from pythagoras import python_to_go
+from pytago import python_to_go
 
 # Change directories to the location of the test for consistency between testing environments
 abspath = os.path.abspath(__file__)

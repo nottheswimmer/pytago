@@ -5,9 +5,17 @@ __pycache__/
 
 # Environment
 venv/
+.env
 
 # IDE
 .idea
+
+# Build
+*.egg-info
+dist
+
+# Workbench
+scratchwork
 
 # tmp go code generation files
 tmp_*.go

@@ -1,15 +1,45 @@
-# pythagoras
+# pytago
 
 Transpiles some Python into human-readable Golang.
 
-## Feature Support
+## Installation
 
-See docs/features.csv
+### Prerequisites
 
-- No X means no meaningful support as of yet. 
-- Decent+ means there's at least extensive support, and I may not have thought of a way it could break yet. 
-- Limited means there's at least some facet of programming in place that deals with this (either explicitly or implicitly),
- although there may be serious limitations. Check the notes for more.
+- [Go 1.16.x](https://golang.org/dl/)
+- [Python 3.10.x](https://www.python.org/downloads/release/python-3100b3/)
+  - No, it will not work on <=3.9. Search the code for "match"
+- `go get golang.org/x/tools/cmd/goimports`
+- `go get mvdan.cc/gofumpt`
+
+### Installing via setup.py
+
+```
+git clone https://github.com/nottheswimmer/pytago/
+cd pytago
+pip install .
+```
+
+## Usage
+
+```
+usage: Pytago [-h] [-o OUTFILE] INFILE
+
+positional arguments:
+  INFILE                read python code from INFILE
+
+options:
+  -h, --help            show this help message and exit
+  -o OUTFILE, --out OUTFILE
+                        write go code to OUTFILE
+```
+
+## Caveats
+
+- Most globally-scoped code outside of functions and class declarations are deleted.
+  - Variable declarations in the global scope are OK.
+- Little is in-place to help if you assign multiple types to the same variable.
+- 
 
 ## Examples
 
@@ -3108,6 +3138,34 @@ func main() {
 	nums := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	s := fmt.Sprintf("%#v", nums)
 	fmt.Println(s + s)
+}
+```
+### lambdafunc
+#### Python
+```python
+def main():
+    f = lambda x: x * 2
+    for a in range(10):
+        print((lambda x: x + 1)(a) + f(a))
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	f := func(x int) int {
+		return int(x) * 2
+	}
+	for a := 0; a < 10; a++ {
+		fmt.Println(func(x int) int {
+			return int(x) + 1
+		}(a) + f(a))
+	}
 }
 ```
 ### algomajorityelement

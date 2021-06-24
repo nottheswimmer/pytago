@@ -7,8 +7,8 @@ from enum import Enum
 from functools import cached_property
 from typing import List, Dict, Optional, Any, TypeVar, Type, Callable
 
-from pythagoras.go_ast import ast_snippets
-from pythagoras.go_ast.py_snippets import find_call_funclit
+from pytago.go_ast import ast_snippets
+from pytago.go_ast.py_snippets import find_call_funclit
 
 
 class ObjKind(Enum):
@@ -404,9 +404,9 @@ def exception_with_traceback():
     trace_list = traceback.format_list(traceback.extract_tb(tb))
     pretty_trace_list = []
     for t in reversed(trace_list):
-        if "pythagoras" not in t:
+        if "pytago" not in t:
             continue
-        pretty_trace_list.append(t.rsplit('pythagoras', 1)[-1])
+        pretty_trace_list.append(t.rsplit('pytago', 1)[-1])
     return pretty_trace_list
 
 class GoAST(ast.AST):
@@ -435,7 +435,7 @@ class GoAST(ast.AST):
         return True
 
     def __repr__(self):
-        from pythagoras.go_ast import parsing
+        from pytago.go_ast import parsing
         return parsing.dump(self)
 
 

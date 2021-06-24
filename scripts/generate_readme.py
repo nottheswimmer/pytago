@@ -4,16 +4,20 @@ from os.path import split
 HEADER_PATH = 'README_HEADER.md'
 EXAMPLES_PATH = "../examples"
 README_DESTINATION = "../README.md"
-TEST_FILE_PATH = "../pythagoras/tests/test_core.py"
+TEST_FILE_PATH = "../pytago/tests/test_core.py"
 
 DISABLED_EXAMPLES = {
     "forelse",
-    "lambdafunc",
     "iterunpacking",
     "dunders",
     "pop",
     "ingenerator"
 }
+
+def get_usage_string():
+    import subprocess
+    out = subprocess.check_output(["pytago", "-h"])
+    return '\n'.join(out.decode().splitlines())
 
 def main():
     parts = []
@@ -54,7 +58,9 @@ def main():
             parts.append("```")
     example_code = '\n'.join(parts)
     with open(README_DESTINATION, "w") as f:
-        f.write(TEMPLATE.replace('{% examples %}', example_code))
+        t = TEMPLATE.replace('{% usage %}', get_usage_string())
+        t = t.replace('{% examples %}', example_code)
+        f.write(t)
 
 if __name__ == '__main__':
     main()

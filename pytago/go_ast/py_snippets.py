@@ -6,7 +6,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, TypeVar, List, Optional
 
 if TYPE_CHECKING:
-    from pythagoras import go_ast
+    from pytago import go_ast
 
 BINDABLES: dict['Bindable', list] = defaultdict(list)
 
@@ -115,10 +115,10 @@ class Bindable:
 
         match self.bind_type:
             case BindType.PARAMLESS_FUNC_LIT:
-                from pythagoras.go_ast import FuncLit
+                from pytago.go_ast import FuncLit
                 goasts = [FuncLit.from_FunctionDef(binded_ast).call()]
             case BindType.FUNC_LIT:
-                from pythagoras.go_ast import build_expr_list, FuncLit, UnaryExpr, token
+                from pytago.go_ast import build_expr_list, FuncLit, UnaryExpr, token
 
                 deref = [(x in self.deref_args) for x in binding.arguments]
                 _go_args = build_expr_list(binding.args)
@@ -129,10 +129,10 @@ class Bindable:
                     go_args.append(arg)
                 goasts = FuncLit.from_FunctionDef(binded_ast, _py_context={"py_snippet": self}).call(*go_args, _py_context={"py_snippet": self})
             case BindType.EXPR:
-                from pythagoras.go_ast import build_expr_list
+                from pytago.go_ast import build_expr_list
                 goasts = build_expr_list([binded_ast.body[0].value], _py_context={"py_snippet": self})
             case BindType.STMT:
-                from pythagoras.go_ast import build_stmt_list
+                from pytago.go_ast import build_stmt_list
                 goasts = build_stmt_list(binded_ast.body)
             case _:
                 raise NotImplementedError()
@@ -142,7 +142,7 @@ class Bindable:
 
         for goast in goasts:
             if self.results:
-                from pythagoras.go_ast import Ident
+                from pytago.go_ast import Ident
                 match self.bind_type:
                     case BindType.PARAMLESS_FUNC_LIT | BindType.FUNC_LIT:
                         for field, name in zip(goast.Fun.Type.Results.List, self.results):
