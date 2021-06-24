@@ -8,7 +8,6 @@ app = Flask(__name__)
 
 @app.route("/", methods=["POST"])
 def index():
-    print(request)
     py = (request.get_json() or {}).get("py")
     if not py:
         return "Bad request", 400
