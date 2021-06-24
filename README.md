@@ -14,6 +14,16 @@ Transpiles some Python into human-readable Golang.
 
 ### Installing
 
+#### via setup.py (dev)
+
+```
+git clone https://github.com/nottheswimmer/pytago/
+cd pytago
+pip install -e .
+```
+
+The other installation methods may temporarily result in a circular import issue. It will be addressed on soon.
+
 #### via pip
 ```
 pip install pytago
