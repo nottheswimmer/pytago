@@ -12,7 +12,14 @@ Transpiles some Python into human-readable Golang.
 - `go get golang.org/x/tools/cmd/goimports`
 - `go get mvdan.cc/gofumpt`
 
-### Installing via setup.py
+### Installing
+
+#### via pip
+```
+pip install pytago
+```
+
+#### via setup.py
 
 ```
 git clone https://github.com/nottheswimmer/pytago/
