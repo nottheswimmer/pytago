@@ -213,6 +213,7 @@ OP_COMPLIMENTS = {
 }
 OP_COMPLIMENTS |= {v: k for k, v in OP_COMPLIMENTS.items()}
 
+class PY_DEREF_EXPR(): pass
 def _type_annotation_to_go_type(node: ast.AST):
     match node:
         case ast.Name(id=x):
@@ -260,7 +261,6 @@ def _type_annotation_to_go_type(node: ast.AST):
                     return InterfaceType(_py_context={"elts": [index]})
                 case StarExpr():
                     return StarExpr(X=index)
-                    return InterfaceType(_py_context={"elts": [subscript]})
                 case _:
                     raise NotImplementedError(value)
             return value
@@ -417,9 +417,9 @@ class GoAST(ast.AST):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        GoAST.STORY.append(self)
+        self.STORY_INDEX = len(GoAST.STORY)
         # self.TRACE = exception_with_traceback()  # Debugging
-        # GoAST.STORY.append(self)  # Debugging
-        # self.STORY_INDEX = len(GoAST.STORY)  # Debugging
 
     def remove_falsy_fields(self):
         self._fields = [f for f in self._fields if getattr(self, f, None)]
@@ -1985,8 +1985,16 @@ class Field(GoAST):
         if node.annotation else InterfaceType())
 
     @classmethod
-    def from_Starred(cls, node: ast.Starred):
-        print()
+    def from_arguments(cls, node: ast.arguments):
+        args = [from_this(cls, arg) for arg in node.args]
+        if len(args) == 1:
+            return args[0]  # TODO: Deal with defaults?
+        return args
+
+
+    # @classmethod
+    # def from_Starred(cls, node: ast.Starred):
+    #     print()
 
     @classmethod
     def from_Name(cls, node: ast.Name, **kwargs):
@@ -2039,14 +2047,14 @@ class FieldList(Expr):
     @classmethod
     def from_arguments(cls, node: ast.arguments):
         fields = []
-        for arg in node.args:
+        for arg in [*node.posonlyargs, *node.args, *node.kwonlyargs]:
             fields.append(from_this(Field, arg))
         return cls(List=fields,
                    _py_context={
                        "defaults": build_expr_list(node.defaults),
                        "kw_defaults":build_expr_list(node.kw_defaults),
-                       "kwonlyargs": build_expr_list(node.kwonlyargs),
-                       "posonlyargs": build_expr_list(node.posonlyargs)
+                       "kwonlyargs": [from_this(Field, p) for p in node.kwonlyargs],
+                       "posonlyargs": [from_this(Field, p) for p in node.posonlyargs]
                    })
 
     @classmethod
@@ -2125,7 +2133,8 @@ class Scope(GoAST):
             return False
         return obj.Name in self.Outer.Objects or self.Outer._in_outer_scope(obj)
 
-    def _get_type(self, x, **kwargs):
+    def _get_type(self, x, force_current=False, **kwargs):
+        scope_checker = self._from_scope if force_current else self._from_scope_or_outer
         match x:
             case Ident():
               obj_name = x.Name
@@ -2138,7 +2147,7 @@ class Scope(GoAST):
                 return None
         if obj_name in ['true', 'false']:
             return GoBasicType.BOOL.ident
-        if obj := self._from_scope_or_outer(obj_name):
+        if obj := scope_checker(obj_name):
             return obj.Type
         if kwargs.get("interface_ok"):
             return InterfaceType(_py_context={"elts": [obj_name]})
@@ -2340,8 +2349,8 @@ class FuncType(Expr):
     @classmethod
     def from_Lambda(cls, node: ast.Lambda, **kwargs):
         params = from_this(FieldList, node.args)
-        results = FieldList(List=[Field(Type=x._type() or InterfaceType(_py_context={"elts": [x]})) for x in build_expr_list([node.body])])
-        return cls(0, params, results, **kwargs)
+        t = build_expr_list([node.body])[0]._type()
+        return cls(0, params, FieldList(List=[Field(Type=t)]) if t else FieldList(List=[]), **kwargs)
 
 
 class FuncDecl(Decl):
@@ -2440,6 +2449,11 @@ class FuncLit(Expr):
     """function type"""
     Type: FuncType
 
+    CONVERSION_ORDER = {
+        ast.Lambda: -1,
+        ast.FunctionDef: -1
+    }
+
     def __init__(self,
                  Body: BlockStmt = None,
                  Type: FuncType = None,
@@ -2533,6 +2547,8 @@ class GenDecl(Decl):
                         self_name = f.Params.List[0].Names[0].Name
                     except IndexError:  # staticmethod
                         self_name = "static"
+                    except AttributeError:  # Function literal
+                        self_name = ""
                     def _matcher(_node: 'ast.AST'):
                         match _node:
                             case AssignStmt(Lhs=[SelectorExpr(X=Ident(Name=x))]):

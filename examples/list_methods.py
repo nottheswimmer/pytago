@@ -31,12 +31,16 @@ def main():
     print(l2)
     l3.sort()
     print(l3)
+    l3.sort(reverse=True)
+    print(l3)
 
     l2.reverse()
     print(l2)
 
-    # l4 = l2.copy()
-    # print(l4)
+    l4 = l2.copy()
+    l4.pop()
+    print(l4)
+    print(l2)
 
 if __name__ == '__main__':
     main()

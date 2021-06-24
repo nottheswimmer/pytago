@@ -175,6 +175,9 @@ class Test(TestCase):
     def test_repr(self):
         self.assert_examples_match("repr")
 
+    def test_lambdafunc(self):
+        self.assert_examples_match("lambdafunc")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")
@@ -186,9 +189,6 @@ class Test(TestCase):
     #
     # def test_iterunpacking(self):
     #     self.assert_examples_match("iterunpacking")
-
-    # def test_lambdafunc(self):
-    #     self.assert_examples_match("lambdafunc")
 
     # def test_ingenerator(self):
     #     self.assert_examples_match("ingenerator")

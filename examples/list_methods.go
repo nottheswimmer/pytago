@@ -62,10 +62,24 @@ func main() {
 	fmt.Println(l2)
 	sort.Float64s(l3)
 	fmt.Println(l3)
+	sort.Sort(sort.Reverse(sort.Float64Slice(l3)))
+	fmt.Println(l3)
 	func(arr []string) {
 		for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
 			arr[i], arr[j] = arr[j], arr[i]
 		}
 	}(l2)
+	fmt.Println(l2)
+	l4 := func(s *[]string) (tmp []string) {
+		tmp = append(tmp, *s...)
+		return
+	}(&l2)
+	func(s *[]string) string {
+		i := len(*s) - 1
+		popped := (*s)[i]
+		*s = (*s)[:i]
+		return popped
+	}(&l4)
+	fmt.Println(l4)
 	fmt.Println(l2)
 }

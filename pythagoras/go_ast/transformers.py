@@ -9,12 +9,30 @@ from pythagoras.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, Bin
     ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt, len_
 # Shortcuts
 from pythagoras.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS, \
-    GoStmt, TypeSwitchStmt
+    GoStmt, TypeSwitchStmt, StarExpr
 
 v = Ident.from_str
 
 
-class PrintToFmtPrintln(ast.NodeTransformer):
+class InterfaceTypeCounter(ast.NodeVisitor):
+    def __init__(self):
+        self.interface_types = 0
+        
+    def visit_InterfaceType(self, node: ast.NodeVisitor):
+        self.interface_types += 1
+
+    @classmethod
+    def get_interface_count(cls, node: GoAST) -> int:
+        counter = cls()
+        counter.visit(node)
+        return counter.interface_types
+
+
+class BaseTransformer(ast.NodeTransformer):
+    REPEATABLE = True
+
+
+class PrintToFmtPrintln(BaseTransformer):
     """
     This should probably add an import, but goimports takes care of that in postprocessing for now.
     """
@@ -27,7 +45,7 @@ class PrintToFmtPrintln(ast.NodeTransformer):
         return node
 
 
-class RemoveOrphanedFunctions(ast.NodeTransformer):
+class RemoveOrphanedFunctions(BaseTransformer):
     """
     Orphaned code is placed in functions titled "_" -- later we may want to try to put such code in the main
     method or elsewhere, but for now we'll remove it.
@@ -45,7 +63,7 @@ class RemoveOrphanedFunctions(ast.NodeTransformer):
         return node
 
 
-class CapitalizeMathModuleCalls(ast.NodeTransformer):
+class CapitalizeMathModuleCalls(BaseTransformer):
     """
     The math module in Go is extremely similar to Python's, save for some capitalization difference
     """
@@ -59,7 +77,7 @@ class CapitalizeMathModuleCalls(ast.NodeTransformer):
         return node
 
 
-class ReplacePythonStyleAppends(ast.NodeTransformer):
+class ReplacePythonStyleAppends(BaseTransformer):
     def visit_BlockStmt(self, block_node: BlockStmt):
         self.generic_visit(block_node)
         for i, node in enumerate(block_node.List):
@@ -71,7 +89,7 @@ class ReplacePythonStyleAppends(ast.NodeTransformer):
         return block_node
 
 
-class AppendSliceViaUnpacking(ast.NodeTransformer):
+class AppendSliceViaUnpacking(BaseTransformer):
     def visit_AssignStmt(self, node: AssignStmt):
         self.generic_visit(node)
         match node:
@@ -86,7 +104,7 @@ class AppendSliceViaUnpacking(ast.NodeTransformer):
         return node
 
 
-class PythonToGoTypes(ast.NodeTransformer):
+class PythonToGoTypes(BaseTransformer):
     def visit_Field(self, node: Field):
         self.generic_visit(node)
         match node.Type:
@@ -95,14 +113,14 @@ class PythonToGoTypes(ast.NodeTransformer):
         return node
 
 
-class NodeTransformerWithScope(ast.NodeTransformer):
+class NodeTransformerWithScope(BaseTransformer):
     def __init__(self, scope=None):
         self.scope = Scope({}, scope)
         self.stack = []
         self.current_globals = []
         self.current_nonlocals = []
         self.missing_type_info = []
-        self.exit_callbacks = []
+        self.exit_callbacks = [self.generic_exit_callback]
 
     def generic_visit(self, node):
         self.stack.append(node)
@@ -206,9 +224,12 @@ class NodeTransformerWithScope(ast.NodeTransformer):
         if isinstance(node, FuncLit):
             if self.stack and isinstance(self.stack[-1], AssignStmt):
                 match self.stack[-1].Lhs:
-                    case [Ident(Name=name)]:
-                        func_name = name
-                        values.append(node.Type)
+                    case [Ident(Name=name) as idnt]:
+                        pass
+                        # if isinstance(name, str):
+                        #     func_name = idnt  # lambdas
+                        # else:
+                        #     func_name = name
         else:
             func_name = node.Name
         if func_name:
@@ -218,6 +239,15 @@ class NodeTransformerWithScope(ast.NodeTransformer):
             for p in node.Type.Params.List:
                 names += p.Names
                 values += [p.Type] * len(p.Names)
+        if node.Type.Results:
+            result_names = []
+            result_vals = []
+            for p in node.Type.Results.List:
+                result_names += p.Names
+                result_vals += [p.Type] * len(p.Names)
+            if result_names and result_vals:
+                self.apply_eager_context(result_names, result_vals, rhs_is_types=True, force_current=True)
+                self.apply_to_scope(result_names, result_vals, rhs_is_types=True, force_current=True)
         self.apply_eager_context(names, values, rhs_is_types=True)
         self.apply_to_scope(names, values, rhs_is_types=True)
         self.generic_visit(node)
@@ -263,7 +293,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                     if all(types) and not (is_yield and is_go):
                         node.Type.Results = FieldList(List=[Field(Type=t) for t in types])
                         if func_name:
-                            self.apply_to_scope([node.Name], [node.Type])
+                            self.apply_to_scope([func_name], [node.Type])
                         break
                 else:
                     if yielded and not is_go and node.Type.Results == None:
@@ -320,12 +350,15 @@ class NodeTransformerWithScope(ast.NodeTransformer):
         if node.Tok != token.DEFINE and all(
                 self.scope._in_scope(x) or self.scope._in_outer_scope(x) for x in node.Lhs if isinstance(x, Ident)):
             return node
+
+
+
         declared = self.apply_to_scope(node.Lhs, node.Rhs)
         if not declared:
             node.Tok = token.ASSIGN
         return node
 
-    def apply_to_scope(self, lhs: list[Expr], rhs: list[Expr], rhs_is_types=False):
+    def apply_to_scope(self, lhs: list[Expr], rhs: list[Expr], rhs_is_types=False, force_current=False):
         # TODO: This was only built to handle one type, but zipping is much better sometimes
         ctx = {}
         for x in rhs:
@@ -337,7 +370,7 @@ class NodeTransformerWithScope(ast.NodeTransformer):
         for i, expr in enumerate(lhs):
             match expr:
                 case Ident():
-                    t = rhs[i] if rhs_is_types else next((self.scope._get_type(x) for x in rhs), None)
+                    t = rhs[i] if rhs_is_types else next((self.scope._get_type(x, force_current=force_current) for x in rhs), None)
                 case _:
                     continue
 
@@ -350,17 +383,17 @@ class NodeTransformerWithScope(ast.NodeTransformer):
                 _py_context=ctx
             )
             if not (self.scope._in_scope(obj) or (
-                    self.scope._in_outer_scope(obj) and (
+                    not force_current and (self.scope._in_outer_scope(obj) and (
                     # TODO: Combining nonlocals because I think it will technically
                     #   give better support than no support, but nonlocals needs further consideration
-                    (obj.Name in self.current_globals + self.current_nonlocals) or not self.scope._global._in_scope(obj)
+                    (obj.Name in self.current_globals + self.current_nonlocals) or not self.scope._global._in_scope(obj))
             )
             )):
                 self.scope.Insert(obj)
 
                 declared = True
 
-            type_from_scope = self.scope._get_type(obj.Name)
+            type_from_scope = self.scope._get_type(obj.Name, force_current=force_current)
             if type_from_scope:
                 pass
             else:
@@ -377,15 +410,18 @@ class NodeTransformerWithScope(ast.NodeTransformer):
             callbacks += extra_callbacks
         self.missing_type_info.append((expr, val, self.scope, callbacks))
 
+    def generic_exit_callback(self):
+        return
+
     def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
         return
 
-    def apply_eager_context(self, lhs: list[Expr], rhs: list[Expr], rhs_is_types=False):
+    def apply_eager_context(self, lhs: list[Expr], rhs: list[Expr], rhs_is_types=False, force_current=False):
         if len(lhs) == len(rhs) and len(lhs) > 1:
             for x, y in zip(lhs, rhs):
                 self.apply_eager_context([x], [y], rhs_is_types=rhs_is_types)
             return
-        eager_type_hint = next((self.scope._get_type(x) for x in rhs), None)
+        eager_type_hint = next((self.scope._get_type(x, force_current=force_current) for x in rhs), None)
         eager_context = {}
         for x in rhs:
             if isinstance(x, tuple):
@@ -427,7 +463,7 @@ class ReplacePowWithMathPow(NodeTransformerWithScope):
         return node
 
 
-class RangeRangeToFor(ast.NodeTransformer):
+class RangeRangeToFor(BaseTransformer):
     def visit_RangeStmt(self, node: RangeStmt):
         self.generic_visit(node)
         match node:
@@ -459,7 +495,7 @@ class RangeRangeToFor(ast.NodeTransformer):
         return node
 
 
-class UnpackRange(ast.NodeTransformer):
+class UnpackRange(BaseTransformer):
     def visit_RangeStmt(self, node: RangeStmt):
         self.generic_visit(node)
         match node:
@@ -474,7 +510,7 @@ class UnpackRange(ast.NodeTransformer):
         return node
 
 
-class NegativeIndexesSubtractFromLen(ast.NodeTransformer):
+class NegativeIndexesSubtractFromLen(BaseTransformer):
     """
     Will need some sort of type checking to ensure this doesn't affect maps or similar
     once map support is even a thing
@@ -768,7 +804,7 @@ class HandleUnhandledErrorsAndDefers(NodeTransformerWithScope):
         return block_node
 
 
-class AddTextTemplateImportForFStrings(ast.NodeTransformer):
+class AddTextTemplateImportForFStrings(BaseTransformer):
     """
     Usually goimports makes these sorts of things unnecessary,
     but this one was getting confused with html/template sometimes
@@ -804,7 +840,7 @@ def _map_contains(node: BinaryExpr):
 
 
 # TODO: Should check scope
-class UseConstructorIfAvailable(ast.NodeTransformer):
+class UseConstructorIfAvailable(BaseTransformer):
     def __init__(self):
         self.declared_function_names = {}
 
@@ -874,7 +910,7 @@ class SpecialComparators(NodeTransformerWithScope):
         return node
 
 
-class AsyncTransformer(ast.NodeTransformer):
+class AsyncTransformer(BaseTransformer):
     def visit_UnaryExpr(self, node: UnaryExpr):
         self.generic_visit(node)
         # Change awaited asyncio calls
@@ -916,6 +952,7 @@ class AsyncTransformer(ast.NodeTransformer):
 
 
 class YieldTransformer(NodeTransformerWithScope):
+    REPEATABLE = False
     def visit_CallExpr(self, node: CallExpr):
         self.generic_visit(node)
         match node:
@@ -970,6 +1007,7 @@ class YieldTransformer(NodeTransformerWithScope):
 
 
 class YieldRangeTransformer(NodeTransformerWithScope):
+    REPEATABLE = False
     def visit_RangeStmt(self, node: RangeStmt, callback=False, callback_type=None, callback_parent=None):
         if not callback:
             self.generic_visit(node)
@@ -1115,6 +1153,7 @@ class Truthiness(NodeTransformerWithScope):
 
 
 class IterFuncs(NodeTransformerWithScope):
+    # TODO: Deprecate via pysnippets
     def visit_CallExpr(self, node: CallExpr):
         self.generic_visit(node)
         if len(node.Args) == 0:
@@ -1206,6 +1245,7 @@ class IterFuncs(NodeTransformerWithScope):
 
 
 class IterMethods(NodeTransformerWithScope):
+    # TODO: Deprecate via pysnippets
     def visit_CallExpr(self, node: CallExpr):
         self.generic_visit(node)
         if len(node.Args) != 0:
@@ -1253,6 +1293,7 @@ class IterMethods(NodeTransformerWithScope):
 
 
 class InitializeNamedParamMaps(NodeTransformerWithScope):
+    REPEATABLE = False
     def visit_FuncDecl_or_FuncLit(self, node: FuncDecl | FuncLit):
         super().visit_FuncDecl_or_FuncLit(node)
         if not node.Type.Results:
@@ -1263,7 +1304,7 @@ class InitializeNamedParamMaps(NodeTransformerWithScope):
                     node.Body.List.insert(0, name.assign(Ident("make").call(field.Type), tok=token.ASSIGN))
         return node
 
-class RemoveGoCallReturns(ast.NodeTransformer):
+class RemoveGoCallReturns(BaseTransformer):
     """
     Hack to remove erroneously annotated function calls
     """
@@ -1272,7 +1313,7 @@ class RemoveGoCallReturns(ast.NodeTransformer):
         node.Call.Fun.Type.Results = None
         return node
 
-class RemoveBadStmt(ast.NodeTransformer):
+class RemoveBadStmt(BaseTransformer):
     def visit_BadStmt(self, node: BadStmt):
         self.generic_visit(node)
         pass  # It is removed by not being returned
@@ -1318,7 +1359,7 @@ class PySnippetSwitches(NodeTransformerWithScope):
 
                 stmts = case.Body
                 if not keep_params:
-                    class Transformer(ast.NodeTransformer):
+                    class Transformer(BaseTransformer):
                         def visit_Ident(self, node: Ident):
                             self.generic_visit(node)
                             return param_mapping.get(node.Name, node)
@@ -1389,6 +1430,97 @@ class NodeTransformerWithInterfaceTypes(NodeTransformerWithScope):
 
         return node
 
+class UntypedFunctionsTypedByCalls(NodeTransformerWithScope):
+    def visit_CallExpr(self, node: CallExpr):
+        node = self.generic_visit(node)
+        scope = self.scope
+        def exit_callback():
+            fun_type = node.Fun.basic_type or scope._get_type(node.Fun)
+            match fun_type:
+                case FuncType(Params=FieldList(List=params)) | FuncDecl(Type=FuncType(Params=FieldList(List=params))):
+                    for i, param in enumerate(params):
+                        match param.Type:
+                            case InterfaceType() | None:
+                                arg = node.Args[i]
+                                arg_type = scope._get_type(arg)
+                                if arg_type and not isinstance(arg_type, InterfaceType):
+                                    param.Type = arg_type
+                                    continue
+        self.exit_callbacks.append(exit_callback)
+        return node
+
+class CallTypeInformation(NodeTransformerWithScope):
+    def visit_CallExpr(self, node: CallExpr):
+        # Specifically fixes function signatures, meant to fix bug with go_copy
+        discoveries = 0
+        match node.Fun:
+            case Ident(Name="copy") | Ident(Name="append"):
+                a, b = node.Args
+                a_type = self.scope._get_type(a)
+                b_type = self.scope._get_type(b)
+                for x, x_type, y_type in ((b, b_type, a_type), (a, a_type, b_type)):
+                    match x_type:
+                        case None | InterfaceType() | StarExpr(X=InterfaceType()):
+                            if y_type:
+                                self.apply_to_scope([x], [y_type], rhs_is_types=True, force_current=True)
+                                discoveries += 1
+                                break
+            case FuncLit(Type=FuncType(Params=FieldList(List=func_args))) if func_args:
+                for a, b in zip(node.Args, func_args):
+                    a_type = self.scope._get_type(a)
+                    b_type = b.Type
+                    a_int = InterfaceTypeCounter.get_interface_count(a_type) if a_type else float('inf')
+                    b_int = InterfaceTypeCounter.get_interface_count(b_type) if b_type else float('inf')
+                    if b_int > a_int:
+                        b.Type = a_type
+                    elif a_int > b_int:
+                        self.apply_to_scope([a], [b_type], rhs_is_types=True, force_current=True)
+                        discoveries += 1
+
+
+        if discoveries:
+            stack = self.stack.copy()
+            while stack and discoveries:
+                parent = stack.pop()
+                match parent:
+                    case FuncLit(Type=FuncType() as t):
+                        for x in [t.Params, t.Results]:
+                            if isinstance(x, FieldList):
+                                for field in x.List:
+                                    match field.Type:
+                                        case InterfaceType():
+                                            for name in field.Names:
+                                                t = self.scope._get_type(name)
+                                                if t:
+                                                    field.Type = t
+                                                    discoveries -= 1
+                                                    break
+                                        case StarExpr():
+                                            for name in field.Names:
+                                                t = self.scope._get_type(name)
+                                                if t:
+                                                    field.Type = t
+                                                    discoveries -= 1
+                                                    break
+        self.generic_visit(node)
+        return node
+
+    def visit_InterfaceType(self, node: InterfaceType):
+        node = self.generic_visit(node)
+        parent = self.stack[-1]
+        interface_scope = self.scope
+        def exit_callback(*args, **kwargs):
+            if isinstance(parent, Field):
+                for name in parent.Names:
+                    t = interface_scope._get_type(name)
+                    if t and not isinstance(t, InterfaceType):
+                        parent.Type = t
+                        break
+        self.exit_callbacks.append(exit_callback)
+        return node
+
+    def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
+        return
 
 
 ALL_TRANSFORMS = [
@@ -1404,7 +1536,6 @@ ALL_TRANSFORMS = [
 
     # Scope transformers
     SpecialComparators,
-    NodeTransformerWithInterfaceTypes,
     YieldTransformer,  # May need to be above other scope transformers because jank,
     YieldRangeTransformer,
     ReplacePowWithMathPow,
@@ -1426,6 +1557,9 @@ ALL_TRANSFORMS = [
     Truthiness,
     InitializeNamedParamMaps,
     PySnippetSwitches,
+    CallTypeInformation,
+    UntypedFunctionsTypedByCalls,
+    NodeTransformerWithInterfaceTypes,
     RemoveGoCallReturns,
     RemoveBadStmt,  # Should be last as these are used for scoping
 ]

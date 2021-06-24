@@ -60,12 +60,21 @@ class Bindable:
 
         return inner
 
-    def bind(self, *args):
+    def bind(self, *args, kwargs=None):
         # Raises TypeError on failure
-        return self.sig.bind(*args)
+        if kwargs:
+            kwargs = {k.arg: k.value for k in kwargs}
+        else:
+            kwargs = {}
+        binding = self.sig.bind(*args, **kwargs)
+        return binding
 
-    def bind_partial(self, *args):
-        return self.sig.bind_partial(*args)
+    def bind_partial(self, *args, kwargs=None):
+        if kwargs:
+            kwargs = {k.arg: k.value for k in kwargs}
+        else:
+            kwargs = {}
+        return self.sig.bind_partial(*args, **kwargs)
 
     def binded_ast(self, binding):
         root = self.ast
@@ -74,13 +83,14 @@ class Bindable:
             case BindType.PARAMLESS_FUNC_LIT | BindType.EXPR | BindType.STMT:
                 class Transformer(ast.NodeTransformer):
                     def visit_arg(self, node: ast.arg):
-                        if node.arg in binding.arguments:
+                        if node.arg in binding.arguments or node.arg in binding.kwargs:
                             return None
                         return self.generic_visit(node)
 
                     def visit_Name(self, node: ast.Name):
                         self.generic_visit(node)
-                        return binding.arguments.get(node.id, node)
+                        return binding.arguments.get(node.id, binding.kwargs.get(node.id, node))
+
                 binded = Transformer().visit(root)
             case BindType.FUNC_LIT:
                 class Transformer(ast.NodeTransformer):
@@ -218,7 +228,7 @@ def go_insert(s, i: int, elt):
 
 # TODO: Sort by key and reverse sort
 @Bindable.add(r"(.*)\.sort", bind_type=BindType.FUNC_LIT)
-def go_sort(s: PyInterfaceType):
+def go_sort(s):
     if isinstance(s, list[str]):
         sort.Strings(s)
     elif isinstance(s, list[float]):
@@ -229,11 +239,22 @@ def go_sort(s: PyInterfaceType):
         sort.Sort(s)
 
 
+@Bindable.add(r"(.*)\.sort", bind_type=BindType.FUNC_LIT)
+def go_sort(s, /, *, reverse=True):
+    if isinstance(s, list[str]):
+        sort.Sort(sort.Reverse(sort.StringSlice(s)))
+    elif isinstance(s, list[float]):
+        sort.Sort(sort.Reverse(sort.Float64Slice(s)))
+    elif isinstance(s, list[int]):
+        sort.Sort(sort.Reverse(sort.IntSlice(s)))
+    else:
+        sort.Sort(sort.Reverse(s))
+
 
 s = TypeVar("s")
 popped = TypeVar("popped")
 @Bindable.add(r"(.*)\.pop", bind_type=BindType.FUNC_LIT, deref_args=['s'])
-def go_pop(s: PyStarExpr[PyInterfaceType[s]]) -> PyInterfaceType[popped]:
+def go_pop(s: PyInterfaceType[s]) -> PyInterfaceType[popped]:
     i = len('*'@s) - 1
     popped = ('*'@s)[i]
     s @= ('*'@s)[:i]
@@ -258,14 +279,14 @@ def go_pop(s: PyStarExpr[PyInterfaceType[s]], i: int) -> PyInterfaceType[popped]
     return popped
 
 @Bindable.add(r"(.*)\.clear", bind_type=BindType.STMT)
-def go_clear(s: PyStarExpr[PyInterfaceType[s]]):
+def go_clear(s: PyInterfaceType[s]):
     s = nil
 
-# @Bindable.add(r"(.*)\.copy", bind_type=BindType.FUNC_LIT, deref_args=['s'] results=["tmp"])
-# def go_copy(s: PyStarExpr[PyInterfaceType[s]]) -> PyInterfaceType[s]:
-#     tmp = tmp[:len(('*'@s))]
-#     copy(tmp, ('*'@s))
-#     return
+tmp = TypeVar("tmp")
+@Bindable.add(r"(.*)\.copy", bind_type=BindType.FUNC_LIT, deref_args=['s'], results=["tmp"])
+def go_copy(s) -> PyInterfaceType[tmp]:
+    tmp = append(tmp, *('*'@s))
+    return
 
 # Dict methods
 
@@ -958,6 +979,7 @@ def get_string_node(s: str):
 
 def find_call_funclit(node: ast.Call) -> 'go_ast.FuncLit':
     args = node.args
+    kwargs = node.keywords
     dotted = get_node_string(node.func)
     for x in BINDABLES:
         if not BINDABLES[x]:
@@ -970,7 +992,7 @@ def find_call_funclit(node: ast.Call) -> 'go_ast.FuncLit':
 
             for i, b in enumerate(BINDABLES[x].copy()):
                 try:
-                    binding = b.bind(*groups, *args)
+                    binding = b.bind(*groups, *args, kwargs=kwargs)
                 except TypeError as e:
                     continue
 

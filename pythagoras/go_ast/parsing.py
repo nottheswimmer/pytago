@@ -135,8 +135,17 @@ def dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
 
 
 def clean_go_tree(go_tree: File):
-    for tsfm in ALL_TRANSFORMS:
-        tsfm().visit(go_tree)
+    from pythagoras.go_ast import InterfaceTypeCounter
+    start_count = 0
+    end_count = -1
+    repeats = -1
+    while end_count < start_count:
+        repeats += 1
+        start_count = InterfaceTypeCounter.get_interface_count(go_tree)
+        for tsfm in ALL_TRANSFORMS:
+            if repeats == 0 or tsfm.REPEATABLE:
+                tsfm().visit(go_tree)
+        end_count = InterfaceTypeCounter.get_interface_count(go_tree)
 
 
 def _gorun(filename: str) -> str:
