@@ -15,6 +15,10 @@ check:
 upload:
 	py -m twine upload --skip-existing dist/*
 
+.PHONY: uploadtest
+uploadtest:
+	py -m twine upload --repository-url https://test.pypi.org/legacy/ --skip-existing dist/*
+
 .PHONY: install
 install:
 	pip install .

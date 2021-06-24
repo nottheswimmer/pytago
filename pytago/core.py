@@ -1,15 +1,15 @@
 import ast
 
-from pytago import go_ast
-
 
 def python_to_go(python: str, debug=True) -> str:
+    from pytago import go_ast
     py_tree = ast.parse(python)
     go_tree = go_ast.File.from_Module(py_tree)
     return go_ast.unparse(go_tree, debug=debug)
 
 
 def dump_python_to_go_ast_as_json(python: str):
+    from pytago import go_ast
     """
     Not currently used for anything. Hoping that this could
     be the first step toward serializing ASTs to send to

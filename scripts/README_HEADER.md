@@ -19,6 +19,14 @@ Transpiles some Python into human-readable Golang.
 pip install pytago
 ```
 
+#### via setup.py (dev)
+
+```
+git clone https://github.com/nottheswimmer/pytago/
+cd pytago
+pip install -e .
+```
+
 #### via setup.py
 
 ```
