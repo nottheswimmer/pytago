@@ -13,7 +13,7 @@ check:
 
 .PHONY: upload
 upload:
-	py -m twine upload dist/*
+	py -m twine upload --skip-existing dist/*
 
 .PHONY: install
 install:
@@ -26,3 +26,7 @@ devinstall:
 .PHONY: test
 test:
 	py -m pytest
+
+.PHONY: docs
+docs:
+	py ./scripts/generate_readme.py

@@ -1,10 +1,13 @@
 import glob
 from os.path import split
+import os
 
-HEADER_PATH = 'README_HEADER.md'
-EXAMPLES_PATH = "../examples"
-README_DESTINATION = "../README.md"
-TEST_FILE_PATH = "../pytago/tests/test_core.py"
+rel = "" if os.getcwd().endswith("scripts") else "./scripts/"
+
+HEADER_PATH = rel + 'README_HEADER.md'
+EXAMPLES_PATH = rel + "../examples"
+README_DESTINATION = rel + "../README.md"
+TEST_FILE_PATH = rel + "../pytago/tests/test_core.py"
 
 DISABLED_EXAMPLES = {
     "forelse",
@@ -17,7 +20,7 @@ DISABLED_EXAMPLES = {
 def get_usage_string():
     import subprocess
     out = subprocess.check_output(["pytago", "-h"])
-    return '\n'.join(out.decode().splitlines())
+    return '\n'.join(out.decode().splitlines()).replace("Pytago", "pytago", 1)
 
 def main():
     parts = []

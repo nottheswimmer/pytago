@@ -1,14 +1,19 @@
 from distutils.core import setup
 
+with open('README.md', encoding='utf-8') as f:
+    long_description = f.read()
+
 setup(
     name='pytago',
-    version='0.0.1',
+    version='0.0.3',
     packages=['pytago'],
     url='https://github.com/nottheswimmer/pytago',
     license='',
     author='Michael Phelps',
     author_email='michaelphelps@nottheswimmer.org',
     description='Transpiles some Python into human-readable Golang.',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     entry_points={
         'console_scripts': ['pytago=pytago.cmd:main'],
     },

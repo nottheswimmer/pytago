@@ -8,7 +8,7 @@ Transpiles some Python into human-readable Golang.
 
 - [Go 1.16.x](https://golang.org/dl/)
 - [Python 3.10.x](https://www.python.org/downloads/release/python-3100b3/)
-  - No, it will not work on <=3.9. Search the code for "match"
+  - No, it will not work on 3.9. Search the code for "match."
 - `go get golang.org/x/tools/cmd/goimports`
 - `go get mvdan.cc/gofumpt`
 
@@ -23,7 +23,7 @@ pip install .
 ## Usage
 
 ```
-usage: Pytago [-h] [-o OUTFILE] INFILE
+usage: pytago [-h] [-o OUTFILE] INFILE
 
 positional arguments:
   INFILE                read python code from INFILE
@@ -33,13 +33,6 @@ options:
   -o OUTFILE, --out OUTFILE
                         write go code to OUTFILE
 ```
-
-## Caveats
-
-- Most globally-scoped code outside of functions and class declarations are deleted.
-  - Variable declarations in the global scope are OK.
-- Little is in-place to help if you assign multiple types to the same variable.
-- 
 
 ## Examples
 
