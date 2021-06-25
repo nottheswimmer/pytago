@@ -28,6 +28,9 @@ class Test(TestCase):
     def test_list_methods(self):
         self.assert_examples_match("list_methods")
 
+    def test_set_methods(self):
+        self.assert_examples_match("set_methods")
+
     def test_boolnumcompare(self):
         self.assert_examples_match("boolnumcompare")
 

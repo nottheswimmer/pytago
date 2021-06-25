@@ -1522,6 +1522,14 @@ class CallTypeInformation(NodeTransformerWithScope):
     def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
         return
 
+class LoopThroughSetValuesNotKeys(NodeTransformerWithScope):
+    def visit_RangeStmt(self, node: RangeStmt):
+        self.generic_visit(node)
+        match self.scope._get_type(node.X):
+            case MapType(Value=StructType(Fields=FieldList(List=[]))):
+                if node.Key == Ident("_"):
+                    node.Key, node.Value = node.Value, node.Key
+        return node
 
 ALL_TRANSFORMS = [
     UseConstructorIfAvailable,
@@ -1540,6 +1548,7 @@ ALL_TRANSFORMS = [
     YieldRangeTransformer,
     ReplacePowWithMathPow,
     NodeTransformerWithScope,
+    LoopThroughSetValuesNotKeys,
     # AddMissingFunctionTypes,
     IterFuncs,
     IterMethods,

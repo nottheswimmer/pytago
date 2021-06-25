@@ -19,6 +19,9 @@ class InfinitelySubscriptable:
 PyInterfaceType = InfinitelySubscriptable()
 PyStarExpr = InfinitelySubscriptable()
 
+# Special identifiers can go here
+PY_EMPTY_STRUCT = None
+
 
 class BindType(Enum):
     PARAMLESS_FUNC_LIT = 0
@@ -287,6 +290,63 @@ tmp = TypeVar("tmp")
 def go_copy(s) -> PyInterfaceType[tmp]:
     tmp = append(tmp, *('*'@s))
     return
+
+# Set methods
+@Bindable.add(r"(.*)\.add", bind_type=BindType.STMT)
+def go_add(s, elt):
+    s[elt] = PY_EMPTY_STRUCT
+
+s1 = TypeVar("s1")
+@Bindable.add(r"(.*)\.union", bind_type=BindType.FUNC_LIT)
+def go_union(s1: set, s2: set) -> PyInterfaceType[s1]:
+    union = set()
+    for elt in s1:
+        union.add(elt)
+    for elt in s2:
+        union.add(elt)
+    return union
+
+@Bindable.add(r"(.*)\.intersection", bind_type=BindType.FUNC_LIT)
+def go_intersection(s1: set, s2: set) -> PyInterfaceType[s1]:
+    intersection = set()
+    for elt in s1:
+        if elt in s2:
+            intersection.add(elt)
+    return intersection
+
+@Bindable.add(r"(.*)\.difference", bind_type=BindType.FUNC_LIT)
+def go_difference(s1: set, s2: set) -> PyInterfaceType[s1]:
+    difference = set()
+    for elt in s1:
+        if elt not in s2:
+            difference.add(elt)
+    return difference
+
+@Bindable.add(r"(.*)\.symmetric_difference", bind_type=BindType.FUNC_LIT)
+def go_symmetric_intersection(s1: set, s2: set) -> PyInterfaceType[s1]:
+    symmetric_intersection = set()
+    for elt in s1:
+        if elt not in s2:
+            symmetric_intersection.add(elt)
+    for elt in s2:
+        if elt not in s1:
+            symmetric_intersection.add(elt)
+    return symmetric_intersection
+
+@Bindable.add(r"(.*)\.issubset", bind_type=BindType.FUNC_LIT)
+def go_issubset(s1: set, s2: set) -> bool:
+    for elt in s1:
+        if elt not in s2:
+            return False
+    return True
+
+@Bindable.add(r"(.*)\.issuperset", bind_type=BindType.FUNC_LIT)
+def go_is_subset(s1: set, s2: set) -> bool:
+    for elt in s2:
+        if elt not in s1:
+            return False
+    return True
+
 
 # Dict methods
 

@@ -1198,6 +1198,9 @@ class Ident(Expr):
 
     @classmethod
     def from_Name(cls, name: ast.Name, **kwargs):
+        match name.id:
+            case 'PY_EMPTY_STRUCT':
+                return CompositeLit(Type=StructType(), **kwargs)
         return cls.from_str(name.id, **kwargs)
 
     @classmethod
