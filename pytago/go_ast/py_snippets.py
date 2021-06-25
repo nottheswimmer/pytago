@@ -176,16 +176,14 @@ def go_int(value) -> int:
 
 @Bindable.add(r"input", bind_type=BindType.FUNC_LIT)
 def go_is_subset() -> str:
-    reader = bufio.NewReader(os.Stdin)
-    text, _ = reader.ReadString(PY_RUNE('\n'))
+    text, _ = bufio.NewReader(os.Stdin).ReadString(PY_RUNE('\n'))
     return strings.ReplaceAll(text, "\n", "")
 
 
 @Bindable.add(r"input", bind_type=BindType.FUNC_LIT)
 def go_is_subset(msg: str) -> str:
-    reader = bufio.NewReader(os.Stdin)
     fmt.Print(msg)
-    text, _ = reader.ReadString(PY_RUNE('\n'))
+    text, _ = bufio.NewReader(os.Stdin).ReadString(PY_RUNE('\n'))
     return strings.ReplaceAll(text, "\n", "")
 
 @Bindable.add("zip")
