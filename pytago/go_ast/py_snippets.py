@@ -323,15 +323,15 @@ def go_difference(s1: set, s2: set) -> PyInterfaceType[s1]:
     return difference
 
 @Bindable.add(r"(.*)\.symmetric_difference", bind_type=BindType.FUNC_LIT)
-def go_symmetric_intersection(s1: set, s2: set) -> PyInterfaceType[s1]:
-    symmetric_intersection = set()
+def go_symmetric_difference(s1: set, s2: set) -> PyInterfaceType[s1]:
+    symmetric_difference = set()
     for elt in s1:
         if elt not in s2:
-            symmetric_intersection.add(elt)
+            symmetric_difference.add(elt)
     for elt in s2:
         if elt not in s1:
-            symmetric_intersection.add(elt)
-    return symmetric_intersection
+            symmetric_difference.add(elt)
+    return symmetric_difference
 
 @Bindable.add(r"(.*)\.issubset", bind_type=BindType.FUNC_LIT)
 def go_issubset(s1: set, s2: set) -> bool:
