@@ -30,7 +30,86 @@ class InterfaceTypeCounter(ast.NodeVisitor):
 
 class BaseTransformer(ast.NodeTransformer):
     REPEATABLE = True
+    STAGE = 1
 
+    def __init__(self):
+        self.exit_callbacks = [self.generic_exit_callback]
+        self.at_root = True
+
+
+    def visit(self, node: GoAST):
+        at_root = self.at_root
+        self.at_root = False
+        # Perform the entire visiting process
+        node = super().visit(node)
+        if at_root:
+            for callback in self.exit_callbacks:
+                callback(node)
+        return node
+
+    def generic_exit_callback(self, *args, **kwargs):
+        return
+
+class ApplyPytagoInlines(BaseTransformer):
+    STAGE = 0
+
+    def __init__(self):
+        super().__init__()
+        self.to_inline = []
+
+    def visit_AssignStmt(self, node: AssignStmt):
+        # Handles PYTAGO_INLINE for statements/funclits
+        match node.Lhs, node.Rhs:
+            case [Ident(Name="PYTAGO_INLINE")], [x]:
+                node.Lhs.pop()
+                self.generic_visit(node)
+                self.to_inline.append(x)
+                return
+        node = self.generic_visit(node)
+        return node
+
+    def visit_Ident(self, node: Ident):
+        match node:
+            case Ident(Name="PYTAGO_INLINE"):
+                if self.to_inline:
+                    return self.to_inline.pop()
+        return node
+
+class InsertUniqueInitializers(BaseTransformer):
+    STAGE = 0
+    REPEATABLE = False
+
+    def __init__(self):
+        super().__init__()
+        self.to_initialize = []
+
+    def visit_FuncLit(self, node: FuncLit):
+        # Handles PYTAGO_INIT for expressions
+        match node:
+            case FuncLit(Body=BlockStmt(List=[AssignStmt(Lhs=[Ident(Name="PYTAGO_INIT")], Rhs=[x])])):
+                if x not in self.to_initialize:
+                    self.to_initialize.append(x)
+                return
+        return self.generic_visit(node)
+
+    def visit_AssignStmt(self, node: AssignStmt):
+        # Handles PYTAGO_INIT for statements/funclits
+        match node.Lhs, node.Rhs:
+            case [Ident(Name="PYTAGO_INIT")], [x]:
+                if x not in self.to_initialize:
+                    self.to_initialize.append(x)
+                return
+        return self.generic_visit(node)
+
+    def generic_exit_callback(self, node: File, *args, **kwargs):
+        for init in self.to_initialize:
+            node.Decls.insert(1, FuncDecl(Body=init.Body, Type=init.Type, Name=Ident("init")))
+
+    # TODO: PYTAGO_INIT for nonexpressions --
+    #  possibly in a second transformer that takes place after the above
+    # def visit_AssignStmt(self, node: AssignStmt):
+    #     self.generic_visit(node)
+    #     return node
 
 class PrintToFmtPrintln(BaseTransformer):
     """
@@ -46,6 +125,8 @@ class PrintToFmtPrintln(BaseTransformer):
 
 
 class RemoveOrphanedFunctions(BaseTransformer):
+    STAGE = 2
+    REPEATABLE = False
     """
     Orphaned code is placed in functions titled "_" -- later we may want to try to put such code in the main
     method or elsewhere, but for now we'll remove it.
@@ -115,12 +196,12 @@ class PythonToGoTypes(BaseTransformer):
 
 class NodeTransformerWithScope(BaseTransformer):
     def __init__(self, scope=None):
+        super().__init__()
         self.scope = Scope({}, scope)
         self.stack = []
         self.current_globals = []
         self.current_nonlocals = []
         self.missing_type_info = []
-        self.exit_callbacks = [self.generic_exit_callback]
 
     def generic_visit(self, node):
         self.stack.append(node)
@@ -200,9 +281,6 @@ class NodeTransformerWithScope(BaseTransformer):
                 except ValueError:
                     pass
 
-            # Deal with any other stuff we want to do when we're done
-            for callback in self.exit_callbacks:
-                callback()
         return node
 
     def visit_ValueSpec(self, node: ValueSpec):
@@ -409,9 +487,6 @@ class NodeTransformerWithScope(BaseTransformer):
         if extra_callbacks:
             callbacks += extra_callbacks
         self.missing_type_info.append((expr, val, self.scope, callbacks))
-
-    def generic_exit_callback(self):
-        return
 
     def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
         return
@@ -811,6 +886,7 @@ class AddTextTemplateImportForFStrings(BaseTransformer):
     """
 
     def __init__(self):
+        super().__init__()
         self.visited_fstring = False
 
     def visit_File(self, node: File):
@@ -842,6 +918,7 @@ def _map_contains(node: BinaryExpr):
 # TODO: Should check scope
 class UseConstructorIfAvailable(BaseTransformer):
     def __init__(self):
+        super().__init__()
         self.declared_function_names = {}
 
     def visit_FuncDecl(self, node: FuncDecl):
@@ -1060,7 +1137,7 @@ class InitStmt(NodeTransformerWithScope):
                 return assignment.Lhs[0]
 
             # Do this at the end because it messes with the transformer if we do it now
-            def exit_callback():
+            def exit_callback(*args, **kwargs):
                 insert_at = to_insert_into.List.index(prev)
                 to_insert_into.List.insert(insert_at, assignment)
 
@@ -1352,7 +1429,7 @@ class PySnippetSwitches(NodeTransformerWithScope):
 
                 keep_params = False
                 match snippet.name:
-                    case '(.*)\.index':
+                    case r'(.*)\.index':
                         match x_type:
                             case Ident(Name="string"):
                                 keep_params = True
@@ -1434,7 +1511,7 @@ class UntypedFunctionsTypedByCalls(NodeTransformerWithScope):
     def visit_CallExpr(self, node: CallExpr):
         node = self.generic_visit(node)
         scope = self.scope
-        def exit_callback():
+        def exit_callback(*args, **kwargs):
             fun_type = node.Fun.basic_type or scope._get_type(node.Fun)
             match fun_type:
                 case FuncType(Params=FieldList(List=params)) | FuncDecl(Type=FuncType(Params=FieldList(List=params))):
@@ -1532,9 +1609,13 @@ class LoopThroughSetValuesNotKeys(NodeTransformerWithScope):
         return node
 
 ALL_TRANSFORMS = [
+    #### STAGE 0 ####
+    InsertUniqueInitializers,
+    ApplyPytagoInlines,
+
+    #### STAGE 1 ####
     UseConstructorIfAvailable,
     PrintToFmtPrintln,
-    RemoveOrphanedFunctions,
     CapitalizeMathModuleCalls,
     ReplacePythonStyleAppends,
     AppendSliceViaUnpacking,
@@ -1571,4 +1652,7 @@ ALL_TRANSFORMS = [
     NodeTransformerWithInterfaceTypes,
     RemoveGoCallReturns,
     RemoveBadStmt,  # Should be last as these are used for scoping
+
+    #### STAGE 2 ####
+    RemoveOrphanedFunctions
 ]

@@ -16,13 +16,15 @@ class InfinitelySubscriptable:
         return InfinitelySubscriptable()
 
 
-PyInterfaceType = InfinitelySubscriptable()
-PyStarExpr = InfinitelySubscriptable()
+PytagoInterfaceType = InfinitelySubscriptable()  # InterfaceType[x] to be replaced with the type of x if available
+PytagoStarExpr = InfinitelySubscriptable()  # x => *x for types in fields
 
 # Special identifiers can go here
-PY_EMPTY_STRUCT = None
-PY_RUNE = None
-PY_NOSNIPPET = None
+PYTAGO_EMPTY_STRUCT = None  # struct{}{}
+PYTAGO_RUNE = None  # "c" => 'c'
+PYTAGO_NOSNIPPET = None  # Avoid recursion
+PYTAGO_INIT = None  # Add a unique init() call to the top
+PYTAGO_TAKE_LAST_EXPR = None  # In postprocessing, replace functions of this name for the last expression in it
 
 
 class BindType(Enum):
@@ -104,10 +106,10 @@ class Bindable:
                         node.args = self.generic_visit(node.args)
                         return node
 
-                    def visit_Subscript(self, node: ast.arg):
+                    def visit_Subscript(self, node: ast.Subscript):
                         node = self.generic_visit(node)
                         match node:
-                            # Replace annotation such as PyInterfaceType[X] with PyInterfaceType[PassedArgument]
+                            # Replace annotation such as PytagoInterfaceType[X] with PytagoInterfaceType[PassedArgument]
                             case ast.Subscript(slice=ast.Name()):
                                 node.slice = binding.arguments.get(node.slice.id, node.slice)
                         return self.generic_visit(node)
@@ -135,7 +137,7 @@ class Bindable:
                 goasts = FuncLit.from_FunctionDef(binded_ast, _py_context={"py_snippet": self}).call(*go_args, _py_context={"py_snippet": self})
             case BindType.EXPR:
                 from pytago.go_ast import build_expr_list
-                goasts = build_expr_list([binded_ast.body[0].value], _py_context={"py_snippet": self})
+                goasts = build_expr_list([getattr(x, 'value', x) for x in binded_ast.body], _py_context={"py_snippet": self})
             case BindType.STMT:
                 from pytago.go_ast import build_stmt_list
                 goasts = build_stmt_list(binded_ast.body)
@@ -167,24 +169,25 @@ def go_int(value) -> int:
         i, err = strconv.ParseInt(value, 10, 64)
         if err != nil:
             panic(err)
-        return PY_NOSNIPPET(int)(i)
+        return PYTAGO_NOSNIPPET(int)(i)
     elif isinstance(value, int):
-        return value
+        value
     elif isinstance(value, float):
-        return PY_NOSNIPPET(int)(value)
+        PYTAGO_NOSNIPPET(int)(value)
 
 
 @Bindable.add(r"input", bind_type=BindType.FUNC_LIT)
-def go_is_subset() -> str:
-    text, _ = bufio.NewReader(os.Stdin).ReadString(PY_RUNE('\n'))
+def go_input() -> str:
+    text, _ = bufio.NewReader(os.Stdin).ReadString(PYTAGO_RUNE('\n'))
     return strings.ReplaceAll(text, "\n", "")
 
 
 @Bindable.add(r"input", bind_type=BindType.FUNC_LIT)
-def go_is_subset(msg: str) -> str:
+def go_input(msg: str) -> str:
     fmt.Print(msg)
-    text, _ = bufio.NewReader(os.Stdin).ReadString(PY_RUNE('\n'))
+    text, _ = bufio.NewReader(os.Stdin).ReadString(PYTAGO_RUNE('\n'))
     return strings.ReplaceAll(text, "\n", "")
+
 
 @Bindable.add("zip")
 def go_zip(a: list, b: list):
@@ -204,16 +207,19 @@ def go_map(f, iterable):
     for x in iterable:
         yield f(x)
 
+
 @Bindable.add("map")
 def go_map_2(f, iterable1, iterable2):
     for xy in zip(iterable1, iterable2):
         yield f(xy[0], xy[1])
+
 
 @Bindable.add("filter")
 def go_filter(f, iterable):
     for x in iterable:
         if f(x):
             yield x
+
 
 @Bindable.add("str", bind_type=BindType.EXPR)
 def go_str(a):
@@ -224,10 +230,12 @@ def go_str(a):
 def go_repr(a):
     return fmt.Sprintf("%#v", a)
 
+
 @Bindable.add("iter")
 def go_iter(a):
     for elt in a:
         yield elt
+
 
 @Bindable.add("list")
 def go_list(a):
@@ -235,6 +243,7 @@ def go_list(a):
     for elt in a:
         elts.append(elt)
     return elts
+
 
 # List methods
 
@@ -247,11 +256,13 @@ def go_list(a):
 def go_extend(X, other):
     X = append(X, *other)
 
+
 @Bindable.add(r"(.*)\.insert", bind_type=BindType.STMT)
 def go_insert(s, i: int, elt):
     s = append(s, elt)
-    copy(s[i+1:], s[i:])
+    copy(s[i + 1:], s[i:])
     s[i] = elt
+
 
 # See go_count in strings methods for count
 
@@ -282,49 +293,61 @@ def go_sort(s, /, *, reverse=True):
 
 s = TypeVar("s")
 popped = TypeVar("popped")
+
+
 @Bindable.add(r"(.*)\.pop", bind_type=BindType.FUNC_LIT, deref_args=['s'])
-def go_pop(s: PyInterfaceType[s]) -> PyInterfaceType[popped]:
-    i = len('*'@s) - 1
-    popped = ('*'@s)[i]
-    s @= ('*'@s)[:i]
+def go_pop(s: PytagoInterfaceType[s]) -> PytagoInterfaceType[popped]:
+    i = len('*' @ s) - 1
+    popped = ('*' @ s)[i]
+    s @= ('*' @ s)[:i]
     return popped
 
 
 # See strings methods for index
 val = TypeVar("val")  # Name of each element we're searching through
+
+
 @Bindable.add(r"(.*)\.remove", bind_type=BindType.FUNC_LIT, deref_args=['s'])
-def go_remove(s: PyStarExpr[PyInterfaceType[s]], x: PyInterfaceType[val]):
-    for i, val in enumerate(('*'@s)):
+def go_remove(s: PytagoStarExpr[PytagoInterfaceType[s]], x: PytagoInterfaceType[val]):
+    for i, val in enumerate(('*' @ s)):
         if val == x:
-            s @= append(('*'@s)[:i], *('*'@s)[i+1:])
+            s @= append(('*' @ s)[:i], *('*' @ s)[i + 1:])
             return
     panic(errors.New("ValueError: element not found"))
 
 
 @Bindable.add(r"(.*)\.pop", bind_type=BindType.FUNC_LIT, deref_args=['s'])
-def go_pop(s: PyStarExpr[PyInterfaceType[s]], i: int) -> PyInterfaceType[popped]:
-    popped = ('*'@s)[i]
-    s @= append(('*'@s)[:i], *('*'@s)[i+1:])
+def go_pop(s: PytagoStarExpr[PytagoInterfaceType[s]], i: int) -> PytagoInterfaceType[popped]:
+    popped = ('*' @ s)[i]
+    s @= append(('*' @ s)[:i], *('*' @ s)[i + 1:])
     return popped
 
+
 @Bindable.add(r"(.*)\.clear", bind_type=BindType.STMT)
-def go_clear(s: PyInterfaceType[s]):
+def go_clear(s: PytagoInterfaceType[s]):
     s = nil
 
+
 tmp = TypeVar("tmp")
+
+
 @Bindable.add(r"(.*)\.copy", bind_type=BindType.FUNC_LIT, deref_args=['s'], results=["tmp"])
-def go_copy(s) -> PyInterfaceType[tmp]:
-    tmp = append(tmp, *('*'@s))
+def go_copy(s) -> PytagoInterfaceType[tmp]:
+    tmp = append(tmp, *('*' @ s))
     return
+
 
 # Set methods
 @Bindable.add(r"(.*)\.add", bind_type=BindType.STMT)
 def go_add(s, elt):
-    s[elt] = PY_EMPTY_STRUCT
+    s[elt] = PYTAGO_EMPTY_STRUCT
+
 
 s1 = TypeVar("s1")
+
+
 @Bindable.add(r"(.*)\.union", bind_type=BindType.FUNC_LIT)
-def go_union(s1: set, s2: set) -> PyInterfaceType[s1]:
+def go_union(s1: set, s2: set) -> PytagoInterfaceType[s1]:
     union = set()
     for elt in s1:
         union.add(elt)
@@ -332,24 +355,27 @@ def go_union(s1: set, s2: set) -> PyInterfaceType[s1]:
         union.add(elt)
     return union
 
+
 @Bindable.add(r"(.*)\.intersection", bind_type=BindType.FUNC_LIT)
-def go_intersection(s1: set, s2: set) -> PyInterfaceType[s1]:
+def go_intersection(s1: set, s2: set) -> PytagoInterfaceType[s1]:
     intersection = set()
     for elt in s1:
         if elt in s2:
             intersection.add(elt)
     return intersection
 
+
 @Bindable.add(r"(.*)\.difference", bind_type=BindType.FUNC_LIT)
-def go_difference(s1: set, s2: set) -> PyInterfaceType[s1]:
+def go_difference(s1: set, s2: set) -> PytagoInterfaceType[s1]:
     difference = set()
     for elt in s1:
         if elt not in s2:
             difference.add(elt)
     return difference
 
+
 @Bindable.add(r"(.*)\.symmetric_difference", bind_type=BindType.FUNC_LIT)
-def go_symmetric_difference(s1: set, s2: set) -> PyInterfaceType[s1]:
+def go_symmetric_difference(s1: set, s2: set) -> PytagoInterfaceType[s1]:
     symmetric_difference = set()
     for elt in s1:
         if elt not in s2:
@@ -359,12 +385,14 @@ def go_symmetric_difference(s1: set, s2: set) -> PyInterfaceType[s1]:
             symmetric_difference.add(elt)
     return symmetric_difference
 
+
 @Bindable.add(r"(.*)\.issubset", bind_type=BindType.FUNC_LIT)
 def go_issubset(s1: set, s2: set) -> bool:
     for elt in s1:
         if elt not in s2:
             return False
     return True
+
 
 @Bindable.add(r"(.*)\.issuperset", bind_type=BindType.FUNC_LIT)
 def go_is_subset(s1: set, s2: set) -> bool:
@@ -381,16 +409,19 @@ def go_keys(X: dict):
     # Just remove .keys() for now, should work in some cases
     return X
 
-@Bindable.add("(.*)\.update")
+
+@Bindable.add(r"(.*)\.update")
 def go_update(d1, d2):
     for k, v in d2.items():
         d1[k] = v
+
 
 @Bindable.add(r"(.*)\.get")
 def go_get_with_default(X: dict, val2, default):
     if r := X[val2]:
         return r
     return default
+
 
 # TODO: Conflict with requests.get
 # @Bindable.add(r"(.*)\.get", bind_type=BindType.EXPR)
@@ -405,6 +436,7 @@ def go_get_with_default(X: dict, val2, default):
 def go_capitalize(s: str) -> str:
     return s[0:1].upper() + s[1:].lower()
 
+
 # TODO: casefold : issue = complicated
 # TODO: center : issue = complicated
 
@@ -412,19 +444,23 @@ def go_capitalize(s: str) -> str:
 def go_endswith(X: str, suffix: str) -> bool:
     return strings.HasSuffix(X, suffix)
 
+
 # TODO: expandtabs : issue = complicated
 
 @Bindable.add(r"(.*)\.find", bind_type=BindType.EXPR)
 def go_find(X: str, substr: str) -> int:
     return strings.Index(X, substr)
 
+
 @Bindable.add(r"(.*)\.find", bind_type=BindType.EXPR)
 def go_find(X: str, substr: str, start: int) -> int:
     return r + start if (r := strings.Index(X[start:], substr)) != -1 else -1
 
+
 @Bindable.add(r"(.*)\.find", bind_type=BindType.EXPR)
 def go_find(X: str, substr: str, start: int, end: int) -> int:
     return r + start if (r := strings.Index(X[start:end], substr)) != -1 else -1
+
 
 # TODO: format : issue = Bindable needs *args support
 # TODO: format_map : issue = complicated
@@ -441,17 +477,20 @@ def go_index(X: str, sub: str) -> int:
                 return i
         panic(errors.New("ValueError: element not found"))
 
+
 @Bindable.add(r"(.*)\.index", bind_type=BindType.FUNC_LIT)
 def go_index(X: str, sub: str, start: int) -> int:
     if (i := X.find(sub, start)) != -1:
         return i
     panic(errors.New("ValueError: substring not found"))
 
+
 @Bindable.add(r"(.*)\.index", bind_type=BindType.FUNC_LIT)
 def go_index(X: str, sub: str, start: int, end: int) -> int:
     if (i := X.find(sub, start, end)) != -1:
         return i
     panic(errors.New("ValueError: substring not found"))
+
 
 @Bindable.add(r"(.*)\.isalnum", bind_type=BindType.FUNC_LIT)
 def go_isalnum(X: str) -> bool:
@@ -460,6 +499,7 @@ def go_isalnum(X: str) -> bool:
             return False
     return True
 
+
 @Bindable.add(r"(.*)\.isalpha", bind_type=BindType.FUNC_LIT)
 def go_isalpha(X: str) -> bool:
     for r in X:
@@ -467,12 +507,14 @@ def go_isalpha(X: str) -> bool:
             return False
     return True
 
+
 @Bindable.add(r"(.*)\.isascii", bind_type=BindType.FUNC_LIT)
 def go_isascii(X: str) -> bool:
     for r in X:
         if r > unicode.MaxASCII:
             return False
     return True
+
 
 # TODO: Dear god are these even right?
 @Bindable.add(r"(.*)\.isdecimal", bind_type=BindType.FUNC_LIT)
@@ -482,12 +524,14 @@ def go_isdecimal(X: str) -> bool:
             return False
     return len(X) != 0
 
+
 @Bindable.add(r"(.*)\.isdigit", bind_type=BindType.FUNC_LIT)
 def go_isdigit(X: str) -> bool:
     for r in X:
         if not unicode.IsDigit(r):
             return False
     return len(X) != 0
+
 
 # TODO: isidentifier
 
@@ -502,12 +546,14 @@ def go_islower(X: str) -> bool:
             lower_found = True
     return lower_found and len(X) != 0
 
+
 @Bindable.add(r"(.*)\.isnumeric", bind_type=BindType.FUNC_LIT)
 def go_isnumeric(X: str) -> bool:
     for r in X:
         if not (unicode.IsDigit(r) or unicode.IsNumber(r)):
             return False
     return len(X) != 0
+
 
 @Bindable.add(r"(.*)\.isprintable", bind_type=BindType.FUNC_LIT)
 def go_isprintable(X: str) -> bool:
@@ -516,12 +562,14 @@ def go_isprintable(X: str) -> bool:
             return False
     return True
 
+
 @Bindable.add(r"(.*)\.isspace", bind_type=BindType.FUNC_LIT)
 def go_isspace(X: str) -> bool:
     for r in X:
         if not unicode.IsSpace(r):
             return False
     return len(X) != 0
+
 
 # TODO: istitle
 
@@ -536,9 +584,11 @@ def go_isupper(X: str) -> bool:
             upper_found = True
     return upper_found and len(X) != 0
 
+
 @Bindable.add(r"(.*)\.join", bind_type=BindType.EXPR)
 def go_join(sep: str, X: str) -> str:
     return strings.Join(X, sep)
+
 
 # TODO: ljust
 
@@ -546,13 +596,16 @@ def go_join(sep: str, X: str) -> str:
 def go_capitalize(s: str) -> str:
     return strings.ToLower(s)
 
+
 @Bindable.add(r"(.*)\.lstrip", bind_type=BindType.EXPR)
 def go_lstrip(X: str) -> list[str]:
     return strings.TrimLeftFunc(X, unicode.IsSpace)
 
+
 @Bindable.add(r"(.*)\.lstrip", bind_type=BindType.EXPR)
 def go_lstrip(X: str, cutset: list[str]) -> str:
     return strings.TrimLeft(X, cutset)
+
 
 # TODO: maketrans
 # TODO: partition
@@ -561,29 +614,36 @@ def go_lstrip(X: str, cutset: list[str]) -> str:
 def go_removeprefix(X: str, prefix: str) -> str:
     return strings.TrimPrefix(X, prefix)
 
+
 @Bindable.add(r"(.*)\.removesuffix", bind_type=BindType.EXPR)
 def go_removesuffix(X: str, suffix: str) -> str:
     return strings.TrimSuffix(X, suffix)
+
 
 @Bindable.add(r"(.*)\.replace", bind_type=BindType.EXPR)
 def go_replace(X: str, old: str, new: str) -> str:
     return strings.ReplaceAll(X, old, new)
 
+
 @Bindable.add(r"(.*)\.replace", bind_type=BindType.EXPR)
 def go_replace(X: str, old: str, new: str, n: int) -> str:
     return strings.Replace(X, old, new, n)
+
 
 @Bindable.add(r"(.*)\.rfind", bind_type=BindType.EXPR)
 def go_rfind(X: str, sub: str) -> int:
     return strings.LastIndex(X, sub)
 
+
 @Bindable.add(r"(.*)\.rfind", bind_type=BindType.EXPR)
 def go_rfind(X: str, substr: str, start: int) -> int:
     return r + start if (r := strings.LastIndex(X[start:], substr)) != -1 else -1
 
+
 @Bindable.add(r"(.*)\.rfind", bind_type=BindType.EXPR)
 def go_rfind(X: str, substr: str, start: int, end: int) -> int:
     return r + start if (r := strings.LastIndex(X[start:end], substr)) != -1 else -1
+
 
 @Bindable.add(r"(.*)\.rindex", bind_type=BindType.FUNC_LIT)
 def go_rindex(X: str, sub: str) -> int:
@@ -591,17 +651,20 @@ def go_rindex(X: str, sub: str) -> int:
         return i
     panic(errors.New("ValueError: substring not found"))
 
+
 @Bindable.add(r"(.*)\.rindex", bind_type=BindType.FUNC_LIT)
 def go_rindex(X: str, sub: str, start: int) -> int:
     if (i := X.rfind(sub, start)) != -1:
         return i
     panic(errors.New("ValueError: substring not found"))
 
+
 @Bindable.add(r"(.*)\.rindex", bind_type=BindType.FUNC_LIT)
 def go_rindex(X: str, sub: str, start: int, end: int) -> int:
     if (i := X.rfind(sub, start, end)) != -1:
         return i
     panic(errors.New("ValueError: substring not found"))
+
 
 # TODO: rjust
 # TODO: rsplit
@@ -610,21 +673,26 @@ def go_rindex(X: str, sub: str, start: int, end: int) -> int:
 def go_rstrip(X: str) -> list[str]:
     return strings.TrimRightFunc(X, unicode.IsSpace)
 
+
 @Bindable.add(r"(.*)\.rstrip", bind_type=BindType.EXPR)
 def go_rstrip(X: str, cutset: list[str]) -> str:
     return strings.TrimRight(X, cutset)
+
 
 @Bindable.add(r"(.*)\.split", bind_type=BindType.EXPR)
 def go_split(X: str) -> list[str]:
     return strings.Fields(X)
 
+
 @Bindable.add(r"(.*)\.split", bind_type=BindType.EXPR)
 def go_split(X: str, sep: str) -> list[str]:
     return strings.Split(X, sep)
 
+
 @Bindable.add(r"(.*)\.split", bind_type=BindType.EXPR)
 def go_split(X: str, sep: str, maxsplit: int) -> list[str]:
     return strings.SplitN(X, sep, maxsplit)
+
 
 @Bindable.add(r"(.*)\.splitlines", bind_type=BindType.FUNC_LIT, results=['lines'])
 def go_splitlines(s: str) -> list[str]:
@@ -633,19 +701,23 @@ def go_splitlines(s: str) -> list[str]:
         lines.append(sc.Text())
     return
 
+
 # TODO: splitlines w/ keepends
 
 @Bindable.add(r"(.*)\.startswith", bind_type=BindType.EXPR)
 def go_startswith(X: str, prefix: str) -> bool:
     return strings.HasPrefix(X, prefix)
 
+
 @Bindable.add(r"(.*)\.strip", bind_type=BindType.EXPR)
 def go_strip(X: str) -> list[str]:
     return strings.TrimSpace(X)
 
+
 @Bindable.add(r"(.*)\.strip", bind_type=BindType.EXPR)
 def go_strip(X: str, cutset: list[str]) -> str:
     return strings.Trim(X, cutset)
+
 
 @Bindable.add(r"(.*)\.title", bind_type=BindType.FUNC_LIT)
 def go_title(s: str) -> str:
@@ -662,6 +734,7 @@ def go_title(s: str) -> str:
             sb.WriteRune(unicode.ToLower(r))
     return sb.String()
 
+
 # TODO: zfill
 
 
@@ -676,11 +749,13 @@ def go_count(X: str, elt: str) -> int:
                 n += 1
         return n
 
+
 # TODO: migrate encode from transformer
 
 @Bindable.add(r"(.*)\.upper", bind_type=BindType.EXPR)
 def go_upper(s: str) -> str:
     return strings.ToUpper(s)
+
 
 # TODO: zfill
 
@@ -715,11 +790,13 @@ def go_logging_warning(msg):
 def go_logging_error(msg):
     return log.Println("ERROR:", msg)
 
+
 # Dunder methods
 
 @Bindable.add(r"(.*)\.__len__", bind_type=BindType.EXPR)
 def go_len_dunder(X) -> int:
     return len(X)
+
 
 # Initialization and Construction
 
@@ -739,6 +816,7 @@ def go_len_dunder(X) -> int:
 @Bindable.add(r"(.*)\.__del__", bind_type=BindType.STMT)
 def go_del_dunder(self):
     del self
+
 
 # Unary operators and functions
 
@@ -768,8 +846,8 @@ def go_invert_dunder(self):
 
 # To get called by built-in round() function.
 @Bindable.add(r"(.*)\.__round__", bind_type=BindType.EXPR)
-def go_round_dunder(self,n):
-    return round(self,n)
+def go_round_dunder(self, n):
+    return round(self, n)
 
 
 # To get called by built-in math.floor() function.
@@ -789,36 +867,37 @@ def go_ceil_dunder(self):
 def go_trunc_dunder(self):
     return math.trunc(self)
 
+
 # Augmented Assignment
 
 # To get called on addition with assignment e.g. a +=b.
 @Bindable.add(r"(.*)\.__iadd__", bind_type=BindType.STMT)
 def go_iadd_dunder(self, other):
-    self  += other
+    self += other
 
 
 # To get called on subtraction with assignment e.g. a -=b.
 @Bindable.add(r"(.*)\.__isub__", bind_type=BindType.STMT)
 def go_isub_dunder(self, other):
-    self  -= other
+    self -= other
 
 
 # To get called on multiplication with assignment e.g. a *=b.
 @Bindable.add(r"(.*)\.__imul__", bind_type=BindType.STMT)
 def go_imul_dunder(self, other):
-    self  *= other
+    self *= other
 
 
 # To get called on integer division with assignment e.g. a //=b.
 @Bindable.add(r"(.*)\.__ifloordiv__", bind_type=BindType.STMT)
 def go_ifloordiv_dunder(self, other):
-    self  //= other
+    self //= other
 
 
 # To get called on division with assignment e.g. a /=b.
 @Bindable.add(r"(.*)\.__idiv__", bind_type=BindType.STMT)
 def go_idiv_dunder(self, other):
-    self  /= other
+    self /= other
 
 
 # To get called on true division with assignment
@@ -836,7 +915,7 @@ def go_imod_dunder(self, other):
 # To get called on exponentswith assignment e.g. a **=b.
 @Bindable.add(r"(.*)\.__ipow__", bind_type=BindType.STMT)
 def go_ipow_dunder(self, other):
-    self  **= other
+    self **= other
 
 
 # To get called on left bitwise shift with assignment e.g. a<<=b.
@@ -848,7 +927,7 @@ def go_ilshift_dunder(self, other):
 # To get called on right bitwise shift with assignment e.g. a >>=b.
 @Bindable.add(r"(.*)\.__irshift__", bind_type=BindType.STMT)
 def go_irshift_dunder(self, other):
-    self  >>= other
+    self >>= other
 
 
 # To get called on bitwise AND with assignment e.g. a&=b.
@@ -866,7 +945,8 @@ def go_ior_dunder(self, other):
 # To get called on bitwise XOR with assignment e.g. a ^=b.
 @Bindable.add(r"(.*)\.__ixor__", bind_type=BindType.STMT)
 def go_ixor_dunder(self, other):
-    self  ^= other
+    self ^= other
+
 
 # Type Conversion Magic Methods
 
@@ -905,6 +985,7 @@ def go_hex_dunder(self):
 def go_index_dunder(self):
     return self
 
+
 # String Magic Methods
 
 # To get called by built-in str() method to return a string representation of a type.
@@ -917,6 +998,7 @@ def go_str_dunder(self):
 @Bindable.add(r"(.*)\.__repr__", bind_type=BindType.EXPR)
 def go_repr_dunder(self):
     return repr(self)
+
 
 # To get called by built-in string.format() method to return a new style of string.
 @Bindable.add(r"(.*)\.__format__", bind_type=BindType.EXPR)
@@ -946,6 +1028,7 @@ def go_dir_dunder(self):
 @Bindable.add(r"(.*)\.__sizeof__", bind_type=BindType.EXPR)
 def go_sizeof_dunder(self):
     return sys.getsizeof(self)
+
 
 # Attribute Magic Methods
 
@@ -1039,9 +1122,55 @@ def go_ne_dunder(self, other):
 def go_ge_dunder(self, other):
     return self >= other
 
+
+# Randomness
+@Bindable.add(r"random\.random", bind_type=BindType.EXPR)
+def go_random_random() -> float:
+    def _():
+        def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
+    return rand.Float64()
+
+
+@Bindable.add(r"random\.randrange", bind_type=BindType.EXPR)
+def go_random_randrange(start: int) -> int:
+    def _():
+        def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
+    return rand.Intn(start)
+
+
+@Bindable.add(r"random\.randrange", bind_type=BindType.FUNC_LIT)
+def go_random_randrange(start: int, stop: int) -> int:
+    def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
+    n = stop - start
+    return rand.Intn(n) + start
+
+
+@Bindable.add(r"random\.randint", bind_type=BindType.EXPR)
+def go_random_randint(start: int, stop: int) -> int:
+    def _():
+        def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
+    return random.randrange(start, stop + 1)
+
+
+@Bindable.add(r"random\.choice", bind_type=BindType.EXPR)
+def go_random_choice(seq) -> int:
+    def _():
+        def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
+    return seq[rand.Intn(len(seq))]
+
+
+@Bindable.add(r"random\.shuffle", bind_type=BindType.STMT)
+def go_random_shuffle(seq):
+    def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
+    def PYTAGO_INLINE(i: int, j: int):
+        seq[i], seq[j] = seq[j], seq[i]
+    rand.Shuffle(len(seq), PYTAGO_INLINE)
+
 # TODO: Exhaustive list of all dunders, .methods, builtins, etc implemented here...
 
 reversal = {}
+
+
 def get_node_string(node: ast.AST):
     match node:
         case ast.Name(id=x):
@@ -1092,11 +1221,10 @@ def find_call_funclit(node: ast.Call) -> 'go_ast.FuncLit':
                 return go_ast
 
 
-
 if __name__ == '__main__':
     node = ast.parse(
-"""
-zip([1, 2, 3], [4, 5, 6])
-"""
+        """
+        zip([1, 2, 3], [4, 5, 6])
+        """
     ).body[0].value
     print(find_call_funclit(node))

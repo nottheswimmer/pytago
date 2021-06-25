@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+from collections import defaultdict
 from subprocess import Popen, PIPE
 
 from pytago.go_ast import GoAST, ALL_TRANSFORMS, File, get_list_type
@@ -213,16 +214,22 @@ def dump_json(node, annotate_fields=True, include_attributes=False, *, indent=No
 
 def clean_go_tree(go_tree: File):
     from pytago.go_ast import InterfaceTypeCounter
-    start_count = 0
-    end_count = -1
-    repeats = -1
-    while end_count < start_count:
-        repeats += 1
-        start_count = InterfaceTypeCounter.get_interface_count(go_tree)
-        for tsfm in ALL_TRANSFORMS:
-            if repeats == 0 or tsfm.REPEATABLE:
-                tsfm().visit(go_tree)
-        end_count = InterfaceTypeCounter.get_interface_count(go_tree)
+
+    tsfms_by_stage = defaultdict(list)
+    for tsfm in ALL_TRANSFORMS:
+        tsfms_by_stage[tsfm.STAGE].append(tsfm)
+
+    for stage in sorted(tsfms_by_stage):
+        start_count = 0
+        end_count = -1
+        repeats = -1
+        while end_count < start_count:
+            repeats += 1
+            start_count = InterfaceTypeCounter.get_interface_count(go_tree)
+            for tsfm in tsfms_by_stage[stage]:
+                if repeats == 0 or tsfm.REPEATABLE:
+                    tsfm().visit(go_tree)
+            end_count = InterfaceTypeCounter.get_interface_count(go_tree)
 
 
 def _gorun(filename: str) -> str:

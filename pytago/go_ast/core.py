@@ -236,9 +236,9 @@ def _type_annotation_to_go_type(node: ast.AST):
                     return MapType(Value=StructType())
                 case 'bool':
                     return Ident('bool')
-                case 'PyInterfaceType':
+                case 'PytagoInterfaceType':
                     return InterfaceType()
-                case 'PyStarExpr':
+                case 'PytagoStarExpr':
                     return StarExpr()
                 case _:
                     return Ident(x)
@@ -1199,7 +1199,7 @@ class Ident(Expr):
     @classmethod
     def from_Name(cls, name: ast.Name, **kwargs):
         match name.id:
-            case 'PY_EMPTY_STRUCT':
+            case 'PYTAGO_EMPTY_STRUCT':
                 return CompositeLit(Type=StructType(), **kwargs)
         return cls.from_str(name.id, **kwargs)
 
@@ -1283,14 +1283,14 @@ class CallExpr(Expr):
         except AttributeError:
             py_nosnippet = False
         match node.func:
-            case ast.Name(id='PY_RUNE'):
+            case ast.Name(id='PYTAGO_RUNE'):
                 match node.args:
                     case [ast.Constant(value=v)] if isinstance(v, str) and len(v) == 1:
                         bl = BasicLit.from_value(node="'" + json.dumps(v)[1:-1] + "'", t=token.CHAR)
                         return bl
                     case _:
                         raise NotImplementedError()
-            case ast.Call(ast.Name(id='PY_NOSNIPPET')):
+            case ast.Call(ast.Name(id='PYTAGO_NOSNIPPET')):
                 match node.func.args:
                     case [ast.AST() as x]:
                         node.func = x
@@ -1565,6 +1565,18 @@ class CallExpr(Expr):
                 element_type = self.Args[1]._type(scope, **kwargs)
                 if element_type:
                     return ArrayType(Elt=element_type, _py_context=element_type._py_context)
+
+            # Probably better ways to handle this, but let's add some types for expressions from py_snippets
+            case SelectorExpr(X=x, Sel=sel):
+                match x, sel:
+                    case Ident(Name=_x), Ident(Name=_y):
+                        dotted = _x + "." + _y
+                        match dotted:
+                            case "rand.Float64":
+                                return GoBasicType.FLOAT64.ident
+                            case "rand.Intn":
+                                return GoBasicType.INT.ident
+
             # Basic types
             case Ident(Name=x):
                 try:

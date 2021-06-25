@@ -25,6 +25,9 @@ class Test(TestCase):
     def test_input(self):
         self.assert_examples_match("input")
 
+    def test_randomness(self):
+        self.assert_examples_match("randomness")
+
     def test_string_methods(self):
         self.assert_examples_match("string_methods")
 

@@ -175,6 +175,63 @@ func main() {
 	fmt.Println("So your name is", name, "and you are", age, "years old, and your description is", "\""+description+"\"")
 }
 ```
+### randomness
+#### Python
+```python
+import random
+
+
+def main():
+    a = random.random()
+    print(a)
+    b = random.randrange(9000, 10000)
+    print(b)
+    c = random.randint(9000, 10000)
+    print(c)
+    items = ["Hello", 3, "Potato", "Cake"]
+    print(random.choice(items))
+    random.shuffle(items)
+    print(items)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"math/rand"
+	"time"
+)
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+func main() {
+	a := rand.Float64()
+	fmt.Println(a)
+	b := func(start int, stop int) int {
+		n := stop - start
+		return rand.Intn(n) + start
+	}(9000, 10000)
+	fmt.Println(b)
+	c := func(start int, stop int) int {
+		n := stop - start
+		return rand.Intn(n) + start
+	}(9000, 10000+1)
+	fmt.Println(c)
+	items := []interface{}{"Hello", 3, "Potato", "Cake"}
+	fmt.Println(items[rand.Intn(len(items))])
+	rand.Shuffle(len(items), func(i int, j int) {
+		items[i], items[j] = items[j], items[i]
+	})
+	fmt.Println(items)
+}
+```
 ### string_methods
 #### Python
 ```python
