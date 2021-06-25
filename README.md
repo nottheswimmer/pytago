@@ -571,7 +571,9 @@ if __name__ == '__main__':
 #### Go
 ```go
 package main
+
 import "fmt"
+
 func main() {
 	a := map[interface{}]struct{}{1: {}, 2: {}, 3: {}, 4: {}}
 	b := map[interface{}]struct{}{4: {}, 5: {}, 6: {}}
@@ -611,13 +613,13 @@ func main() {
 		return difference
 	}(a, b))
 	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) map[interface{}]struct{} {
-		symmetric_intersection := map[interface{}]struct{}{}
+		symmetric_difference := map[interface{}]struct{}{}
 		for elt := range s1 {
 			if !func() bool {
 				_, ok := s2[elt]
 				return ok
 			}() {
-				symmetric_intersection[elt] = struct{}{}
+				symmetric_difference[elt] = struct{}{}
 			}
 		}
 		for elt := range s2 {
@@ -625,10 +627,10 @@ func main() {
 				_, ok := s1[elt]
 				return ok
 			}() {
-				symmetric_intersection[elt] = struct{}{}
+				symmetric_difference[elt] = struct{}{}
 			}
 		}
-		return symmetric_intersection
+		return symmetric_difference
 	}(a, b))
 	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) bool {
 		for elt := range s1 {
