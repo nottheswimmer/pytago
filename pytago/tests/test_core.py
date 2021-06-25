@@ -22,6 +22,9 @@ class Test(TestCase):
     def test_hello_world(self):
         self.assert_examples_match("helloworld")
 
+    def test_input(self):
+        self.assert_examples_match("input")
+
     def test_string_methods(self):
         self.assert_examples_match("string_methods")
 

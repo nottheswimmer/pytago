@@ -21,6 +21,8 @@ PyStarExpr = InfinitelySubscriptable()
 
 # Special identifiers can go here
 PY_EMPTY_STRUCT = None
+PY_RUNE = None
+PY_NOSNIPPET = None
 
 
 class BindType(Enum):
@@ -159,6 +161,32 @@ class Bindable:
         return goasts
 
 # Built-in functions
+@Bindable.add(r"int", bind_type=BindType.FUNC_LIT)
+def go_int(value) -> int:
+    if isinstance(value, str):
+        i, err = strconv.ParseInt(value, 10, 64)
+        if err != nil:
+            panic(err)
+        return PY_NOSNIPPET(int)(i)
+    elif isinstance(value, int):
+        return value
+    elif isinstance(value, float):
+        return PY_NOSNIPPET(int)(value)
+
+
+@Bindable.add(r"input", bind_type=BindType.FUNC_LIT)
+def go_is_subset() -> str:
+    reader = bufio.NewReader(os.Stdin)
+    text, _ = reader.ReadString(PY_RUNE('\n'))
+    return strings.ReplaceAll(text, "\n", "")
+
+
+@Bindable.add(r"input", bind_type=BindType.FUNC_LIT)
+def go_is_subset(msg: str) -> str:
+    reader = bufio.NewReader(os.Stdin)
+    fmt.Print(msg)
+    text, _ = reader.ReadString(PY_RUNE('\n'))
+    return strings.ReplaceAll(text, "\n", "")
 
 @Bindable.add("zip")
 def go_zip(a: list, b: list):

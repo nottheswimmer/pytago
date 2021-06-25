@@ -1278,9 +1278,31 @@ class CallExpr(Expr):
 
     @classmethod
     def from_Call(cls, node: ast.Call, _py_context=None):
-        f = find_call_funclit(node)
-        if f:
-            return f
+        try:
+            py_nosnippet = node.func.py_nosnippet
+        except AttributeError:
+            py_nosnippet = False
+        match node.func:
+            case ast.Name(id='PY_RUNE'):
+                match node.args:
+                    case [ast.Constant(value=v)] if isinstance(v, str) and len(v) == 1:
+                        bl = BasicLit.from_value(node="'" + json.dumps(v)[1:-1] + "'", t=token.CHAR)
+                        return bl
+                    case _:
+                        raise NotImplementedError()
+            case ast.Call(ast.Name(id='PY_NOSNIPPET')):
+                match node.func.args:
+                    case [ast.AST() as x]:
+                        node.func = x
+                        x.py_nosnippet = True
+                        py_nosnippet = True
+                    case _:
+                        raise NotImplementedError()
+
+        if not py_nosnippet:
+            f = find_call_funclit(node)
+            if f:
+                return f
 
         _type_help = None
         match node:
