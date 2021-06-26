@@ -120,6 +120,6 @@ ENV APP_HOME /app
 WORKDIR $APP_HOME
 COPY . $APP_HOME
 
-RUN pip install Flask flask-cors gunicorn .
+RUN pip install -r requirements-web.txt .
 
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 --chdir $APP_HOME/pytago pytago.web:app
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 --chdir $APP_HOME/pytago pytago.app:app
