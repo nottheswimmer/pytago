@@ -9,7 +9,7 @@ from pytago.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryE
     ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt, len_
 # Shortcuts
 from pytago.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS, \
-    GoStmt, TypeSwitchStmt, StarExpr
+    GoStmt, TypeSwitchStmt, StarExpr, GenDecl
 
 v = Ident.from_str
 
@@ -124,23 +124,24 @@ class PrintToFmtPrintln(BaseTransformer):
         return node
 
 
-class RemoveOrphanedFunctions(BaseTransformer):
+class RemoveIfNameEqualsMain(BaseTransformer):
     STAGE = 2
     REPEATABLE = False
-    """
-    Orphaned code is placed in functions titled "_" -- later we may want to try to put such code in the main
-    method or elsewhere, but for now we'll remove it.
-    """
 
-    def visit_File(self, node: File):
-        self.generic_visit(node)
-        to_delete = []
-        for decl in node.Decls:
-            match decl:
-                case FuncDecl(Name=Ident(Name="_")):
-                    to_delete.append(decl)
-        for decl in to_delete:
-            node.Decls.remove(decl)
+    # TODO: in the future we want to support adding stuff from under
+    #   "if __name__ == "__main__" to the main function
+    #  Really, it should become the main function unless there already is one
+    #  and it's calling it...
+
+    def visit_FuncDecl(self, node: FuncDecl):
+        match node.Name:
+            case Ident(Name="init"):
+                match node.Body:
+                    case BlockStmt(List=[IfStmt(Cond=cond)]):
+                        match cond:
+                            case BinaryExpr(X=Ident(Name="__name__"), Op=token.EQL, Y=BasicLit(Value='"__main__"')) | \
+                                BinaryExpr(X=Ident(Name="__main__"), Op=token.EQL, Y=BasicLit(Value='"__name__"')):
+                                return
         return node
 
 
@@ -203,6 +204,14 @@ class NodeTransformerWithScope(BaseTransformer):
         self.current_nonlocals = []
         self.missing_type_info = []
 
+    def should_apply_new_scope(self, value):
+        match value:
+            case FuncDecl(Name="init"):
+                return False
+            case BlockStmt(parents=[FuncDecl(Name="init")]):
+                return False
+        return isinstance(value, Stmt) and not isinstance(value, (AssignStmt, ValueSpec))
+
     def generic_visit(self, node):
         self.stack.append(node)
         prev_globals = self.current_globals
@@ -224,7 +233,7 @@ class NodeTransformerWithScope(BaseTransformer):
                             case ast.Nonlocal(names=names):
                                 self.current_nonlocals += names
                     if isinstance(value, AST):
-                        new_scope = isinstance(value, Stmt) and not isinstance(value, (AssignStmt, ValueSpec))
+                        new_scope = self.should_apply_new_scope(value)
                         if new_scope:
                             self.scope = Scope({}, self.scope)
                         value = self.visit(value)
@@ -238,7 +247,7 @@ class NodeTransformerWithScope(BaseTransformer):
                     new_values.append(value)
                 old_value[:] = new_values
             elif isinstance(old_value, AST):
-                new_scope = isinstance(old_value, Stmt) and not isinstance(old_value, (AssignStmt, ValueSpec))
+                new_scope = self.should_apply_new_scope(old_value)
                 if new_scope:
                     self.scope = Scope({}, self.scope)
                 new_node = self.visit(old_value)
@@ -1599,6 +1608,25 @@ class CallTypeInformation(NodeTransformerWithScope):
     def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
         return
 
+class MergeAdjacentInits(BaseTransformer):
+    def visit_File(self, node: File):
+        decls = node.Decls
+        i = 0
+        while i < (len(decls) - 1):
+            cur = decls[i]
+            nxt = decls[i+1]
+            match cur, nxt:
+                case FuncDecl(Name=Ident(Name="init")), FuncDecl(Name=Ident(Name="init")):
+                    cur.Body.List += nxt.Body.List
+                    del decls[i+1]
+                # Also try to group variable declarations/imports above init methods
+                case FuncDecl(Name=Ident(Name="init")), GenDecl():
+                    decls[i], decls[i+1] = decls[i+1], decls[i]
+                    i += 1
+                case _:
+                    i += 1
+        return node
+
 class LoopThroughSetValuesNotKeys(NodeTransformerWithScope):
     def visit_RangeStmt(self, node: RangeStmt):
         self.generic_visit(node)
@@ -1622,9 +1650,7 @@ ALL_TRANSFORMS = [
     PythonToGoTypes,
     UnpackRange,
     RangeRangeToFor,
-
-    # Scope transformers
-    SpecialComparators,
+    SpecialComparators,  # First scope transformer
     YieldTransformer,  # May need to be above other scope transformers because jank,
     YieldRangeTransformer,
     ReplacePowWithMathPow,
@@ -1652,7 +1678,8 @@ ALL_TRANSFORMS = [
     NodeTransformerWithInterfaceTypes,
     RemoveGoCallReturns,
     RemoveBadStmt,  # Should be last as these are used for scoping
+    MergeAdjacentInits,
 
     #### STAGE 2 ####
-    RemoveOrphanedFunctions
+    RemoveIfNameEqualsMain
 ]

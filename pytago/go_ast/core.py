@@ -384,7 +384,16 @@ def build_stmt_list(nodes, **kwargs) -> list['Stmt']:
 
 
 def build_decl_list(nodes) -> list['Decl']:
-    return _build_x_list(_DECL_TYPES, "Decl", nodes)
+    decls = []
+    global_mode = False
+    for node in nodes:
+        try:
+            decls += _build_x_list(_DECL_TYPES, "Decl", [node], global_mode=global_mode)
+        except ValueError:
+            decls.append(FuncDecl.from_global_code(node))
+            # From this point on, all variable assignmnts must be handled inside an init.
+            global_mode = True
+    return decls
 
 import sys
 import types
@@ -415,10 +424,15 @@ class GoAST(ast.AST):
 
     _prefix = "ast."
 
-    def __init__(self, **kwargs):
+    def __init__(self, parents=None, **kwargs):
         super().__init__(**kwargs)
-        GoAST.STORY.append(self)
-        self.STORY_INDEX = len(GoAST.STORY)
+        self.parents = parents or []
+        for field_name in self._fields:
+            field = getattr(self, field_name, None)
+            if isinstance(field, GoAST):
+                field.parents.append(self)
+        # GoAST.STORY.append(self)
+        # self.STORY_INDEX = len(GoAST.STORY)
         # self.TRACE = exception_with_traceback()  # Debugging
 
     def remove_falsy_fields(self):
@@ -441,9 +455,9 @@ class GoAST(ast.AST):
 
 class Expr(GoAST):
     def __init__(self, *args, _type_help=None, _py_context=None, **kwargs):
-        super().__init__(**kwargs)
         self._type_help = _type_help
         self._py_context = _py_context or {}
+        super().__init__(**kwargs)
 
     def __or__(self, Y: 'Expr') -> 'BinaryExpr':
         """
@@ -2459,23 +2473,14 @@ class FuncDecl(Decl):
         recv = None
         return cls(body, doc, name, recv, _type, **kwargs)
 
-    # All of these simply throw the code in a function titled _ to be swept up later
     @classmethod
-    def from_BadDecl(cls, node: ast.AST, **kwargs):
+    def from_global_code(cls, node: ast.AST, **kwargs):
         body = from_this(BlockStmt, [node])
         doc = None
-        name = from_this(Ident, "_")
+        name = from_this(Ident, "init")
         recv = None
         _type = FuncType(0, FieldList(0, []), FieldList(0, []))
         return cls(body, doc, name, recv, _type, **kwargs)
-
-    @classmethod
-    def from_If(cls, node: ast.If, **kwargs):
-        return cls.from_BadDecl(node, **kwargs)
-
-    @classmethod
-    def from_Expr(cls, node: ast.If, **kwargs):
-        return cls.from_BadDecl(node, **kwargs)
 
 
 class FuncLit(Expr):
@@ -2629,16 +2634,38 @@ class GenDecl(Decl):
         return decls
 
     @classmethod
-    def from_Assign(cls, node: ast.Assign, **kwargs):
+    def from_Assign(cls, node: ast.Assign, global_mode=False, **kwargs):
         values = build_expr_list([node.value])
-        specs = [ValueSpec(Values=values, Names=build_expr_list(node.targets))]
-        return cls(Tok=token.VAR, Specs=specs, **kwargs)
+        spec = ValueSpec(Values=values, Names=build_expr_list(node.targets))
+        if global_mode:
+            # If we've already initialized some code via init methods,
+            #   to get close to the behavior of python we need to initialize
+            #   all subsequent vars via init as well
+            _type = None
+            _desperate_type = None
+            values = values.copy()
+            while spec.Values:
+                value = spec.Values.pop(0)
+                _type = _type or value._type()
+                if not _type:
+                    _desperate_type = _desperate_type or value._type(interface_ok=True)
+            spec.Type = _type or InterfaceType(_py_context={"elts": values})
+            init = FuncDecl.from_global_code(node)
+            init.Body.List[0].Tok = token.ASSIGN
+            return [init, cls(Tok=token.VAR, Specs=[spec], **kwargs)]
+        return cls(Tok=token.VAR, Specs=[spec], **kwargs)
 
     @classmethod
-    def from_AnnAssign(cls, node: ast.AnnAssign, **kwargs):
+    def from_AnnAssign(cls, node: ast.AnnAssign, global_mode=False, **kwargs):
         values = build_expr_list([node.value]) if node.value else None
-        specs = [ValueSpec(Values=values, Type=_type_annotation_to_go_type(node.annotation), Names=[from_this(Ident, node.target)])]
-        return cls(Tok=token.VAR, Specs=specs, **kwargs)
+        spec = ValueSpec(Values=values, Type=_type_annotation_to_go_type(node.annotation),
+                           Names=[from_this(Ident, node.target)])
+        if values and global_mode:
+            init = FuncDecl.from_global_code(ast.Assign(targets=[node.target], value=node.value))
+            init.Body.List[0].Tok = token.ASSIGN
+            spec.Values = []
+            return [init, cls(Tok=token.VAR, Specs=[spec], **kwargs)]
+        return cls(Tok=token.VAR, Specs=[spec], **kwargs)
 
     @classmethod
     def from_ImportSpec(cls, node: ImportSpec, **kwargs):

@@ -37,6 +37,9 @@ class Test(TestCase):
     def test_set_methods(self):
         self.assert_examples_match("set_methods")
 
+    def test_global_code(self):
+        self.assert_examples_match("global_code")
+
     def test_boolnumcompare(self):
         self.assert_examples_match("boolnumcompare")
 
