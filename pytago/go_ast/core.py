@@ -2808,7 +2808,7 @@ class IndexExpr(Expr):
     @classmethod
     def from_Subscript(cls, node: ast.Subscript, **kwargs):
         match node.slice:
-            case ast.Constant() | ast.UnaryOp() | ast.Name() | ast.Call():
+            case ast.Constant() | ast.UnaryOp() | ast.Name() | ast.Call() | ast.BinOp():
                 index = build_expr_list([node.slice])[0]
             case _:
                 raise NotImplementedError((node, node.slice))
