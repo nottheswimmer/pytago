@@ -1166,6 +1166,11 @@ def go_random_shuffle(seq):
         seq[i], seq[j] = seq[j], seq[i]
     rand.Shuffle(len(seq), PYTAGO_INLINE)
 
+@Bindable.add(r"random\.uniform", bind_type=BindType.FUNC_LIT)
+def go_random_uniform(a: float, b: float):
+    def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
+    return rand.Float64() * (b - a) + b
+
 # TODO: Exhaustive list of all dunders, .methods, builtins, etc implemented here...
 
 reversal = {}
