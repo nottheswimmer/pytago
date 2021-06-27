@@ -226,6 +226,8 @@ def main():
     print(items)
     u = random.uniform(200, 500)
     print(u)
+    if random.random() > 0.5:
+        print("50/50")
 
 
 if __name__ == '__main__':
@@ -265,6 +267,9 @@ func main() {
 		return rand.Float64()*(b-a) + b
 	}(200, 500)
 	fmt.Println(u)
+	if rand.Float64() > 0.5 {
+		fmt.Println("50/50")
+	}
 }
 ```
 ### string_methods
@@ -3574,6 +3579,68 @@ func main() {
 		}
 		panic(errors.New("ValueError"))
 	}())
+}
+```
+### timemodule
+#### Python
+```python
+import time
+
+def main():
+    print("Hello")
+    time.sleep(3)
+    print("... time!")
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	fmt.Println("Hello")
+	time.Sleep(3 * time.Second)
+	fmt.Println("... time!")
+}
+```
+### exit
+#### Python
+```python
+import sys
+
+
+def main():
+    quit()
+    quit(1)
+    exit()
+    exit(1)
+    sys.exit()
+    sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "os"
+
+func main() {
+	os.Exit(0)
+	os.Exit(1)
+	os.Exit(0)
+	os.Exit(1)
+	os.Exit(0)
+	os.Exit(1)
 }
 ```
 
