@@ -11,6 +11,8 @@ def main():
     print(items)
     u = random.uniform(200, 500)
     print(u)
+    if random.random() > 0.5:
+        print("50/50")
 
 
 if __name__ == '__main__':

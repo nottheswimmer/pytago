@@ -1126,50 +1126,50 @@ def go_ge_dunder(self, other):
 # Randomness
 @Bindable.add(r"random\.random", bind_type=BindType.EXPR)
 def go_random_random() -> float:
+    return rand.Float64()
     def _():
         def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
-    return rand.Float64()
 
 
 @Bindable.add(r"random\.randrange", bind_type=BindType.EXPR)
 def go_random_randrange(start: int) -> int:
+    return rand.Intn(start)
     def _():
         def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
-    return rand.Intn(start)
 
 
 @Bindable.add(r"random\.randrange", bind_type=BindType.FUNC_LIT)
 def go_random_randrange(start: int, stop: int) -> int:
-    def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
     n = stop - start
     return rand.Intn(n) + start
+    def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
 
 @Bindable.add(r"random\.randint", bind_type=BindType.EXPR)
 def go_random_randint(start: int, stop: int) -> int:
+    return random.randrange(start, stop + 1)
     def _():
         def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
-    return random.randrange(start, stop + 1)
 
 
 @Bindable.add(r"random\.choice", bind_type=BindType.EXPR)
 def go_random_choice(seq) -> int:
+    return seq[rand.Intn(len(seq))]
     def _():
         def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
-    return seq[rand.Intn(len(seq))]
 
 
 @Bindable.add(r"random\.shuffle", bind_type=BindType.STMT)
 def go_random_shuffle(seq):
-    def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
     def PYTAGO_INLINE(i: int, j: int):
         seq[i], seq[j] = seq[j], seq[i]
     rand.Shuffle(len(seq), PYTAGO_INLINE)
+    def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
 @Bindable.add(r"random\.uniform", bind_type=BindType.FUNC_LIT)
 def go_random_uniform(a: float, b: float):
-    def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
     return rand.Float64() * (b - a) + b
+    def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
 # TODO: Exhaustive list of all dunders, .methods, builtins, etc implemented here...
 

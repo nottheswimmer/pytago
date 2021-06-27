@@ -30,4 +30,7 @@ func main() {
 		return rand.Float64()*(b-a) + b
 	}(200, 500)
 	fmt.Println(u)
+	if rand.Float64() > 0.5 {
+		fmt.Println("50/50")
+	}
 }
