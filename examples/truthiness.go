@@ -51,13 +51,13 @@ func main() {
 	if q := map[interface{}]struct{}{}; len(q) != 0 {
 		fmt.Println(q)
 	}
-	if r := map[interface{}]struct{}{1: {}, 2: {}, 3: {}}; len(r) != 0 {
+	if r := map[int]struct{}{1: {}, 2: {}, 3: {}}; len(r) != 0 {
 		fmt.Println(r)
 	}
 	if s := map[interface{}]interface{}{}; len(s) != 0 {
 		fmt.Println(s)
 	}
-	if t := map[interface{}]interface{}{1: 2}; len(t) != 0 {
+	if t := map[int]int{1: 2}; len(t) != 0 {
 		fmt.Println(t)
 	}
 }

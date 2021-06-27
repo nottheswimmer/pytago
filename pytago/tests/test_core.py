@@ -220,3 +220,6 @@ class Test(TestCase):
     #
     # def test_index(self):
     #     self.assert_examples_match("index")
+
+    def test_retroactive_composite_types(self):
+        self.assert_examples_match("retroactive_composite_types")

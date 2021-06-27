@@ -727,10 +727,10 @@ package main
 import "fmt"
 
 func main() {
-	a := map[interface{}]struct{}{1: {}, 2: {}, 3: {}, 4: {}}
-	b := map[interface{}]struct{}{4: {}, 5: {}, 6: {}}
+	a := map[int]struct{}{1: {}, 2: {}, 3: {}, 4: {}}
+	b := map[int]struct{}{4: {}, 5: {}, 6: {}}
 	b[7] = struct{}{}
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) map[interface{}]struct{} {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) map[interface{}]struct{} {
 		union := map[interface{}]struct{}{}
 		for elt := range s1 {
 			union[elt] = struct{}{}
@@ -740,7 +740,7 @@ func main() {
 		}
 		return union
 	}(a, b))
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) map[interface{}]struct{} {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) map[interface{}]struct{} {
 		intersection := map[interface{}]struct{}{}
 		for elt := range s1 {
 			if func() bool {
@@ -752,7 +752,7 @@ func main() {
 		}
 		return intersection
 	}(a, b))
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) map[interface{}]struct{} {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) map[interface{}]struct{} {
 		difference := map[interface{}]struct{}{}
 		for elt := range s1 {
 			if !func() bool {
@@ -764,7 +764,7 @@ func main() {
 		}
 		return difference
 	}(a, b))
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) map[interface{}]struct{} {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) map[interface{}]struct{} {
 		symmetric_difference := map[interface{}]struct{}{}
 		for elt := range s1 {
 			if !func() bool {
@@ -784,7 +784,7 @@ func main() {
 		}
 		return symmetric_difference
 	}(a, b))
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) bool {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) bool {
 		for elt := range s1 {
 			if !func() bool {
 				_, ok := s2[elt]
@@ -795,7 +795,7 @@ func main() {
 		}
 		return true
 	}(a, b))
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) bool {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) bool {
 		for elt := range s2 {
 			if !func() bool {
 				_, ok := s1[elt]
@@ -2036,7 +2036,7 @@ package main
 import "fmt"
 
 func main() {
-	s := map[interface{}]struct{}{1: {}, 2: {}, 3: {}}
+	s := map[int]struct{}{1: {}, 2: {}, 3: {}}
 	x := 1
 	fmt.Println(len(s))
 	fmt.Println(func() bool {
@@ -2116,7 +2116,7 @@ func main() {
 	b := "hello world"
 	fmt.Println(strings.Contains(b, "hello"))
 	fmt.Println(!strings.Contains(b, "Hello"))
-	c := map[interface{}]interface{}{"hello": 1, "world": 2}
+	c := map[string]int{"hello": 1, "world": 2}
 	fmt.Println(func() bool {
 		_, ok := c["hello"]
 		return ok
@@ -2393,11 +2393,9 @@ package main
 import "fmt"
 
 var (
-	SITE = "https://www.google.com/"
-	NAME = []string{"Michael", "Wayne", "Phelps"}
-	KEYS = map[interface{}]interface{}{1: 2, 3: 4}
-)
-var (
+	SITE       = "https://www.google.com/"
+	NAME       = []string{"Michael", "Wayne", "Phelps"}
+	KEYS       = map[int]int{1: 2, 3: 4}
 	AGE        = 1000
 	BIRTH_YEAR = 2050
 )
@@ -2851,13 +2849,13 @@ func main() {
 	if q := map[interface{}]struct{}{}; len(q) != 0 {
 		fmt.Println(q)
 	}
-	if r := map[interface{}]struct{}{1: {}, 2: {}, 3: {}}; len(r) != 0 {
+	if r := map[int]struct{}{1: {}, 2: {}, 3: {}}; len(r) != 0 {
 		fmt.Println(r)
 	}
 	if s := map[interface{}]interface{}{}; len(s) != 0 {
 		fmt.Println(s)
 	}
-	if t := map[interface{}]interface{}{1: 2}; len(t) != 0 {
+	if t := map[int]int{1: 2}; len(t) != 0 {
 		fmt.Println(t)
 	}
 }
@@ -3501,6 +3499,68 @@ func main() {
 	}
 }
 ```
+### timemodule
+#### Python
+```python
+import time
+
+def main():
+    print("Hello")
+    time.sleep(3)
+    print("... time!")
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	fmt.Println("Hello")
+	time.Sleep(3 * time.Second)
+	fmt.Println("... time!")
+}
+```
+### exit
+#### Python
+```python
+import sys
+
+
+def main():
+    quit()
+    quit(1)
+    exit()
+    exit(1)
+    sys.exit()
+    sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "os"
+
+func main() {
+	os.Exit(0)
+	os.Exit(1)
+	os.Exit(0)
+	os.Exit(1)
+	os.Exit(0)
+	os.Exit(1)
+}
+```
 ### algomajorityelement
 #### Python
 ```python
@@ -3581,15 +3641,33 @@ func main() {
 	}())
 }
 ```
-### timemodule
+### retroactive_composite_types
 #### Python
 ```python
-import time
-
 def main():
-    print("Hello")
-    time.sleep(3)
-    print("... time!")
+    a = []
+    a.append(3)
+
+    b = []
+    b += a
+
+    c = {}
+    c["hello"] = 1
+
+    d = {}
+    d[1] = 2
+    d["gonna_be_an_interface"] = "yup"
+
+    e = set()
+    e.add(1)
+
+    f = [[]]
+    f[0].append(1)
+
+    g = {}
+    g[(1, 2)] = 3
+
+    print(a, b, c, d, e, f, g)
 
 
 if __name__ == '__main__':
@@ -3599,48 +3677,25 @@ if __name__ == '__main__':
 ```go
 package main
 
-import (
-	"fmt"
-	"time"
-)
+import "fmt"
 
 func main() {
-	fmt.Println("Hello")
-	time.Sleep(3 * time.Second)
-	fmt.Println("... time!")
-}
-```
-### exit
-#### Python
-```python
-import sys
-
-
-def main():
-    quit()
-    quit(1)
-    exit()
-    exit(1)
-    sys.exit()
-    sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
-```
-#### Go
-```go
-package main
-
-import "os"
-
-func main() {
-	os.Exit(0)
-	os.Exit(1)
-	os.Exit(0)
-	os.Exit(1)
-	os.Exit(0)
-	os.Exit(1)
+	a := []int{}
+	a = append(a, 3)
+	b := []int{}
+	b = append(b, a...)
+	c := map[string]int{}
+	c["hello"] = 1
+	d := map[interface{}]interface{}{}
+	d[1] = 2
+	d["gonna_be_an_interface"] = "yup"
+	e := map[int]struct{}{}
+	e[1] = struct{}{}
+	f := [][]int{{}}
+	f[0] = append(f[0], 1)
+	g := map[[2]int]int{}
+	g[[2]int{1, 2}] = 3
+	fmt.Println(a, b, c, d, e, f, g)
 }
 ```
 

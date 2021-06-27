@@ -1442,7 +1442,7 @@ class CallExpr(Expr):
         return cls.from_ListComp_or_GeneratorExp(node, **kwargs)
 
     @classmethod
-    def from_DictComp_or_SetComp(cls, node: ast.SetComp, **kwargs):
+    def from_DictComp_or_SetComp(cls, node: ast.SetComp | ast.DictComp, **kwargs):
         set_mode = isinstance(node, ast.SetComp)
         key = build_expr_list([node.elt if set_mode else node.key])[0]
         value = CompositeLit(Type=StructType()) if set_mode else build_expr_list([node.value])[0]
@@ -1785,10 +1785,8 @@ class CompositeLit(Expr):
     def from_Tuple(cls, node: ast.Tuple, **kwargs):
         elts = build_expr_list(node.elts)
         e_type = elt_type_from_elts(elts)
-
         typ = ArrayType(Elt=e_type, Len=BasicLit.from_int(len(elts)))
         return cls(elts, False, 0, 0, typ, **kwargs)
-
 
     @classmethod
     def from_Dict(cls, node: ast.Dict, **kwargs):
@@ -1807,12 +1805,19 @@ class CompositeLit(Expr):
     def _type(self, scope: Optional['Scope']=None, **kwargs):
         if scope:
             match self.Type:
-                case ArrayType(Elt=Ident(Name=x)):
+                case ArrayType(Elt=x):
                     x_type = scope._get_type(x, **kwargs)
                     if x_type:
                         return ArrayType(Elt=x_type)
+        match self.Type:
+            case MapType(Key=key_type, Value=value_type):
+                if isinstance(key_type, InterfaceType):
+                    key_elts = key_type._py_context.setdefault("elts", [])
+                    key_elts += [x.Key for x in self.Elts]
+                if isinstance(value_type, InterfaceType):
+                    value_elts = value_type._py_context.setdefault("elts", [])
+                    value_elts += [x.Value for x in self.Elts]
         return self.Type or super()._type(scope, **kwargs)
-
 
 class DeclStmt(Stmt):
     """A DeclStmt node represents a declaration in a statement list."""
@@ -2808,7 +2813,7 @@ class IndexExpr(Expr):
     @classmethod
     def from_Subscript(cls, node: ast.Subscript, **kwargs):
         match node.slice:
-            case ast.Constant() | ast.UnaryOp() | ast.Name() | ast.Call() | ast.BinOp():
+            case ast.Constant() | ast.UnaryOp() | ast.Name() | ast.Call() | ast.BinOp() | ast.Tuple():
                 index = build_expr_list([node.slice])[0]
             case _:
                 raise NotImplementedError((node, node.slice))
@@ -2825,9 +2830,11 @@ class IndexExpr(Expr):
         # If we're taking a slice, the type doesn't change
         t = None
 
-        # TODO: General refactoring, this is simply written poorly. Also we probably need explicit MapType support etc
+        # TODO: Check if we're forgetting any composite types
         if index_type == GoBasicType.INT.ident and isinstance(x_type, ArrayType):
             t = x_type.Elt
+        elif isinstance(x_type, MapType):
+            return x_type.Value
         elif index_type and (index_type != GoBasicType.INT.ident) and not isinstance(index_type, InterfaceType):
             t = x_type
 

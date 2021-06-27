@@ -3,10 +3,10 @@ package main
 import "fmt"
 
 func main() {
-	a := map[interface{}]struct{}{1: {}, 2: {}, 3: {}, 4: {}}
-	b := map[interface{}]struct{}{4: {}, 5: {}, 6: {}}
+	a := map[int]struct{}{1: {}, 2: {}, 3: {}, 4: {}}
+	b := map[int]struct{}{4: {}, 5: {}, 6: {}}
 	b[7] = struct{}{}
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) map[interface{}]struct{} {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) map[interface{}]struct{} {
 		union := map[interface{}]struct{}{}
 		for elt := range s1 {
 			union[elt] = struct{}{}
@@ -16,7 +16,7 @@ func main() {
 		}
 		return union
 	}(a, b))
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) map[interface{}]struct{} {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) map[interface{}]struct{} {
 		intersection := map[interface{}]struct{}{}
 		for elt := range s1 {
 			if func() bool {
@@ -28,7 +28,7 @@ func main() {
 		}
 		return intersection
 	}(a, b))
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) map[interface{}]struct{} {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) map[interface{}]struct{} {
 		difference := map[interface{}]struct{}{}
 		for elt := range s1 {
 			if !func() bool {
@@ -40,7 +40,7 @@ func main() {
 		}
 		return difference
 	}(a, b))
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) map[interface{}]struct{} {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) map[interface{}]struct{} {
 		symmetric_difference := map[interface{}]struct{}{}
 		for elt := range s1 {
 			if !func() bool {
@@ -60,7 +60,7 @@ func main() {
 		}
 		return symmetric_difference
 	}(a, b))
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) bool {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) bool {
 		for elt := range s1 {
 			if !func() bool {
 				_, ok := s2[elt]
@@ -71,7 +71,7 @@ func main() {
 		}
 		return true
 	}(a, b))
-	fmt.Println(func(s1 map[interface{}]struct{}, s2 map[interface{}]struct{}) bool {
+	fmt.Println(func(s1 map[int]struct{}, s2 map[int]struct{}) bool {
 		for elt := range s2 {
 			if !func() bool {
 				_, ok := s1[elt]

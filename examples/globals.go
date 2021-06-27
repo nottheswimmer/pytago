@@ -3,11 +3,9 @@ package main
 import "fmt"
 
 var (
-	SITE = "https://www.google.com/"
-	NAME = []string{"Michael", "Wayne", "Phelps"}
-	KEYS = map[interface{}]interface{}{1: 2, 3: 4}
-)
-var (
+	SITE       = "https://www.google.com/"
+	NAME       = []string{"Michael", "Wayne", "Phelps"}
+	KEYS       = map[int]int{1: 2, 3: 4}
 	AGE        = 1000
 	BIRTH_YEAR = 2050
 )

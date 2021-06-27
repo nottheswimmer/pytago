@@ -171,20 +171,6 @@ class ReplacePythonStyleAppends(BaseTransformer):
         return block_node
 
 
-class AppendSliceViaUnpacking(BaseTransformer):
-    def visit_AssignStmt(self, node: AssignStmt):
-        self.generic_visit(node)
-        match node:
-            case AssignStmt(Rhs=[CompositeLit(), * ignored], Tok=token.ADD_ASSIGN):
-                node.Rhs[0] = CallExpr(Args=[node.Lhs[0], node.Rhs[0]],
-                                       Ellipsis=1, Fun=v("append"))
-                node.Tok = token.ASSIGN
-            case AssignStmt(Rhs=[BinaryExpr(Op=token.ADD, Y=CompositeLit()), * ignored]):
-                node.Rhs[0] = CallExpr(Args=[node.Rhs[0].X, node.Rhs[0].Y],
-                                       Ellipsis=1, Fun=v("append"))
-
-        return node
-
 
 class PythonToGoTypes(BaseTransformer):
     def visit_Field(self, node: Field):
@@ -210,6 +196,8 @@ class NodeTransformerWithScope(BaseTransformer):
                 return False
             case BlockStmt(parents=[FuncDecl(Name="init")]):
                 return False
+            case FuncLit():
+                return True
         return isinstance(value, Stmt) and not isinstance(value, (AssignStmt, ValueSpec))
 
     def generic_visit(self, node):
@@ -434,11 +422,22 @@ class NodeTransformerWithScope(BaseTransformer):
                 node.Rhs = rhs
         self.apply_eager_context(node.Lhs, node.Rhs)
         self.generic_visit(node)
-        if node.Tok != token.DEFINE and all(
-                self.scope._in_scope(x) or self.scope._in_outer_scope(x) for x in node.Lhs if isinstance(x, Ident)):
+        if node.Tok != token.DEFINE:
+            if all(self.scope._in_scope(x) or self.scope._in_outer_scope(x) for x in node.Lhs if isinstance(x, Ident)):
+                # Tacking on some code to help NodeTransformerWithInterfaceTypes here
+                if len(node.Lhs) == len(node.Rhs):
+                    for l, r in zip(node.Lhs, node.Rhs):
+                        l_type = self.scope._get_type(l)
+                        r_type = self.scope._get_type(r)
+                        match l_type, r_type:
+                            case InterfaceType(), *anything:
+                                l_type._py_context.setdefault("elts", []).append(r)
+                            case ArrayType(Elt=InterfaceType()), ArrayType(Elt=r_elt) if r_elt and not isinstance(r_elt, InterfaceType):
+                                l_type.Elt = r_elt
+                            case _:
+                                pass
+
             return node
-
-
 
         declared = self.apply_to_scope(node.Lhs, node.Rhs)
         if not declared:
@@ -524,6 +523,36 @@ class NodeTransformerWithScope(BaseTransformer):
                 callbacks.append(callback)
                 return True
         return False
+
+
+class IndexExpressionsHelpTypeMaps(NodeTransformerWithScope):
+    def visit_IndexExpr(self, node: IndexExpr):
+        self.generic_visit(node)
+        x_type = self.scope._get_type(node.X)
+        match x_type:
+            case MapType(Key=InterfaceType()):
+                x_type.Key._py_context.setdefault("elts", []).append(node.Index)
+        return node
+
+class AppendSliceViaUnpacking(NodeTransformerWithScope):
+    def visit_AssignStmt(self, node: AssignStmt):
+        node = super().visit_AssignStmt(node)
+        match node:
+            case AssignStmt(Rhs=[CompositeLit(), * ignored], Tok=token.ADD_ASSIGN):
+                node.Rhs[0] = CallExpr(Args=[node.Lhs[0], node.Rhs[0]],
+                                       Ellipsis=1, Fun=v("append"))
+                node.Tok = token.ASSIGN
+            case AssignStmt(Rhs=[BinaryExpr(Op=token.ADD, Y=CompositeLit()), * ignored]):
+                node.Rhs[0] = CallExpr(Args=[node.Rhs[0].X, node.Rhs[0].Y],
+                                       Ellipsis=1, Fun=v("append"))
+            case AssignStmt(Lhs=[x], Rhs=[y], Tok=token.ADD_ASSIGN):
+                x_type = self.scope._get_type(x)
+                match x_type:
+                    case ArrayType():
+                        node.Rhs[0] = CallExpr(Args=[x, y],
+                                               Ellipsis=1, Fun=v("append"))
+                        node.Tok = token.ASSIGN
+        return node
 
 
 class ReplacePowWithMathPow(NodeTransformerWithScope):
@@ -1649,11 +1678,12 @@ ALL_TRANSFORMS = [
     PrintToFmtPrintln,
     CapitalizeMathModuleCalls,
     ReplacePythonStyleAppends,
-    AppendSliceViaUnpacking,
     PythonToGoTypes,
     UnpackRange,
     RangeRangeToFor,
     SpecialComparators,  # First scope transformer
+    IndexExpressionsHelpTypeMaps,
+    AppendSliceViaUnpacking,
     YieldTransformer,  # May need to be above other scope transformers because jank,
     YieldRangeTransformer,
     ReplacePowWithMathPow,

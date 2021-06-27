@@ -35,7 +35,7 @@ func main() {
 	b := "hello world"
 	fmt.Println(strings.Contains(b, "hello"))
 	fmt.Println(!strings.Contains(b, "Hello"))
-	c := map[interface{}]interface{}{"hello": 1, "world": 2}
+	c := map[string]int{"hello": 1, "world": 2}
 	fmt.Println(func() bool {
 		_, ok := c["hello"]
 		return ok
