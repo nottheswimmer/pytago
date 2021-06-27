@@ -1578,7 +1578,10 @@ class CallExpr(Expr):
             case Ident(Name='append'):
                 element_type = self.Args[1]._type(scope, **kwargs)
                 if element_type:
-                    return ArrayType(Elt=element_type, _py_context=element_type._py_context)
+                    if self.Ellipsis:
+                        return element_type
+                    else:
+                        return ArrayType(Elt=element_type, _py_context=element_type._py_context)
 
             # Probably better ways to handle this, but let's add some types for expressions from py_snippets
             case SelectorExpr(X=x, Sel=sel):

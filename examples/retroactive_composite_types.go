@@ -18,5 +18,11 @@ func main() {
 	f[0] = append(f[0], 1)
 	g := map[[2]int]int{}
 	g[[2]int{1, 2}] = 3
-	fmt.Println(a, b, c, d, e, f, g)
+	h := []interface{}{}
+	h = append(h, 1)
+	h = append(h, "hi")
+	i := map[interface{}]string{}
+	i[1] = "lol"
+	i["2"] = "lmao"
+	fmt.Println(a, b, c, d, e, f, g, h)
 }

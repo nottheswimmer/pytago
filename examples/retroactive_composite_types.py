@@ -21,7 +21,15 @@ def main():
     g = {}
     g[(1, 2)] = 3
 
-    print(a, b, c, d, e, f, g)
+    h = []
+    h.append(1)
+    h.append("hi")
+
+    i = {}
+    i[1] = "lol"
+    i["2"] = "lmao"
+
+    print(a, b, c, d, e, f, g, h)
 
 
 if __name__ == '__main__':

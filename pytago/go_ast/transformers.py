@@ -181,6 +181,16 @@ class PythonToGoTypes(BaseTransformer):
         return node
 
 
+def compatible_types(type_1: AST, type_2: AST):
+    if isinstance(type_1, InterfaceType) or isinstance(type_2, InterfaceType):
+        return True
+    if isinstance(type_1, MapType) and isinstance(type_2, MapType):
+        return compatible_types(type_1.Key, type_2.Key) and compatible_types(type_1.Value, type_2.Value)
+    if isinstance(type_1, ArrayType) and isinstance(type_2, ArrayType):
+        return compatible_types(type_1.Elt, type_2.Elt)
+    return type_1 == type_2
+
+
 class NodeTransformerWithScope(BaseTransformer):
     def __init__(self, scope=None):
         super().__init__()
@@ -429,13 +439,17 @@ class NodeTransformerWithScope(BaseTransformer):
                     for l, r in zip(node.Lhs, node.Rhs):
                         l_type = self.scope._get_type(l)
                         r_type = self.scope._get_type(r)
-                        match l_type, r_type:
-                            case InterfaceType(), *anything:
-                                l_type._py_context.setdefault("elts", []).append(r)
-                            case ArrayType(Elt=InterfaceType()), ArrayType(Elt=r_elt) if r_elt and not isinstance(r_elt, InterfaceType):
-                                l_type.Elt = r_elt
-                            case _:
-                                pass
+                        if l_type != r_type:
+                            match l_type, r_type:
+                                case InterfaceType(), *anything:
+                                    l_type._py_context.setdefault("elts", []).append(r)
+                                case ArrayType(Elt=InterfaceType()), ArrayType(Elt=r_elt) if r_elt and not isinstance(r_elt, InterfaceType):
+                                    if not getattr(l_type.Elt, "permanent_interface", False):
+                                        l_type.Elt = r_elt
+                                case ArrayType(Elt=e_elt), ArrayType(Elt=r_elt) if r_elt and not isinstance(r_elt, InterfaceType):
+                                    if not compatible_types(r_elt, e_elt):
+                                        l_type.Elt = InterfaceType()
+                                        l_type.Elt.permanent_interface = True
 
             return node
 
@@ -1500,6 +1514,8 @@ class NodeTransformerWithInterfaceTypes(NodeTransformerWithScope):
     # TODO: Optimize. This is way too f**ing slow
     def visit_InterfaceType(self, node: InterfaceType):
         self.generic_visit(node)
+        if getattr(node, "permanent_interface", False):
+            return node
         elts = node._py_context.get("elts", [])
         if not elts:
             return node
@@ -1559,6 +1575,8 @@ class UntypedFunctionsTypedByCalls(NodeTransformerWithScope):
                     for i, param in enumerate(params):
                         match param.Type:
                             case InterfaceType() | None:
+                                if getattr(param.Type, "permanent_interface", False):
+                                    continue
                                 arg = node.Args[i]
                                 arg_type = scope._get_type(arg)
                                 if arg_type and not isinstance(arg_type, InterfaceType):
@@ -1579,6 +1597,13 @@ class CallTypeInformation(NodeTransformerWithScope):
                 for x, x_type, y_type in ((b, b_type, a_type), (a, a_type, b_type)):
                     match x_type:
                         case None | InterfaceType() | StarExpr(X=InterfaceType()):
+                            match x_type:
+                                case InterfaceType():
+                                    if getattr(x_type, "permanent_interface", False):
+                                        return node
+                                case StarExpr():
+                                    if getattr(x_type.X, "permanent_interface", False):
+                                        return node
                             if y_type:
                                 self.apply_to_scope([x], [y_type], rhs_is_types=True, force_current=True)
                                 discoveries += 1
@@ -1607,12 +1632,15 @@ class CallTypeInformation(NodeTransformerWithScope):
                                 for field in x.List:
                                     match field.Type:
                                         case InterfaceType():
-                                            for name in field.Names:
-                                                t = self.scope._get_type(name)
-                                                if t:
-                                                    field.Type = t
-                                                    discoveries -= 1
-                                                    break
+                                            if getattr(x_type, "permanent_interface", False):
+                                                pass
+                                            else:
+                                                for name in field.Names:
+                                                    t = self.scope._get_type(name)
+                                                    if t:
+                                                        field.Type = t
+                                                        discoveries -= 1
+                                                        break
                                         case StarExpr():
                                             for name in field.Names:
                                                 t = self.scope._get_type(name)
@@ -1625,6 +1653,8 @@ class CallTypeInformation(NodeTransformerWithScope):
 
     def visit_InterfaceType(self, node: InterfaceType):
         node = self.generic_visit(node)
+        if getattr(node, "permanent_interface", False):
+            return node
         parent = self.stack[-1]
         interface_scope = self.scope
         def exit_callback(*args, **kwargs):
