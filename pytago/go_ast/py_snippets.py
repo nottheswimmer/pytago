@@ -1173,7 +1173,38 @@ def go_random_uniform(a: float, b: float):
 
 # TODO: Exhaustive list of all dunders, .methods, builtins, etc implemented here...
 
+# time methods
+@Bindable.add(r"time\.sleep", bind_type=BindType.EXPR)
+def go_time_sleep(duration: int):
+    return time.Sleep(duration * time.Second)
+
+
 reversal = {}
+
+# exit / quit / os.exit
+@Bindable.add(r"exit", bind_type=BindType.EXPR)
+def go_exit():
+    return os.Exit(0)
+
+@Bindable.add(r"exit", bind_type=BindType.EXPR)
+def go_exit(code: int):
+    return os.Exit(code)
+
+@Bindable.add(r"quit", bind_type=BindType.EXPR)
+def go_quit():
+    return os.Exit(0)
+
+@Bindable.add(r"quit", bind_type=BindType.EXPR)
+def go_quit(code: int):
+    return os.Exit(code)
+
+@Bindable.add(r"sys\.exit", bind_type=BindType.EXPR)
+def go_os_exit():
+    return os.Exit(0)
+
+@Bindable.add(r"sys\.exit", bind_type=BindType.EXPR)
+def go_os_exit(code: int):
+    return os.Exit(code)
 
 
 def get_node_string(node: ast.AST):

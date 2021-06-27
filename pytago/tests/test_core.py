@@ -213,3 +213,9 @@ class Test(TestCase):
     #
     # def test_index(self):
     #     self.assert_examples_match("index")
+
+    def test_timemodule(self):
+        self.assert_examples_match("timemodule")
+
+    def test_exit(self):
+        self.assert_examples_match("exit")

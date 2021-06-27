@@ -34,3 +34,7 @@ test:
 .PHONY: docs
 docs:
 	py ./scripts/generate_readme.py
+
+.PHONY: newtest
+newtest:
+	py ./scripts/newtest.py

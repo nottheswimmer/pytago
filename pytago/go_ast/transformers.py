@@ -696,24 +696,27 @@ def _type_score(typ):
         return -2
     if isinstance(typ, (MapType, ArrayType)):
         return -1
-    return [
-        "uint",
-        "uintptr",
-        "bool",
-        "uint8",
-        "uint16",
-        "uint32",
-        "uint64",
-        "int8",
-        "int16",
-        "int32",
-        "int",
-        "int64",
-        "float32",
-        "float64",
-        "complex64",
-        "complex128",
-    ].index(str(typ.Name).lower())
+    try:
+        return [
+            "uint",
+            "uintptr",
+            "bool",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+            "int8",
+            "int16",
+            "int32",
+            "int",
+            "int64",
+            "float32",
+            "float64",
+            "complex64",
+            "complex128",
+        ].index(str(typ.Name).lower())
+    except ValueError:
+        return float('inf')
 
 
 def get_dominant_type(type_a: Expr, type_b: Expr, op: Optional[token] = None):
