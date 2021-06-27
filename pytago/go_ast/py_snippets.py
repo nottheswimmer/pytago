@@ -5,7 +5,7 @@ from collections import defaultdict
 from enum import Enum
 from typing import TYPE_CHECKING, TypeVar, List, Optional
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from pytago import go_ast
 
 BINDABLES: dict['Bindable', list] = defaultdict(list)
@@ -164,7 +164,7 @@ class Bindable:
 
 # Built-in functions
 @Bindable.add(r"int", bind_type=BindType.FUNC_LIT)
-def go_int(value) -> int:
+def go_int(value) -> int:  # pragma: no cover
     if isinstance(value, str):
         i, err = strconv.ParseInt(value, 10, 64)
         if err != nil:
@@ -177,20 +177,20 @@ def go_int(value) -> int:
 
 
 @Bindable.add(r"input", bind_type=BindType.FUNC_LIT)
-def go_input() -> str:
+def go_input() -> str:  # pragma: no cover
     text, _ = bufio.NewReader(os.Stdin).ReadString(PYTAGO_RUNE('\n'))
     return strings.ReplaceAll(text, "\n", "")
 
 
 @Bindable.add(r"input", bind_type=BindType.FUNC_LIT)
-def go_input(msg: str) -> str:
+def go_input(msg: str) -> str:  # pragma: no cover
     fmt.Print(msg)
     text, _ = bufio.NewReader(os.Stdin).ReadString(PYTAGO_RUNE('\n'))
     return strings.ReplaceAll(text, "\n", "")
 
 
 @Bindable.add("zip")
-def go_zip(a: list, b: list):
+def go_zip(a: list, b: list):  # pragma: no cover
     for i, e in enumerate(a):
         if i >= len(b):
             break
@@ -198,47 +198,47 @@ def go_zip(a: list, b: list):
 
 
 @Bindable.add("abs", bind_type=BindType.EXPR)
-def go_abs(a: int):
+def go_abs(a: int):  # pragma: no cover
     return math.Abs(a)
 
 
 @Bindable.add("map")
-def go_map(f, iterable):
+def go_map(f, iterable):  # pragma: no cover
     for x in iterable:
         yield f(x)
 
 
 @Bindable.add("map")
-def go_map_2(f, iterable1, iterable2):
+def go_map_2(f, iterable1, iterable2):  # pragma: no cover
     for xy in zip(iterable1, iterable2):
         yield f(xy[0], xy[1])
 
 
 @Bindable.add("filter")
-def go_filter(f, iterable):
+def go_filter(f, iterable):  # pragma: no cover
     for x in iterable:
         if f(x):
             yield x
 
 
 @Bindable.add("str", bind_type=BindType.EXPR)
-def go_str(a):
+def go_str(a):  # pragma: no cover
     return fmt.Sprintf("%v", a)
 
 
 @Bindable.add("repr", bind_type=BindType.EXPR)
-def go_repr(a):
+def go_repr(a):  # pragma: no cover
     return fmt.Sprintf("%#v", a)
 
 
 @Bindable.add("iter")
-def go_iter(a):
+def go_iter(a):  # pragma: no cover
     for elt in a:
         yield elt
 
 
 @Bindable.add("list")
-def go_list(a):
+def go_list(a):  # pragma: no cover
     elts = []
     for elt in a:
         elts.append(elt)
@@ -249,16 +249,16 @@ def go_list(a):
 
 # Handled via transformer
 # @Bindable.add(r"(.*)\.append", bind_type=BindType.STMT)
-# def go_append(X, other):
+# def go_append(X, other):  # pragma: no cover
 #     X = append(X, other)
 
 @Bindable.add(r"(.*)\.extend", bind_type=BindType.STMT)
-def go_extend(X, other):
+def go_extend(X, other):  # pragma: no cover
     X = append(X, *other)
 
 
 @Bindable.add(r"(.*)\.insert", bind_type=BindType.STMT)
-def go_insert(s, i: int, elt):
+def go_insert(s, i: int, elt):  # pragma: no cover
     s = append(s, elt)
     copy(s[i + 1:], s[i:])
     s[i] = elt
@@ -268,7 +268,7 @@ def go_insert(s, i: int, elt):
 
 # TODO: Sort by key and reverse sort
 @Bindable.add(r"(.*)\.sort", bind_type=BindType.FUNC_LIT)
-def go_sort(s):
+def go_sort(s):  # pragma: no cover
     if isinstance(s, list[str]):
         sort.Strings(s)
     elif isinstance(s, list[float]):
@@ -280,7 +280,7 @@ def go_sort(s):
 
 
 @Bindable.add(r"(.*)\.sort", bind_type=BindType.FUNC_LIT)
-def go_sort(s, /, *, reverse=True):
+def go_sort(s, /, *, reverse=True):  # pragma: no cover
     if isinstance(s, list[str]):
         sort.Sort(sort.Reverse(sort.StringSlice(s)))
     elif isinstance(s, list[float]):
@@ -296,7 +296,7 @@ popped = TypeVar("popped")
 
 
 @Bindable.add(r"(.*)\.pop", bind_type=BindType.FUNC_LIT, deref_args=['s'])
-def go_pop(s: PytagoInterfaceType[s]) -> PytagoInterfaceType[popped]:
+def go_pop(s: PytagoInterfaceType[s]) -> PytagoInterfaceType[popped]:  # pragma: no cover
     i = len('*' @ s) - 1
     popped = ('*' @ s)[i]
     s @= ('*' @ s)[:i]
@@ -308,7 +308,7 @@ val = TypeVar("val")  # Name of each element we're searching through
 
 
 @Bindable.add(r"(.*)\.remove", bind_type=BindType.FUNC_LIT, deref_args=['s'])
-def go_remove(s: PytagoStarExpr[PytagoInterfaceType[s]], x: PytagoInterfaceType[val]):
+def go_remove(s: PytagoStarExpr[PytagoInterfaceType[s]], x: PytagoInterfaceType[val]):  # pragma: no cover
     for i, val in enumerate(('*' @ s)):
         if val == x:
             s @= append(('*' @ s)[:i], *('*' @ s)[i + 1:])
@@ -317,14 +317,14 @@ def go_remove(s: PytagoStarExpr[PytagoInterfaceType[s]], x: PytagoInterfaceType[
 
 
 @Bindable.add(r"(.*)\.pop", bind_type=BindType.FUNC_LIT, deref_args=['s'])
-def go_pop(s: PytagoStarExpr[PytagoInterfaceType[s]], i: int) -> PytagoInterfaceType[popped]:
+def go_pop(s: PytagoStarExpr[PytagoInterfaceType[s]], i: int) -> PytagoInterfaceType[popped]:  # pragma: no cover
     popped = ('*' @ s)[i]
     s @= append(('*' @ s)[:i], *('*' @ s)[i + 1:])
     return popped
 
 
 @Bindable.add(r"(.*)\.clear", bind_type=BindType.STMT)
-def go_clear(s: PytagoInterfaceType[s]):
+def go_clear(s: PytagoInterfaceType[s]):  # pragma: no cover
     s = nil
 
 
@@ -332,14 +332,14 @@ tmp = TypeVar("tmp")
 
 
 @Bindable.add(r"(.*)\.copy", bind_type=BindType.FUNC_LIT, deref_args=['s'], results=["tmp"])
-def go_copy(s) -> PytagoInterfaceType[tmp]:
+def go_copy(s) -> PytagoInterfaceType[tmp]:  # pragma: no cover
     tmp = append(tmp, *('*' @ s))
     return
 
 
 # Set methods
 @Bindable.add(r"(.*)\.add", bind_type=BindType.STMT)
-def go_add(s, elt):
+def go_add(s, elt):  # pragma: no cover
     s[elt] = PYTAGO_EMPTY_STRUCT
 
 
@@ -347,7 +347,7 @@ s1 = TypeVar("s1")
 
 
 @Bindable.add(r"(.*)\.union", bind_type=BindType.FUNC_LIT)
-def go_union(s1: set, s2: set) -> PytagoInterfaceType[s1]:
+def go_union(s1: set, s2: set) -> PytagoInterfaceType[s1]:  # pragma: no cover
     union = set()
     for elt in s1:
         union.add(elt)
@@ -357,7 +357,7 @@ def go_union(s1: set, s2: set) -> PytagoInterfaceType[s1]:
 
 
 @Bindable.add(r"(.*)\.intersection", bind_type=BindType.FUNC_LIT)
-def go_intersection(s1: set, s2: set) -> PytagoInterfaceType[s1]:
+def go_intersection(s1: set, s2: set) -> PytagoInterfaceType[s1]:  # pragma: no cover
     intersection = set()
     for elt in s1:
         if elt in s2:
@@ -366,7 +366,7 @@ def go_intersection(s1: set, s2: set) -> PytagoInterfaceType[s1]:
 
 
 @Bindable.add(r"(.*)\.difference", bind_type=BindType.FUNC_LIT)
-def go_difference(s1: set, s2: set) -> PytagoInterfaceType[s1]:
+def go_difference(s1: set, s2: set) -> PytagoInterfaceType[s1]:  # pragma: no cover
     difference = set()
     for elt in s1:
         if elt not in s2:
@@ -375,7 +375,7 @@ def go_difference(s1: set, s2: set) -> PytagoInterfaceType[s1]:
 
 
 @Bindable.add(r"(.*)\.symmetric_difference", bind_type=BindType.FUNC_LIT)
-def go_symmetric_difference(s1: set, s2: set) -> PytagoInterfaceType[s1]:
+def go_symmetric_difference(s1: set, s2: set) -> PytagoInterfaceType[s1]:  # pragma: no cover
     symmetric_difference = set()
     for elt in s1:
         if elt not in s2:
@@ -387,7 +387,7 @@ def go_symmetric_difference(s1: set, s2: set) -> PytagoInterfaceType[s1]:
 
 
 @Bindable.add(r"(.*)\.issubset", bind_type=BindType.FUNC_LIT)
-def go_issubset(s1: set, s2: set) -> bool:
+def go_issubset(s1: set, s2: set) -> bool:  # pragma: no cover
     for elt in s1:
         if elt not in s2:
             return False
@@ -395,7 +395,7 @@ def go_issubset(s1: set, s2: set) -> bool:
 
 
 @Bindable.add(r"(.*)\.issuperset", bind_type=BindType.FUNC_LIT)
-def go_is_subset(s1: set, s2: set) -> bool:
+def go_is_subset(s1: set, s2: set) -> bool:  # pragma: no cover
     for elt in s2:
         if elt not in s1:
             return False
@@ -405,19 +405,19 @@ def go_is_subset(s1: set, s2: set) -> bool:
 # Dict methods
 
 @Bindable.add(r"(.*)\.keys", bind_type=BindType.EXPR)
-def go_keys(X: dict):
+def go_keys(X: dict):  # pragma: no cover
     # Just remove .keys() for now, should work in some cases
     return X
 
 
 @Bindable.add(r"(.*)\.update")
-def go_update(d1, d2):
+def go_update(d1, d2):  # pragma: no cover
     for k, v in d2.items():
         d1[k] = v
 
 
 @Bindable.add(r"(.*)\.get")
-def go_get_with_default(X: dict, val2, default):
+def go_get_with_default(X: dict, val2, default):  # pragma: no cover
     if r := X[val2]:
         return r
     return default
@@ -425,7 +425,7 @@ def go_get_with_default(X: dict, val2, default):
 
 # TODO: Conflict with requests.get
 # @Bindable.add(r"(.*)\.get", bind_type=BindType.EXPR)
-# def go_get(X: dict, val2):
+# def go_get(X: dict, val2):  # pragma: no cover
 #     return X[val2]
 
 # String methods
@@ -433,7 +433,7 @@ def go_get_with_default(X: dict, val2, default):
 #   ... maybe via transformer if we're desperate but I'd like to get away from those
 
 @Bindable.add(r"(.*)\.capitalize", bind_type=BindType.EXPR)
-def go_capitalize(s: str) -> str:
+def go_capitalize(s: str) -> str:  # pragma: no cover
     return s[0:1].upper() + s[1:].lower()
 
 
@@ -441,24 +441,24 @@ def go_capitalize(s: str) -> str:
 # TODO: center : issue = complicated
 
 @Bindable.add(r"(.*)\.endswith", bind_type=BindType.EXPR)
-def go_endswith(X: str, suffix: str) -> bool:
+def go_endswith(X: str, suffix: str) -> bool:  # pragma: no cover
     return strings.HasSuffix(X, suffix)
 
 
 # TODO: expandtabs : issue = complicated
 
 @Bindable.add(r"(.*)\.find", bind_type=BindType.EXPR)
-def go_find(X: str, substr: str) -> int:
+def go_find(X: str, substr: str) -> int:  # pragma: no cover
     return strings.Index(X, substr)
 
 
 @Bindable.add(r"(.*)\.find", bind_type=BindType.EXPR)
-def go_find(X: str, substr: str, start: int) -> int:
+def go_find(X: str, substr: str, start: int) -> int:  # pragma: no cover
     return r + start if (r := strings.Index(X[start:], substr)) != -1 else -1
 
 
 @Bindable.add(r"(.*)\.find", bind_type=BindType.EXPR)
-def go_find(X: str, substr: str, start: int, end: int) -> int:
+def go_find(X: str, substr: str, start: int, end: int) -> int:  # pragma: no cover
     return r + start if (r := strings.Index(X[start:end], substr)) != -1 else -1
 
 
@@ -466,7 +466,7 @@ def go_find(X: str, substr: str, start: int, end: int) -> int:
 # TODO: format_map : issue = complicated
 
 @Bindable.add(r"(.*)\.index", bind_type=BindType.FUNC_LIT)
-def go_index(X: str, sub: str) -> int:
+def go_index(X: str, sub: str) -> int:  # pragma: no cover
     if isinstance(X, str):
         if (i := X.find(sub)) != -1:
             return i
@@ -479,21 +479,21 @@ def go_index(X: str, sub: str) -> int:
 
 
 @Bindable.add(r"(.*)\.index", bind_type=BindType.FUNC_LIT)
-def go_index(X: str, sub: str, start: int) -> int:
+def go_index(X: str, sub: str, start: int) -> int:  # pragma: no cover
     if (i := X.find(sub, start)) != -1:
         return i
     panic(errors.New("ValueError: substring not found"))
 
 
 @Bindable.add(r"(.*)\.index", bind_type=BindType.FUNC_LIT)
-def go_index(X: str, sub: str, start: int, end: int) -> int:
+def go_index(X: str, sub: str, start: int, end: int) -> int:  # pragma: no cover
     if (i := X.find(sub, start, end)) != -1:
         return i
     panic(errors.New("ValueError: substring not found"))
 
 
 @Bindable.add(r"(.*)\.isalnum", bind_type=BindType.FUNC_LIT)
-def go_isalnum(X: str) -> bool:
+def go_isalnum(X: str) -> bool:  # pragma: no cover
     for r in X:
         if not (unicode.IsLetter(r) or unicode.IsDigit(r) or unicode.IsNumber(r)):
             return False
@@ -501,7 +501,7 @@ def go_isalnum(X: str) -> bool:
 
 
 @Bindable.add(r"(.*)\.isalpha", bind_type=BindType.FUNC_LIT)
-def go_isalpha(X: str) -> bool:
+def go_isalpha(X: str) -> bool:  # pragma: no cover
     for r in X:
         if not unicode.IsLetter(r):
             return False
@@ -509,7 +509,7 @@ def go_isalpha(X: str) -> bool:
 
 
 @Bindable.add(r"(.*)\.isascii", bind_type=BindType.FUNC_LIT)
-def go_isascii(X: str) -> bool:
+def go_isascii(X: str) -> bool:  # pragma: no cover
     for r in X:
         if r > unicode.MaxASCII:
             return False
@@ -518,7 +518,7 @@ def go_isascii(X: str) -> bool:
 
 # TODO: Dear god are these even right?
 @Bindable.add(r"(.*)\.isdecimal", bind_type=BindType.FUNC_LIT)
-def go_isdecimal(X: str) -> bool:
+def go_isdecimal(X: str) -> bool:  # pragma: no cover
     for r in X:
         if not unicode.Is(unicode.Nd, r):
             return False
@@ -526,7 +526,7 @@ def go_isdecimal(X: str) -> bool:
 
 
 @Bindable.add(r"(.*)\.isdigit", bind_type=BindType.FUNC_LIT)
-def go_isdigit(X: str) -> bool:
+def go_isdigit(X: str) -> bool:  # pragma: no cover
     for r in X:
         if not unicode.IsDigit(r):
             return False
@@ -536,7 +536,7 @@ def go_isdigit(X: str) -> bool:
 # TODO: isidentifier
 
 @Bindable.add(r"(.*)\.islower", bind_type=BindType.FUNC_LIT)
-def go_islower(X: str) -> bool:
+def go_islower(X: str) -> bool:  # pragma: no cover
     lower_found = False
     for r in X:
         if not unicode.IsLower(r):
@@ -548,7 +548,7 @@ def go_islower(X: str) -> bool:
 
 
 @Bindable.add(r"(.*)\.isnumeric", bind_type=BindType.FUNC_LIT)
-def go_isnumeric(X: str) -> bool:
+def go_isnumeric(X: str) -> bool:  # pragma: no cover
     for r in X:
         if not (unicode.IsDigit(r) or unicode.IsNumber(r)):
             return False
@@ -556,7 +556,7 @@ def go_isnumeric(X: str) -> bool:
 
 
 @Bindable.add(r"(.*)\.isprintable", bind_type=BindType.FUNC_LIT)
-def go_isprintable(X: str) -> bool:
+def go_isprintable(X: str) -> bool:  # pragma: no cover
     for r in X:
         if not unicode.IsPrint(r):
             return False
@@ -564,7 +564,7 @@ def go_isprintable(X: str) -> bool:
 
 
 @Bindable.add(r"(.*)\.isspace", bind_type=BindType.FUNC_LIT)
-def go_isspace(X: str) -> bool:
+def go_isspace(X: str) -> bool:  # pragma: no cover
     for r in X:
         if not unicode.IsSpace(r):
             return False
@@ -574,7 +574,7 @@ def go_isspace(X: str) -> bool:
 # TODO: istitle
 
 @Bindable.add(r"(.*)\.isupper", bind_type=BindType.FUNC_LIT)
-def go_isupper(X: str) -> bool:
+def go_isupper(X: str) -> bool:  # pragma: no cover
     upper_found = False
     for r in X:
         if not unicode.IsUpper(r):
@@ -586,24 +586,24 @@ def go_isupper(X: str) -> bool:
 
 
 @Bindable.add(r"(.*)\.join", bind_type=BindType.EXPR)
-def go_join(sep: str, X: str) -> str:
+def go_join(sep: str, X: str) -> str:  # pragma: no cover
     return strings.Join(X, sep)
 
 
 # TODO: ljust
 
 @Bindable.add(r"(.*)\.lower", bind_type=BindType.EXPR)
-def go_capitalize(s: str) -> str:
+def go_capitalize(s: str) -> str:  # pragma: no cover
     return strings.ToLower(s)
 
 
 @Bindable.add(r"(.*)\.lstrip", bind_type=BindType.EXPR)
-def go_lstrip(X: str) -> list[str]:
+def go_lstrip(X: str) -> list[str]:  # pragma: no cover
     return strings.TrimLeftFunc(X, unicode.IsSpace)
 
 
 @Bindable.add(r"(.*)\.lstrip", bind_type=BindType.EXPR)
-def go_lstrip(X: str, cutset: list[str]) -> str:
+def go_lstrip(X: str, cutset: list[str]) -> str:  # pragma: no cover
     return strings.TrimLeft(X, cutset)
 
 
@@ -611,56 +611,56 @@ def go_lstrip(X: str, cutset: list[str]) -> str:
 # TODO: partition
 
 @Bindable.add(r"(.*)\.removeprefix", bind_type=BindType.EXPR)
-def go_removeprefix(X: str, prefix: str) -> str:
+def go_removeprefix(X: str, prefix: str) -> str:  # pragma: no cover
     return strings.TrimPrefix(X, prefix)
 
 
 @Bindable.add(r"(.*)\.removesuffix", bind_type=BindType.EXPR)
-def go_removesuffix(X: str, suffix: str) -> str:
+def go_removesuffix(X: str, suffix: str) -> str:  # pragma: no cover
     return strings.TrimSuffix(X, suffix)
 
 
 @Bindable.add(r"(.*)\.replace", bind_type=BindType.EXPR)
-def go_replace(X: str, old: str, new: str) -> str:
+def go_replace(X: str, old: str, new: str) -> str:  # pragma: no cover
     return strings.ReplaceAll(X, old, new)
 
 
 @Bindable.add(r"(.*)\.replace", bind_type=BindType.EXPR)
-def go_replace(X: str, old: str, new: str, n: int) -> str:
+def go_replace(X: str, old: str, new: str, n: int) -> str:  # pragma: no cover
     return strings.Replace(X, old, new, n)
 
 
 @Bindable.add(r"(.*)\.rfind", bind_type=BindType.EXPR)
-def go_rfind(X: str, sub: str) -> int:
+def go_rfind(X: str, sub: str) -> int:  # pragma: no cover
     return strings.LastIndex(X, sub)
 
 
 @Bindable.add(r"(.*)\.rfind", bind_type=BindType.EXPR)
-def go_rfind(X: str, substr: str, start: int) -> int:
+def go_rfind(X: str, substr: str, start: int) -> int:  # pragma: no cover
     return r + start if (r := strings.LastIndex(X[start:], substr)) != -1 else -1
 
 
 @Bindable.add(r"(.*)\.rfind", bind_type=BindType.EXPR)
-def go_rfind(X: str, substr: str, start: int, end: int) -> int:
+def go_rfind(X: str, substr: str, start: int, end: int) -> int:  # pragma: no cover
     return r + start if (r := strings.LastIndex(X[start:end], substr)) != -1 else -1
 
 
 @Bindable.add(r"(.*)\.rindex", bind_type=BindType.FUNC_LIT)
-def go_rindex(X: str, sub: str) -> int:
+def go_rindex(X: str, sub: str) -> int:  # pragma: no cover
     if (i := X.rfind(sub)) != -1:
         return i
     panic(errors.New("ValueError: substring not found"))
 
 
 @Bindable.add(r"(.*)\.rindex", bind_type=BindType.FUNC_LIT)
-def go_rindex(X: str, sub: str, start: int) -> int:
+def go_rindex(X: str, sub: str, start: int) -> int:  # pragma: no cover
     if (i := X.rfind(sub, start)) != -1:
         return i
     panic(errors.New("ValueError: substring not found"))
 
 
 @Bindable.add(r"(.*)\.rindex", bind_type=BindType.FUNC_LIT)
-def go_rindex(X: str, sub: str, start: int, end: int) -> int:
+def go_rindex(X: str, sub: str, start: int, end: int) -> int:  # pragma: no cover
     if (i := X.rfind(sub, start, end)) != -1:
         return i
     panic(errors.New("ValueError: substring not found"))
@@ -670,32 +670,32 @@ def go_rindex(X: str, sub: str, start: int, end: int) -> int:
 # TODO: rsplit
 
 @Bindable.add(r"(.*)\.rstrip", bind_type=BindType.EXPR)
-def go_rstrip(X: str) -> list[str]:
+def go_rstrip(X: str) -> list[str]:  # pragma: no cover
     return strings.TrimRightFunc(X, unicode.IsSpace)
 
 
 @Bindable.add(r"(.*)\.rstrip", bind_type=BindType.EXPR)
-def go_rstrip(X: str, cutset: list[str]) -> str:
+def go_rstrip(X: str, cutset: list[str]) -> str:  # pragma: no cover
     return strings.TrimRight(X, cutset)
 
 
 @Bindable.add(r"(.*)\.split", bind_type=BindType.EXPR)
-def go_split(X: str) -> list[str]:
+def go_split(X: str) -> list[str]:  # pragma: no cover
     return strings.Fields(X)
 
 
 @Bindable.add(r"(.*)\.split", bind_type=BindType.EXPR)
-def go_split(X: str, sep: str) -> list[str]:
+def go_split(X: str, sep: str) -> list[str]:  # pragma: no cover
     return strings.Split(X, sep)
 
 
 @Bindable.add(r"(.*)\.split", bind_type=BindType.EXPR)
-def go_split(X: str, sep: str, maxsplit: int) -> list[str]:
+def go_split(X: str, sep: str, maxsplit: int) -> list[str]:  # pragma: no cover
     return strings.SplitN(X, sep, maxsplit)
 
 
 @Bindable.add(r"(.*)\.splitlines", bind_type=BindType.FUNC_LIT, results=['lines'])
-def go_splitlines(s: str) -> list[str]:
+def go_splitlines(s: str) -> list[str]:  # pragma: no cover
     sc = bufio.NewScanner(strings.NewReader(s))
     while sc.Scan():
         lines.append(sc.Text())
@@ -705,22 +705,22 @@ def go_splitlines(s: str) -> list[str]:
 # TODO: splitlines w/ keepends
 
 @Bindable.add(r"(.*)\.startswith", bind_type=BindType.EXPR)
-def go_startswith(X: str, prefix: str) -> bool:
+def go_startswith(X: str, prefix: str) -> bool:  # pragma: no cover
     return strings.HasPrefix(X, prefix)
 
 
 @Bindable.add(r"(.*)\.strip", bind_type=BindType.EXPR)
-def go_strip(X: str) -> list[str]:
+def go_strip(X: str) -> list[str]:  # pragma: no cover
     return strings.TrimSpace(X)
 
 
 @Bindable.add(r"(.*)\.strip", bind_type=BindType.EXPR)
-def go_strip(X: str, cutset: list[str]) -> str:
+def go_strip(X: str, cutset: list[str]) -> str:  # pragma: no cover
     return strings.Trim(X, cutset)
 
 
 @Bindable.add(r"(.*)\.title", bind_type=BindType.FUNC_LIT)
-def go_title(s: str) -> str:
+def go_title(s: str) -> str:  # pragma: no cover
     ws = True
     sb: strings.Builder
     for r in s:
@@ -739,7 +739,7 @@ def go_title(s: str) -> str:
 
 
 @Bindable.add(r"(.*)\.count", bind_type=BindType.FUNC_LIT)
-def go_count(X: str, elt: str) -> int:
+def go_count(X: str, elt: str) -> int:  # pragma: no cover
     if isinstance(X, str):
         return strings.Count(X, elt)
     elif isinstance(X, list):  # Probably only works because it's last
@@ -753,7 +753,7 @@ def go_count(X: str, elt: str) -> int:
 # TODO: migrate encode from transformer
 
 @Bindable.add(r"(.*)\.upper", bind_type=BindType.EXPR)
-def go_upper(s: str) -> str:
+def go_upper(s: str) -> str:  # pragma: no cover
     return strings.ToUpper(s)
 
 
@@ -762,7 +762,7 @@ def go_upper(s: str) -> str:
 # JSON
 
 @Bindable.add("json.dumps")
-def go_json_dumps(m):
+def go_json_dumps(m):  # pragma: no cover
     b, err = json.Marshal(m)
     if err != nil:
         panic(err)
@@ -772,29 +772,29 @@ def go_json_dumps(m):
 # Logging methods
 
 @Bindable.add(r"logging\.info", bind_type=BindType.EXPR)
-def go_logging_info(msg):
+def go_logging_info(msg):  # pragma: no cover
     return log.Println("INFO:", msg)
 
 
 @Bindable.add(r"logging\.debug", bind_type=BindType.EXPR)
-def go_logging_debug(msg):
+def go_logging_debug(msg):  # pragma: no cover
     return log.Println("DEBUG:", msg)
 
 
 @Bindable.add(r"logging\.warning", bind_type=BindType.EXPR)
-def go_logging_warning(msg):
+def go_logging_warning(msg):  # pragma: no cover
     return log.Println("WARNING:", msg)
 
 
 @Bindable.add(r"logging\.error", bind_type=BindType.EXPR)
-def go_logging_error(msg):
+def go_logging_error(msg):  # pragma: no cover
     return log.Println("ERROR:", msg)
 
 
 # Dunder methods
 
 @Bindable.add(r"(.*)\.__len__", bind_type=BindType.EXPR)
-def go_len_dunder(X) -> int:
+def go_len_dunder(X) -> int:  # pragma: no cover
     return len(X)
 
 
@@ -802,19 +802,19 @@ def go_len_dunder(X) -> int:
 
 # To get called in an object's instantiation.
 # @Bindable.add(r"(.*)\.__new__", bind_type=BindType.EXPR)
-# def go_new_dunder(cls, other):
+# def go_new_dunder(cls, other):  # pragma: no cover
 #     return
 
 
 # To get called by the __new__ method.
 # @Bindable.add(r"(.*)\.__init__", bind_type=BindType.EXPR)
-# def go_init_dunder(self, other):
+# def go_init_dunder(self, other):  # pragma: no cover
 #     return
 
 
 # Destructor method.
 @Bindable.add(r"(.*)\.__del__", bind_type=BindType.STMT)
-def go_del_dunder(self):
+def go_del_dunder(self):  # pragma: no cover
     del self
 
 
@@ -822,49 +822,49 @@ def go_del_dunder(self):
 
 # To get called for unary positive e.g. +someobject.
 @Bindable.add(r"(.*)\.__pos__", bind_type=BindType.EXPR)
-def go_pos_dunder(self):
+def go_pos_dunder(self):  # pragma: no cover
     return +self
 
 
 # To get called for unary negative e.g. -someobject.
 @Bindable.add(r"(.*)\.__neg__", bind_type=BindType.EXPR)
-def go_neg_dunder(self):
+def go_neg_dunder(self):  # pragma: no cover
     return -self
 
 
 # To get called by built-in abs() function.
 @Bindable.add(r"(.*)\.__abs__", bind_type=BindType.EXPR)
-def go_abs_dunder(self):
+def go_abs_dunder(self):  # pragma: no cover
     return abs(self)
 
 
 # To get called for inversion using the ~ operator.
 @Bindable.add(r"(.*)\.__invert__", bind_type=BindType.EXPR)
-def go_invert_dunder(self):
+def go_invert_dunder(self):  # pragma: no cover
     return ~self
 
 
 # To get called by built-in round() function.
 @Bindable.add(r"(.*)\.__round__", bind_type=BindType.EXPR)
-def go_round_dunder(self, n):
+def go_round_dunder(self, n):  # pragma: no cover
     return round(self, n)
 
 
 # To get called by built-in math.floor() function.
 @Bindable.add(r"(.*)\.__floor__", bind_type=BindType.EXPR)
-def go_floor_dunder(self):
+def go_floor_dunder(self):  # pragma: no cover
     return math.floor(self)
 
 
 # To get called by built-in math.ceil() function.
 @Bindable.add(r"(.*)\.__ceil__", bind_type=BindType.EXPR)
-def go_ceil_dunder(self):
+def go_ceil_dunder(self):  # pragma: no cover
     return math.ceil(self)
 
 
 # To get called by built-in math.trunc() function.
 @Bindable.add(r"(.*)\.__trunc__", bind_type=BindType.EXPR)
-def go_trunc_dunder(self):
+def go_trunc_dunder(self):  # pragma: no cover
     return math.trunc(self)
 
 
@@ -872,79 +872,79 @@ def go_trunc_dunder(self):
 
 # To get called on addition with assignment e.g. a +=b.
 @Bindable.add(r"(.*)\.__iadd__", bind_type=BindType.STMT)
-def go_iadd_dunder(self, other):
+def go_iadd_dunder(self, other):  # pragma: no cover
     self += other
 
 
 # To get called on subtraction with assignment e.g. a -=b.
 @Bindable.add(r"(.*)\.__isub__", bind_type=BindType.STMT)
-def go_isub_dunder(self, other):
+def go_isub_dunder(self, other):  # pragma: no cover
     self -= other
 
 
 # To get called on multiplication with assignment e.g. a *=b.
 @Bindable.add(r"(.*)\.__imul__", bind_type=BindType.STMT)
-def go_imul_dunder(self, other):
+def go_imul_dunder(self, other):  # pragma: no cover
     self *= other
 
 
 # To get called on integer division with assignment e.g. a //=b.
 @Bindable.add(r"(.*)\.__ifloordiv__", bind_type=BindType.STMT)
-def go_ifloordiv_dunder(self, other):
+def go_ifloordiv_dunder(self, other):  # pragma: no cover
     self //= other
 
 
 # To get called on division with assignment e.g. a /=b.
 @Bindable.add(r"(.*)\.__idiv__", bind_type=BindType.STMT)
-def go_idiv_dunder(self, other):
+def go_idiv_dunder(self, other):  # pragma: no cover
     self /= other
 
 
 # To get called on true division with assignment
 @Bindable.add(r"(.*)\.__itruediv__", bind_type=BindType.STMT)
-def go_itruediv_dunder(self, other):
+def go_itruediv_dunder(self, other):  # pragma: no cover
     self /= other
 
 
 # To get called on modulo with assignment e.g. a%=b.
 @Bindable.add(r"(.*)\.__imod__", bind_type=BindType.STMT)
-def go_imod_dunder(self, other):
+def go_imod_dunder(self, other):  # pragma: no cover
     self %= other
 
 
 # To get called on exponentswith assignment e.g. a **=b.
 @Bindable.add(r"(.*)\.__ipow__", bind_type=BindType.STMT)
-def go_ipow_dunder(self, other):
+def go_ipow_dunder(self, other):  # pragma: no cover
     self **= other
 
 
 # To get called on left bitwise shift with assignment e.g. a<<=b.
 @Bindable.add(r"(.*)\.__ilshift__", bind_type=BindType.STMT)
-def go_ilshift_dunder(self, other):
+def go_ilshift_dunder(self, other):  # pragma: no cover
     self <<= other
 
 
 # To get called on right bitwise shift with assignment e.g. a >>=b.
 @Bindable.add(r"(.*)\.__irshift__", bind_type=BindType.STMT)
-def go_irshift_dunder(self, other):
+def go_irshift_dunder(self, other):  # pragma: no cover
     self >>= other
 
 
 # To get called on bitwise AND with assignment e.g. a&=b.
 @Bindable.add(r"(.*)\.__iand__", bind_type=BindType.STMT)
-def go_iand_dunder(self, other):
+def go_iand_dunder(self, other):  # pragma: no cover
     self &= other
 
 
 # To get called on bitwise OR with assignment e.g. a|=b.
 @Bindable.add(r"(.*)\.__ior__", bind_type=BindType.STMT)
-def go_ior_dunder(self, other):
+def go_ior_dunder(self, other):  # pragma: no cover
     self |= other
 
 
 # To get called on bitwise XOR with assignment e.g. a ^=b.
 @Bindable.add(r"(.*)\.__ixor__", bind_type=BindType.STMT)
-def go_ixor_dunder(self, other):
+def go_ixor_dunder(self, other):  # pragma: no cover
     self ^= other
 
 
@@ -952,37 +952,37 @@ def go_ixor_dunder(self, other):
 
 # To get called by built-in int() method to convert a type to an int.
 @Bindable.add(r"(.*)\.__int__", bind_type=BindType.EXPR)
-def go_int_dunder(self):
+def go_int_dunder(self):  # pragma: no cover
     return int(self)
 
 
 # To get called by built-in float() method to convert a type to float.
 @Bindable.add(r"(.*)\.__float__", bind_type=BindType.EXPR)
-def go_float_dunder(self):
+def go_float_dunder(self):  # pragma: no cover
     return float(self)
 
 
 # To get called by built-in complex() method to convert a type to complex.
 @Bindable.add(r"(.*)\.__complex__", bind_type=BindType.EXPR)
-def go_complex_dunder(self):
+def go_complex_dunder(self):  # pragma: no cover
     return complex(self)
 
 
 # To get called by built-in oct() method to convert a type to octal.
 @Bindable.add(r"(.*)\.__oct__", bind_type=BindType.EXPR)
-def go_oct_dunder(self):
+def go_oct_dunder(self):  # pragma: no cover
     return oct(self)
 
 
 # To get called by built-in hex() method to convert a type to hexadecimal.
 @Bindable.add(r"(.*)\.__hex__", bind_type=BindType.EXPR)
-def go_hex_dunder(self):
+def go_hex_dunder(self):  # pragma: no cover
     return hex(self)
 
 
 # To get called on type conversion to an int when the object is used in a slice expression.
 @Bindable.add(r"(.*)\.__index__", bind_type=BindType.EXPR)
-def go_index_dunder(self):
+def go_index_dunder(self):  # pragma: no cover
     return self
 
 
@@ -990,43 +990,43 @@ def go_index_dunder(self):
 
 # To get called by built-in str() method to return a string representation of a type.
 @Bindable.add(r"(.*)\.__str__", bind_type=BindType.EXPR)
-def go_str_dunder(self):
+def go_str_dunder(self):  # pragma: no cover
     return str(self)
 
 
 # To get called by built-in repr() method to return a machine readable representation of a type.
 @Bindable.add(r"(.*)\.__repr__", bind_type=BindType.EXPR)
-def go_repr_dunder(self):
+def go_repr_dunder(self):  # pragma: no cover
     return repr(self)
 
 
 # To get called by built-in string.format() method to return a new style of string.
 @Bindable.add(r"(.*)\.__format__", bind_type=BindType.EXPR)
-def go_format_dunder(self, formatstr):
+def go_format_dunder(self, formatstr):  # pragma: no cover
     return self.format(formatstr)
 
 
 # To get called by built-in hash() method to return an integer.
 @Bindable.add(r"(.*)\.__hash__", bind_type=BindType.EXPR)
-def go_hash_dunder(self):
+def go_hash_dunder(self):  # pragma: no cover
     return hash(self)
 
 
 # To get called by built-in bool() method to return True or False.
 @Bindable.add(r"(.*)\.__nonzero__", bind_type=BindType.EXPR)
-def go_nonzero_dunder(self):
+def go_nonzero_dunder(self):  # pragma: no cover
     return bool(self)
 
 
 # To get called by built-in dir() method to return a list of attributes of a class.
 @Bindable.add(r"(.*)\.__dir__", bind_type=BindType.EXPR)
-def go_dir_dunder(self):
+def go_dir_dunder(self):  # pragma: no cover
     return dir(self)
 
 
 # To get called by built-in sys.getsizeof() method to return the size of an object.
 @Bindable.add(r"(.*)\.__sizeof__", bind_type=BindType.EXPR)
-def go_sizeof_dunder(self):
+def go_sizeof_dunder(self):  # pragma: no cover
     return sys.getsizeof(self)
 
 
@@ -1034,140 +1034,140 @@ def go_sizeof_dunder(self):
 
 # Is called when the accessing attribute of a class that does not exist.
 # @Bindable.add(r"(.*)\.__getattr__", bind_type=BindType.EXPR)
-# def go_getattr_dunder(self, name):
+# def go_getattr_dunder(self, name):  # pragma: no cover
 #     return
 
 
 # Is called when assigning a value to the attribute of a class.
 # @Bindable.add(r"(.*)\.__setattr__", bind_type=BindType.EXPR)
-# def go_setattr_dunder(self, name, value):
+# def go_setattr_dunder(self, name, value):  # pragma: no cover
 #     return
 
 
 # Is called when deleting an attribute of a class.
 # @Bindable.add(r"(.*)\.__delattr__", bind_type=BindType.EXPR)
-# def go_delattr_dunder(self, name):
+# def go_delattr_dunder(self, name):  # pragma: no cover
 #     return
 
 # Operator Magic Methods
 
 # To get called on add operation using + operator
 @Bindable.add(r"(.*)\.__add__", bind_type=BindType.EXPR)
-def go_add_dunder(self, other):
+def go_add_dunder(self, other):  # pragma: no cover
     return self + other
 
 
 # To get called on subtraction operation using - operator.
 @Bindable.add(r"(.*)\.__sub__", bind_type=BindType.EXPR)
-def go_sub_dunder(self, other):
+def go_sub_dunder(self, other):  # pragma: no cover
     return self - other
 
 
 # To get called on multiplication operation using * operator.
 @Bindable.add(r"(.*)\.__mul__", bind_type=BindType.EXPR)
-def go_mul_dunder(self, other):
+def go_mul_dunder(self, other):  # pragma: no cover
     return self * other
 
 
 # To get called on floor division operation using // operator.
 @Bindable.add(r"(.*)\.__floordiv__", bind_type=BindType.EXPR)
-def go_floordiv_dunder(self, other):
+def go_floordiv_dunder(self, other):  # pragma: no cover
     return self // other
 
 
 # To get called on division operation using / operator.
 @Bindable.add(r"(.*)\.__truediv__", bind_type=BindType.EXPR)
-def go_truediv_dunder(self, other):
+def go_truediv_dunder(self, other):  # pragma: no cover
     return self / other
 
 
 # To get called on modulo operation using % operator.
 @Bindable.add(r"(.*)\.__mod__", bind_type=BindType.EXPR)
-def go_mod_dunder(self, other):
+def go_mod_dunder(self, other):  # pragma: no cover
     return self % other
 
 
 # To get called on calculating the power using ** operator.
 @Bindable.add(r"(.*)\.__pow__", bind_type=BindType.EXPR)
-def go_pow_dunder(self, other):
+def go_pow_dunder(self, other):  # pragma: no cover
     return self ** other
 
 
 # To get called on comparison using < operator.
 @Bindable.add(r"(.*)\.__lt__", bind_type=BindType.EXPR)
-def go_lt_dunder(self, other):
+def go_lt_dunder(self, other):  # pragma: no cover
     return self < other
 
 
 # To get called on comparison using <= operator.
 @Bindable.add(r"(.*)\.__le__", bind_type=BindType.EXPR)
-def go_le_dunder(self, other):
+def go_le_dunder(self, other):  # pragma: no cover
     return self <= other
 
 
 # To get called on comparison using == operator.
 @Bindable.add(r"(.*)\.__eq__", bind_type=BindType.EXPR)
-def go_eq_dunder(self, other):
+def go_eq_dunder(self, other):  # pragma: no cover
     return self == other
 
 
 # To get called on comparison using != operator.
 @Bindable.add(r"(.*)\.__ne__", bind_type=BindType.EXPR)
-def go_ne_dunder(self, other):
+def go_ne_dunder(self, other):  # pragma: no cover
     return self != other
 
 
 # To get called on comparison using >= operator.
 @Bindable.add(r"(.*)\.__ge__", bind_type=BindType.EXPR)
-def go_ge_dunder(self, other):
+def go_ge_dunder(self, other):  # pragma: no cover
     return self >= other
 
 
 # Randomness
 @Bindable.add(r"random\.random", bind_type=BindType.EXPR)
-def go_random_random() -> float:
+def go_random_random() -> float:  # pragma: no cover
     return rand.Float64()
     def _():
         def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
 
 @Bindable.add(r"random\.randrange", bind_type=BindType.EXPR)
-def go_random_randrange(start: int) -> int:
+def go_random_randrange(start: int) -> int:  # pragma: no cover
     return rand.Intn(start)
     def _():
         def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
 
 @Bindable.add(r"random\.randrange", bind_type=BindType.FUNC_LIT)
-def go_random_randrange(start: int, stop: int) -> int:
+def go_random_randrange(start: int, stop: int) -> int:  # pragma: no cover
     n = stop - start
     return rand.Intn(n) + start
     def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
 
 @Bindable.add(r"random\.randint", bind_type=BindType.EXPR)
-def go_random_randint(start: int, stop: int) -> int:
+def go_random_randint(start: int, stop: int) -> int:  # pragma: no cover
     return random.randrange(start, stop + 1)
     def _():
         def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
 
 @Bindable.add(r"random\.choice", bind_type=BindType.EXPR)
-def go_random_choice(seq) -> int:
+def go_random_choice(seq) -> int:  # pragma: no cover
     return seq[rand.Intn(len(seq))]
     def _():
         def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
 
 @Bindable.add(r"random\.shuffle", bind_type=BindType.STMT)
-def go_random_shuffle(seq):
+def go_random_shuffle(seq):  # pragma: no cover
     def PYTAGO_INLINE(i: int, j: int):
         seq[i], seq[j] = seq[j], seq[i]
     rand.Shuffle(len(seq), PYTAGO_INLINE)
     def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
 @Bindable.add(r"random\.uniform", bind_type=BindType.FUNC_LIT)
-def go_random_uniform(a: float, b: float):
+def go_random_uniform(a: float, b: float):  # pragma: no cover
     return rand.Float64() * (b - a) + b
     def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
@@ -1175,7 +1175,7 @@ def go_random_uniform(a: float, b: float):
 
 # time methods
 @Bindable.add(r"time\.sleep", bind_type=BindType.EXPR)
-def go_time_sleep(duration: int):
+def go_time_sleep(duration: int):  # pragma: no cover
     return time.Sleep(duration * time.Second)
 
 
@@ -1183,27 +1183,27 @@ reversal = {}
 
 # exit / quit / os.exit
 @Bindable.add(r"exit", bind_type=BindType.EXPR)
-def go_exit():
+def go_exit():  # pragma: no cover
     return os.Exit(0)
 
 @Bindable.add(r"exit", bind_type=BindType.EXPR)
-def go_exit(code: int):
+def go_exit(code: int):  # pragma: no cover
     return os.Exit(code)
 
 @Bindable.add(r"quit", bind_type=BindType.EXPR)
-def go_quit():
+def go_quit():  # pragma: no cover
     return os.Exit(0)
 
 @Bindable.add(r"quit", bind_type=BindType.EXPR)
-def go_quit(code: int):
+def go_quit(code: int):  # pragma: no cover
     return os.Exit(code)
 
 @Bindable.add(r"sys\.exit", bind_type=BindType.EXPR)
-def go_os_exit():
+def go_os_exit():  # pragma: no cover
     return os.Exit(0)
 
 @Bindable.add(r"sys\.exit", bind_type=BindType.EXPR)
-def go_os_exit(code: int):
+def go_os_exit(code: int):  # pragma: no cover
     return os.Exit(code)
 
 
@@ -1257,7 +1257,7 @@ def find_call_funclit(node: ast.Call) -> 'go_ast.FuncLit':
                 return go_ast
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     node = ast.parse(
         """
         zip([1, 2, 3], [4, 5, 6])

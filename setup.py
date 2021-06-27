@@ -6,7 +6,7 @@ with open('README.md', encoding='utf-8') as f:
 setup(
     name='pytago',
     version='0.0.9',
-    packages=['pytago', 'pytago.go_ast'],
+    packages=['pytago', 'pytago.go_ast', 'pytago.go_ast.bindings'],
     url='https://github.com/nottheswimmer/pytago',
     license='',
     author='Michael Phelps',

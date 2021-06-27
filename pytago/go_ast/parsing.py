@@ -134,7 +134,7 @@ def dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
         indent = ' ' * indent
     return _format(node)[0]
 
-def dump_json(node, annotate_fields=True, include_attributes=False, *, indent=None):
+def dump_json(node, annotate_fields=True, include_attributes=False, *, indent=None):  # pragma: no cover
     """
     Return a formatted dump of the tree in node. If annotate_fields is true (by default),
     the returned string will show the names and the values for fields.

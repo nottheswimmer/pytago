@@ -8,7 +8,7 @@ def python_to_go(python: str, debug=True) -> str:
     return go_ast.unparse(go_tree, debug=debug)
 
 
-def dump_python_to_go_ast_as_json(python: str):
+def dump_python_to_go_ast_as_json(python: str):  # pragma: no cover
     from pytago import go_ast
     """
     Not currently used for anything. Hoping that this could
@@ -42,7 +42,7 @@ def build_source_tree(source, *args, **kwargs) -> ast.Module:
     return tree
 
 # Debugging
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     print(dump_python_to_go_ast_as_json("""\
 def main():
     a = 7
