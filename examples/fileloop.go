@@ -58,7 +58,7 @@ func main() {
 			}
 		}()
 		if sc := bufio.NewScanner(fh3); sc.Scan() {
-			for l, more, done := sc.Text(), sc.Scan(), false; !done; l, more, done = sc.Text(), sc.Scan(), !more {
+			for l, more, done := sc.Bytes(), sc.Scan(), false; !done; l, more, done = sc.Bytes(), sc.Scan(), !more {
 				fmt.Println(l)
 			}
 		}

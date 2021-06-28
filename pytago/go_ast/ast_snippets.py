@@ -469,8 +469,9 @@ def exceptions(conditional: list[tuple['ast.Expr', list['ast.Stmt']]], base: lis
     )
 
 
-def file_loop(line, file_obj, file_body):
+def file_loop(line, file_obj, file_body, is_text: bool):
     token = ast.token
+    attr = "Text" if is_text else "Bytes"
     return ast.IfStmt(
             Init=ast.AssignStmt(
               Lhs=[
@@ -526,7 +527,7 @@ def file_loop(line, file_obj, file_body):
                             Name="sc",
                           ),
                           Sel=ast.Ident(
-                            Name="Text",
+                            Name=attr,
                           ),
                         ),
                       ),
@@ -569,7 +570,7 @@ def file_loop(line, file_obj, file_body):
                             Name="sc",
                           ),
                           Sel=ast.Ident(
-                            Name="Text",
+                            Name=attr,
                           ),
                         ),
                       ),
