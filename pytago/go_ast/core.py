@@ -448,6 +448,21 @@ class GoAST(ast.AST):
 
         return True
 
+    def __contains__(self, item):
+        class Visitor(ast.NodeVisitor):
+            def __init__(self):
+                self.contains = False
+
+            def generic_visit(self, node):
+                if node == item:
+                    self.contains = True
+                if self.contains:
+                    return node
+                return super().generic_visit(node)
+        visitor = Visitor()
+        visitor.visit(self)
+        return visitor.contains
+
     def __repr__(self):
         from pytago.go_ast import parsing
         return parsing.dump(self)

@@ -199,6 +199,8 @@ class Test(TestCase):
     def test_retroactive_composite_types(self):
         self.assert_examples_match("retroactive_composite_types")
 
+    def test_isinstance_gives_type_assertion(self):
+        self.assert_examples_match("isinstance_gives_type_assertion")
 
     # Algorithms
     def test_algomajorityelement(self):

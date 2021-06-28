@@ -9,7 +9,7 @@ from pytago.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryE
     ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt, len_
 # Shortcuts
 from pytago.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS, \
-    GoStmt, TypeSwitchStmt, StarExpr, GenDecl
+    GoStmt, TypeSwitchStmt, StarExpr, GenDecl, CaseClause, SwitchStmt, TypeAssertExpr
 
 v = Ident.from_str
 
@@ -1698,6 +1698,38 @@ class LoopThroughSetValuesNotKeys(NodeTransformerWithScope):
                     node.Key, node.Value = node.Value, node.Key
         return node
 
+
+class RemoveUnnecessaryFunctionLiterals(NodeTransformerWithScope):
+    def visit_FuncDecl(self, node: FuncDecl):
+        return self.visit_FuncDecl_or_FuncLit(node)
+
+    def visit_FuncLit(self, node: FuncLit):
+        return self.visit_FuncDecl_or_FuncLit(node)
+
+    def visit_FuncDecl_or_FuncLit(self, node: FuncDecl | FuncLit):
+        """
+        func (*) (*) { func() { do_something }() } -> func (*) (*) { do_something }
+        """
+        self.generic_visit(node)
+        match node.Body.List:
+            case [ExprStmt(X=CallExpr(Args=[], Fun=FuncLit(Type=FuncType(Results=results, Params=params)) as x))]:
+                if results is None or results == FieldList(List=[]) and params is None or params == FieldList(List=[]):
+                    node.Body.List.pop()
+                    node.Body.List += x.Body.List
+        return node
+
+
+
+class TypeSwitchStatementsRedeclareWithType(NodeTransformerWithScope):
+    def visit_TypeSwitchStmt(self, node: TypeSwitchStmt):
+        self.generic_visit(node)
+        match node.Assign:
+            case ExprStmt(X=TypeAssertExpr(X=Ident() as expr)):
+                if expr in node.Body:
+                    node.Assign = AssignStmt(Lhs=[expr], Tok=token.DEFINE, Rhs=[node.Assign.X])
+        return node
+
+
 ALL_TRANSFORMS = [
     #### STAGE 0 ####
     InsertUniqueInitializers,
@@ -1739,7 +1771,9 @@ ALL_TRANSFORMS = [
     CallTypeInformation,
     UntypedFunctionsTypedByCalls,
     NodeTransformerWithInterfaceTypes,
-    RemoveGoCallReturns,
+    TypeSwitchStatementsRedeclareWithType,
+    RemoveUnnecessaryFunctionLiterals,
+    RemoveGoCallReturns,  # Needs to be below scoping functions or they'll just get added back
     RemoveBadStmt,  # Should be last as these are used for scoping
     MergeAdjacentInits,
 
