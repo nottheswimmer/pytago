@@ -5,7 +5,7 @@ with open('README.md', encoding='utf-8') as f:
 
 setup(
     name='pytago',
-    version='0.0.10',
+    version='0.0.11',
     packages=['pytago', 'pytago.go_ast'],
     url='https://github.com/nottheswimmer/pytago',
     license='',

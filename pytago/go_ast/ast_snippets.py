@@ -331,6 +331,8 @@ def handler_name_to_cond(name: str) -> 'ast.Expr':
         cond = cond.or_(handler_name_to_cond("runtime error: index out of range"))
     elif name == "RuntimeError":
         cond = cond.or_(handler_name_to_cond("runtime error"))
+    elif name == "EOFError":
+        cond = cond.or_(handler_name_to_cond("unexpected EOF"))
     return cond
 
 def exceptions(conditional: list[tuple['ast.Expr', list['ast.Stmt']]], base: list['ast.Stmt'],
@@ -478,6 +480,10 @@ def file_loop(line, file_obj, file_body, is_text: bool):
                 ast.Ident(
                   Name="sc",
                 ),
+                line,
+                ast.Ident(
+                  Name="err",
+                ),
               ],
               Tok=token.DEFINE,
               Rhs=[
@@ -487,112 +493,163 @@ def file_loop(line, file_obj, file_body, is_text: bool):
                       Name="bufio",
                     ),
                     Sel=ast.Ident(
-                      Name="NewScanner",
+                      Name="NewReader",
                     ),
                   ),
                   Args=[
-                    file_obj
+                    file_obj,
                   ],
+                ),
+                ast.BasicLit(
+                  Kind=token.STRING,
+                  Value="",
+                ) if is_text else ast.CompositeLit(Type=ast.ArrayType(Elt=ast.Ident(Name="byte"))),
+                ast.StarExpr(
+                  X=ast.CallExpr(
+                    Fun=ast.Ident(
+                      Name="new",
+                    ),
+                    Args=[
+                      ast.Ident(
+                        Name="error",
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            Cond=ast.CallExpr(
-              Fun=ast.SelectorExpr(
-                X=ast.Ident(
-                  Name="sc",
-                ),
-                Sel=ast.Ident(
-                  Name="Scan",
-                ),
-              ),
+            Cond=ast.Ident(
+              Name="true",
             ),
             Body=ast.BlockStmt(
               List=[
                 ast.ForStmt(
-                  Init=ast.AssignStmt(
-                    Lhs=[
-                      line,
-                      ast.Ident(
-                        Name="more",
-                      ),
-                      ast.Ident(
-                        Name="done",
-                      ),
-                    ],
-                    Tok=token.DEFINE,
-                    Rhs=[
-                      ast.CallExpr(
-                        Fun=ast.SelectorExpr(
-                          X=ast.Ident(
-                            Name="sc",
+                  Body=ast.BlockStmt(
+                    List=[
+                      ast.AssignStmt(
+                        Lhs=[
+                          line,
+                          ast.Ident(
+                            Name="err",
                           ),
-                          Sel=ast.Ident(
-                            Name=attr,
+                        ],
+                        Tok=token.ASSIGN,
+                        Rhs=[
+                          ast.CallExpr(
+                            Fun=ast.SelectorExpr(
+                              X=ast.Ident(
+                                Name="sc",
+                              ),
+                              Sel=ast.Ident(
+                                Name="ReadString" if is_text else "ReadBytes",
+                              ),
+                            ),
+                            Args=[
+                              ast.BasicLit.from_value(
+                                t=token.CHAR,
+                                node="'\\n'",
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      ast.IfStmt(
+                        Cond=ast.BinaryExpr(
+                          X=ast.BinaryExpr(
+                            X=ast.Ident(
+                              Name="err",
+                            ),
+                            Op=token.NEQ,
+                            Y=ast.Ident(
+                              Name="nil",
+                            ),
+                          ),
+                          Op=token.LAND,
+                          Y=ast.ParenExpr(
+                            X=ast.BinaryExpr(
+                              X=ast.BinaryExpr(
+                                X=ast.BinaryExpr(
+                                  X=ast.Ident(
+                                    Name="err",
+                                  ),
+                                  Op=token.EQL,
+                                  Y=ast.SelectorExpr(
+                                    X=ast.Ident(
+                                      Name="io",
+                                    ),
+                                    Sel=ast.Ident(
+                                      Name="EOF",
+                                    ),
+                                  ),
+                                ),
+                                Op=token.LAND,
+                                Y=ast.BinaryExpr(
+                                  X=ast.CallExpr(Fun=ast.Ident(Name="len"), Args=[line]),
+                                  Op=token.EQL,
+                                  Y=ast.BasicLit.from_int(0)
+                                ),
+                              ),
+                              Op=token.LOR,
+                              Y=ast.BinaryExpr(
+                                X=ast.Ident(
+                                  Name="err",
+                                ),
+                                Op=token.NEQ,
+                                Y=ast.SelectorExpr(
+                                  X=ast.Ident(
+                                    Name="io",
+                                  ),
+                                  Sel=ast.Ident(
+                                    Name="EOF",
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                      ast.CallExpr(
-                        Fun=ast.SelectorExpr(
-                          X=ast.Ident(
-                            Name="sc",
-                          ),
-                          Sel=ast.Ident(
-                            Name="Scan",
-                          ),
+                        Body=ast.BlockStmt(
+                          List=[
+                            ast.BranchStmt(
+                              Tok=token.BREAK,
+                            ),
+                          ],
                         ),
                       ),
-                      ast.Ident(
-                        Name="false",
-                      ),
+                      *file_body.List
                     ],
                   ),
-                  Cond=ast.UnaryExpr(
-                    Op=token.NOT,
+                ),
+                ast.IfStmt(
+                  Cond=ast.BinaryExpr(
                     X=ast.Ident(
-                      Name="done",
+                      Name="err",
+                    ),
+                    Op=token.NEQ,
+                    Y=ast.SelectorExpr(
+                      X=ast.Ident(
+                        Name="io",
+                      ),
+                      Sel=ast.Ident(
+                        Name="EOF",
+                      ),
                     ),
                   ),
-                  Post=ast.AssignStmt(
-                    Lhs=[
-                      line,
-                      ast.Ident(
-                        Name="more",
-                      ),
-                      ast.Ident(
-                        Name="done",
-                      ),
-                    ],
-                    Tok=token.ASSIGN,
-                    Rhs=[
-                      ast.CallExpr(
-                        Fun=ast.SelectorExpr(
-                          X=ast.Ident(
-                            Name="sc",
+                  Body=ast.BlockStmt(
+                    List=[
+                      ast.ExprStmt(
+                        X=ast.CallExpr(
+                          Fun=ast.Ident(
+                            Name="panic",
                           ),
-                          Sel=ast.Ident(
-                            Name=attr,
-                          ),
-                        ),
-                      ),
-                      ast.CallExpr(
-                        Fun=ast.SelectorExpr(
-                          X=ast.Ident(
-                            Name="sc",
-                          ),
-                          Sel=ast.Ident(
-                            Name="Scan",
-                          ),
-                        ),
-                      ),
-                      ast.UnaryExpr(
-                        Op=token.NOT,
-                        X=ast.Ident(
-                          Name="more",
+                          Args=[
+                            ast.Ident(
+                              Name="err",
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  Body=file_body
                 ),
               ],
             ),

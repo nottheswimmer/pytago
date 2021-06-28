@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -14,9 +15,16 @@ func main() {
 		}
 		return f
 	}()
-	if sc := bufio.NewScanner(fh); sc.Scan() {
-		for line, more, done := sc.Text(), sc.Scan(), false; !done; line, more, done = sc.Text(), sc.Scan(), !more {
+	if sc, line, err := bufio.NewReader(fh), "", *new(error); true {
+		for {
+			line, err = sc.ReadString('\n')
+			if err != nil && (err == io.EOF && len(line) == 0 || err != io.EOF) {
+				break
+			}
 			fmt.Println(line)
+		}
+		if err != io.EOF {
+			panic(err)
 		}
 	}
 	if err := fh.Close(); err != nil {
@@ -35,9 +43,16 @@ func main() {
 				panic(err)
 			}
 		}()
-		if sc := bufio.NewScanner(fh2); sc.Scan() {
-			for line, more, done := sc.Text(), sc.Scan(), false; !done; line, more, done = sc.Text(), sc.Scan(), !more {
+		if sc, line, err := bufio.NewReader(fh2), "", *new(error); true {
+			for {
+				line, err = sc.ReadString('\n')
+				if err != nil && (err == io.EOF && len(line) == 0 || err != io.EOF) {
+					break
+				}
 				fmt.Println(line)
+			}
+			if err != io.EOF {
+				panic(err)
 			}
 		}
 	}()
@@ -54,9 +69,16 @@ func main() {
 				panic(err)
 			}
 		}()
-		if sc := bufio.NewScanner(fh3); sc.Scan() {
-			for l, more, done := sc.Bytes(), sc.Scan(), false; !done; l, more, done = sc.Bytes(), sc.Scan(), !more {
+		if sc, l, err := bufio.NewReader(fh3), []byte{}, *new(error); true {
+			for {
+				l, err = sc.ReadBytes('\n')
+				if err != nil && (err == io.EOF && len(l) == 0 || err != io.EOF) {
+					break
+				}
 				fmt.Println(l)
+			}
+			if err != io.EOF {
+				panic(err)
 			}
 		}
 	}()
