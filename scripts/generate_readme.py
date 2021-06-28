@@ -47,7 +47,10 @@ def main():
             continue
         is_python = i % 2 == 0
         if is_python:
+            assert example.endswith(".py")
             parts.append(f'### {example_name}')
+        else:
+            assert example.endswith(".go")
         with open(example) as f:
             if is_python:
                 parts.append("""#### Python""")

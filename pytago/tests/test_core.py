@@ -202,6 +202,9 @@ class Test(TestCase):
     def test_isinstance_gives_type_assertion(self):
         self.assert_examples_match("isinstance_gives_type_assertion")
 
+    def test_fileloop(self):
+        self.assert_examples_match("fileloop")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")

@@ -1368,6 +1368,8 @@ class CallExpr(Expr):
                         Ident("false").return_()
                     ])
                 ).call()
+            case ast.Call(func=ast.Name(id='open'), args=[filename_expr]):
+                args, fun, _py_context, _type_help = cls._open_call_helper(_py_context, _type_help, filename_expr, "r")
             case ast.Call(func=ast.Name(id='open'), args=[filename_expr, ast.Constant(value=mode)]):
                 args, fun, _py_context, _type_help = cls._open_call_helper(_py_context, _type_help, filename_expr, mode)
             case _:

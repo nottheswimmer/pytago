@@ -1206,6 +1206,13 @@ def go_os_exit():  # pragma: no cover
 def go_os_exit(code: int):  # pragma: no cover
     return os.Exit(code)
 
+# Handle errors on file close
+@Bindable.add(r"(.*)\.close", bind_type=BindType.FUNC_LIT)
+def go_close(obj):
+    err = obj.Close()
+    if err != nil:
+        panic(err)
+
 
 def get_node_string(node: ast.AST):
     match node:

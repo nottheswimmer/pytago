@@ -677,7 +677,7 @@ class StringifyStringMember(NodeTransformerWithScope):
 
 
 class FileWritesAndErrors(NodeTransformerWithScope):
-
+    REPEATABLE = False
     def visit_CallExpr(self, node: CallExpr):
         self.generic_visit(node)
         match node:
@@ -1577,7 +1577,10 @@ class UntypedFunctionsTypedByCalls(NodeTransformerWithScope):
                             case InterfaceType() | None:
                                 if getattr(param.Type, "permanent_interface", False):
                                     continue
-                                arg = node.Args[i]
+                                try:
+                                    arg = node.Args[i]
+                                except IndexError:  # TODO: Happened with Files. Probably because of adding an extra "err" with f = -> f, err =
+                                    break
                                 arg_type = scope._get_type(arg)
                                 if arg_type and not isinstance(arg_type, InterfaceType):
                                     param.Type = arg_type
@@ -1692,10 +1695,21 @@ class MergeAdjacentInits(BaseTransformer):
 class LoopThroughSetValuesNotKeys(NodeTransformerWithScope):
     def visit_RangeStmt(self, node: RangeStmt):
         self.generic_visit(node)
-        match self.scope._get_type(node.X):
+        x_type = self.scope._get_type(node.X)
+        match x_type:
             case MapType(Value=StructType(Fields=FieldList(List=[]))):
                 if node.Key == Ident("_"):
                     node.Key, node.Value = node.Value, node.Key
+        return node
+
+
+class LoopThroughFileLines(NodeTransformerWithScope):
+    def visit_RangeStmt(self, node: RangeStmt):
+        self.generic_visit(node)
+        x_type = self.scope._get_type(node.X)
+        match x_type:
+            case StarExpr(X=SelectorExpr(X=Ident(Name="os"), Sel=Ident(Name="File"))):
+                return ast_snippets.file_loop(node.X, node.Body)
         return node
 
 
@@ -1751,6 +1765,7 @@ ALL_TRANSFORMS = [
     ReplacePowWithMathPow,
     NodeTransformerWithScope,
     LoopThroughSetValuesNotKeys,
+    LoopThroughFileLines,
     # AddMissingFunctionTypes,
     IterFuncs,
     IterMethods,
