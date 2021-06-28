@@ -19,12 +19,9 @@ func main() {
 			fmt.Println(line)
 		}
 	}
-	func(obj *os.File) {
-		err := obj.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(fh)
+	if err := fh.Close(); err != nil {
+		panic(err)
+	}
 	func() {
 		fh2 := func() *os.File {
 			f, err := os.OpenFile("file2.txt", os.O_RDONLY, 0o777)

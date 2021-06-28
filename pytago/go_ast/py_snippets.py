@@ -1207,10 +1207,9 @@ def go_os_exit(code: int):  # pragma: no cover
     return os.Exit(code)
 
 # Handle errors on file close
-@Bindable.add(r"(.*)\.close", bind_type=BindType.FUNC_LIT)
+@Bindable.add(r"(.*)\.close", bind_type=BindType.STMT)
 def go_close(obj):
-    err = obj.Close()
-    if err != nil:
+    if (err := obj.Close()) != nil:
         panic(err)
 
 

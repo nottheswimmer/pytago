@@ -3742,7 +3742,7 @@ def main():
         for line in fh2:
             print(line)
 
-    with open("file3.txt") as fh3:
+    with open("file3.txt", "rb") as fh3:
         for l in fh3:
             print(l)
 
@@ -3773,12 +3773,9 @@ func main() {
 			fmt.Println(line)
 		}
 	}
-	func(obj *os.File) {
-		err := obj.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(fh)
+	if err := fh.Close(); err != nil {
+		panic(err)
+	}
 	func() {
 		fh2 := func() *os.File {
 			f, err := os.OpenFile("file2.txt", os.O_RDONLY, 0o777)
@@ -3812,7 +3809,7 @@ func main() {
 			}
 		}()
 		if sc := bufio.NewScanner(fh3); sc.Scan() {
-			for l, more, done := sc.Text(), sc.Scan(), false; !done; l, more, done = sc.Text(), sc.Scan(), !more {
+			for l, more, done := sc.Bytes(), sc.Scan(), false; !done; l, more, done = sc.Bytes(), sc.Scan(), !more {
 				fmt.Println(l)
 			}
 		}
