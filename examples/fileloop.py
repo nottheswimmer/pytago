@@ -8,6 +8,10 @@ def main():
         for line in fh2:
             print(line)
 
+    with open("file3.txt") as fh3:
+        for l in fh3:
+            print(l)
+
 
 if __name__ == '__main__':
     main()

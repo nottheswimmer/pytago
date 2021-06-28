@@ -1709,7 +1709,7 @@ class LoopThroughFileLines(NodeTransformerWithScope):
         x_type = self.scope._get_type(node.X)
         match x_type:
             case StarExpr(X=SelectorExpr(X=Ident(Name="os"), Sel=Ident(Name="File"))):
-                return ast_snippets.file_loop(node.X, node.Body)
+                return ast_snippets.file_loop(node.Value, node.X, node.Body)
         return node
 
 

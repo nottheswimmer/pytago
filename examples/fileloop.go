@@ -44,4 +44,23 @@ func main() {
 			}
 		}
 	}()
+	func() {
+		fh3 := func() *os.File {
+			f, err := os.OpenFile("file3.txt", os.O_RDONLY, 0o777)
+			if err != nil {
+				panic(err)
+			}
+			return f
+		}()
+		defer func() {
+			if err := fh3.Close(); err != nil {
+				panic(err)
+			}
+		}()
+		if sc := bufio.NewScanner(fh3); sc.Scan() {
+			for l, more, done := sc.Text(), sc.Scan(), false; !done; l, more, done = sc.Text(), sc.Scan(), !more {
+				fmt.Println(l)
+			}
+		}
+	}()
 }
