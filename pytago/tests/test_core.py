@@ -208,6 +208,9 @@ class Test(TestCase):
     def test_unpacking(self):
         self.assert_examples_match("unpacking")
 
+    def test_cast_to_float(self):
+        self.assert_examples_match("cast_to_float")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")

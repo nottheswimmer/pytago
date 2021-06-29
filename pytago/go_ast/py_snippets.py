@@ -173,6 +173,19 @@ def go_int(value) -> int:  # pragma: no cover
     elif isinstance(value, float):
         PYTAGO_NOSNIPPET(int)(value)
 
+float64 = TypeVar("float64")
+@Bindable.add(r"float", bind_type=BindType.FUNC_LIT)
+def go_float(value) -> float64:  # pragma: no cover
+    if isinstance(value, str):
+        i, err = strconv.ParseFloat(value, 64)
+        if err != nil:
+            panic(err)
+        return i
+    elif isinstance(value, int):
+        value
+    elif isinstance(value, int):
+        PYTAGO_NOSNIPPET(float64)(value)
+
 
 @Bindable.add(r"input", bind_type=BindType.FUNC_LIT)
 def go_input() -> str:  # pragma: no cover

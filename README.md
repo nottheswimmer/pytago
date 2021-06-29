@@ -3954,6 +3954,60 @@ func main() {
 	fmt.Println(first, middle, last, a, b, c, d, e, f, g, h, i)
 }
 ```
+### cast_to_float
+#### Python
+```python
+def main():
+    num1 = input('Enter first number: ')
+    num2 = input('Enter second number: ')
+
+    sum = float(num1) + float(num2)
+
+    print("The sum of", num1, "and", num2, "is", sum)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+)
+
+func main() {
+	num1 := func(msg string) string {
+		fmt.Print(msg)
+		text, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		return strings.ReplaceAll(text, "\n", "")
+	}("Enter first number: ")
+	num2 := func(msg string) string {
+		fmt.Print(msg)
+		text, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		return strings.ReplaceAll(text, "\n", "")
+	}("Enter second number: ")
+	sum := func() float64 {
+		i, err := strconv.ParseFloat(num1, 64)
+		if err != nil {
+			panic(err)
+		}
+		return i
+	}() + func() float64 {
+		i, err := strconv.ParseFloat(num2, 64)
+		if err != nil {
+			panic(err)
+		}
+		return i
+	}()
+	fmt.Println("The sum of", num1, "and", num2, "is", sum)
+}
+```
 ### algomajorityelement
 #### Python
 ```python
