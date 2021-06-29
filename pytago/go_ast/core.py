@@ -1610,7 +1610,7 @@ class CallExpr(Expr):
                                 return GoBasicType.FLOAT64.ident
                             case "rand.Intn":
                                 return GoBasicType.INT.ident
-                            case "strings.Fields":
+                            case "strings.Fields" | "strings.Split":
                                 return ArrayType(Elt=GoBasicType.STRING.ident)
                             case "bytes.Fields":
                                 return ast.CompositeLit(Type=ast.ArrayType(Elt=ast.Ident(Name=GoBasicType.BYTE.ident)))
