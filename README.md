@@ -235,6 +235,19 @@ def main():
     if random.random() > 0.5:
         print("50/50")
 
+    names = ['Kitchen', 'Animal', 'State', 'Tasty', 'Big', 'City', 'Fish', 'Pizza', 'Goat', 'Salty', 'Sandwich',
+             'Lazy', 'Fun']
+    company_type = ['LLC', 'Inc', 'Company', 'Corporation']
+    company_cuisine = ['Pizza', 'Bar Food', 'Fast Food', 'Italian', 'Mexican', 'American', 'Sushi Bar', 'Vegetarian']
+    for x in range(1, 501):
+        business = {
+            'name': names[random.randint(0, (len(names) - 1))] + ' ' + names[
+                random.randint(0, (len(names) - 1))] + ' ' + company_type[random.randint(0, (len(company_type) - 1))],
+            'rating': random.randint(1, 5),
+            'cuisine': company_cuisine[random.randint(0, (len(company_cuisine) - 1))]
+        }
+        print(business)
+
 
 if __name__ == '__main__':
     main()
@@ -275,6 +288,51 @@ func main() {
 	fmt.Println(u)
 	if rand.Float64() > 0.5 {
 		fmt.Println("50/50")
+	}
+	names := []string{
+		"Kitchen",
+		"Animal",
+		"State",
+		"Tasty",
+		"Big",
+		"City",
+		"Fish",
+		"Pizza",
+		"Goat",
+		"Salty",
+		"Sandwich",
+		"Lazy",
+		"Fun",
+	}
+	company_type := []string{"LLC", "Inc", "Company", "Corporation"}
+	company_cuisine := []string{
+		"Pizza",
+		"Bar Food",
+		"Fast Food",
+		"Italian",
+		"Mexican",
+		"American",
+		"Sushi Bar",
+		"Vegetarian",
+	}
+	for x := 1; x < 501; x++ {
+		business := map[string]interface{}{"name": names[func(start int, stop int) int {
+			n := stop - start
+			return rand.Intn(n) + start
+		}(0, len(names)-1+1)] + " " + names[func(start int, stop int) int {
+			n := stop - start
+			return rand.Intn(n) + start
+		}(0, len(names)-1+1)] + " " + company_type[func(start int, stop int) int {
+			n := stop - start
+			return rand.Intn(n) + start
+		}(0, len(company_type)-1+1)], "rating": func(start int, stop int) int {
+			n := stop - start
+			return rand.Intn(n) + start
+		}(1, 5+1), "cuisine": company_cuisine[func(start int, stop int) int {
+			n := stop - start
+			return rand.Intn(n) + start
+		}(0, len(company_cuisine)-1+1)]}
+		fmt.Println(business)
 	}
 }
 ```

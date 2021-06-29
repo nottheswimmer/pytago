@@ -33,4 +33,49 @@ func main() {
 	if rand.Float64() > 0.5 {
 		fmt.Println("50/50")
 	}
+	names := []string{
+		"Kitchen",
+		"Animal",
+		"State",
+		"Tasty",
+		"Big",
+		"City",
+		"Fish",
+		"Pizza",
+		"Goat",
+		"Salty",
+		"Sandwich",
+		"Lazy",
+		"Fun",
+	}
+	company_type := []string{"LLC", "Inc", "Company", "Corporation"}
+	company_cuisine := []string{
+		"Pizza",
+		"Bar Food",
+		"Fast Food",
+		"Italian",
+		"Mexican",
+		"American",
+		"Sushi Bar",
+		"Vegetarian",
+	}
+	for x := 1; x < 501; x++ {
+		business := map[string]interface{}{"name": names[func(start int, stop int) int {
+			n := stop - start
+			return rand.Intn(n) + start
+		}(0, len(names)-1+1)] + " " + names[func(start int, stop int) int {
+			n := stop - start
+			return rand.Intn(n) + start
+		}(0, len(names)-1+1)] + " " + company_type[func(start int, stop int) int {
+			n := stop - start
+			return rand.Intn(n) + start
+		}(0, len(company_type)-1+1)], "rating": func(start int, stop int) int {
+			n := stop - start
+			return rand.Intn(n) + start
+		}(1, 5+1), "cuisine": company_cuisine[func(start int, stop int) int {
+			n := stop - start
+			return rand.Intn(n) + start
+		}(0, len(company_cuisine)-1+1)]}
+		fmt.Println(business)
+	}
 }

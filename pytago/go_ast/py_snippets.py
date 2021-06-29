@@ -24,8 +24,6 @@ PYTAGO_EMPTY_STRUCT = None  # struct{}{}
 PYTAGO_RUNE = None  # "c" => 'c'
 PYTAGO_NOSNIPPET = None  # Avoid recursion
 PYTAGO_INIT = None  # Add a unique init() call to the top
-PYTAGO_TAKE_LAST_EXPR = None  # In postprocessing, replace functions of this name for the last expression in it
-
 
 class BindType(Enum):
     PARAMLESS_FUNC_LIT = 0

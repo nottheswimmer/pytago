@@ -17,7 +17,7 @@ v = Ident.from_str
 class InterfaceTypeCounter(ast.NodeVisitor):
     def __init__(self):
         self.interface_types = 0
-        
+
     def visit_InterfaceType(self, node: ast.NodeVisitor):
         self.interface_types += 1
 
@@ -36,7 +36,6 @@ class BaseTransformer(ast.NodeTransformer):
         self.exit_callbacks = [self.generic_exit_callback]
         self.at_root = True
 
-
     def visit(self, node: GoAST):
         at_root = self.at_root
         self.at_root = False
@@ -49,6 +48,7 @@ class BaseTransformer(ast.NodeTransformer):
 
     def generic_exit_callback(self, *args, **kwargs):
         return
+
 
 class ApplyPytagoInlines(BaseTransformer):
     STAGE = 0
@@ -75,6 +75,7 @@ class ApplyPytagoInlines(BaseTransformer):
                     return self.to_inline.pop()
         return node
 
+
 class InsertUniqueInitializers(BaseTransformer):
     STAGE = 0
     REPEATABLE = False
@@ -82,6 +83,14 @@ class InsertUniqueInitializers(BaseTransformer):
     def __init__(self):
         super().__init__()
         self.to_initialize = []
+
+    def generic_visit(self, node: AST):
+        if hasattr(node, "_py_context"):
+            # Some expressions have initializations attached to their body
+            initializations = node._py_context.get("initializations", [])
+            while initializations:  # Clear them to avoid the recursive case
+                self.generic_visit(initializations.pop())
+        return super().generic_visit(node)
 
     def visit_FuncLit(self, node: FuncLit):
         # Handles PYTAGO_INIT for expressions
@@ -110,6 +119,7 @@ class InsertUniqueInitializers(BaseTransformer):
     # def visit_AssignStmt(self, node: AssignStmt):
     #     self.generic_visit(node)
     #     return node
+
 
 class PrintToFmtPrintln(BaseTransformer):
     """
@@ -169,7 +179,6 @@ class ReplacePythonStyleAppends(BaseTransformer):
                         [node.X.Fun.X], [CallExpr(Args=[node.X.Fun.X, *node.X.Args], Fun=v("append"))],
                         token.ASSIGN)
         return block_node
-
 
 
 class PythonToGoTypes(BaseTransformer):
@@ -467,11 +476,17 @@ class NodeTransformerWithScope(BaseTransformer):
                             match l_type, r_type:
                                 case InterfaceType(), *anything:
                                     l_type._py_context.setdefault("elts", []).append(r)
-                                case ArrayType(Elt=InterfaceType()), ArrayType(Elt=r_elt) if r_elt and not isinstance(r_elt, InterfaceType):
+                                case ArrayType(Elt=InterfaceType()), ArrayType(Elt=r_elt) if r_elt and not isinstance(
+                                        r_elt, InterfaceType):
+                                    # If we're assigning a new value to an ambiguous array and we know the type of
+                                    # what we're assigning, then go ahead and type the array
                                     if not getattr(l_type.Elt, "permanent_interface", False):
                                         l_type.Elt = r_elt
-                                case ArrayType(Elt=e_elt), ArrayType(Elt=r_elt) if r_elt and not isinstance(r_elt, InterfaceType):
+                                case ArrayType(Elt=e_elt), ArrayType(Elt=r_elt) if r_elt and not isinstance(r_elt,
+                                                                                                            InterfaceType):
                                     if not compatible_types(r_elt, e_elt):
+                                        # If we're adding an incompatible element to an array
+                                        #   (e.g. an int to a string array) then that array must become na interface
                                         l_type.Elt = InterfaceType()
                                         l_type.Elt.permanent_interface = True
 
@@ -494,7 +509,8 @@ class NodeTransformerWithScope(BaseTransformer):
         for i, expr in enumerate(lhs):
             match expr:
                 case Ident():
-                    t = rhs[i] if rhs_is_types else next((self.scope._get_type(x, force_current=force_current) for x in rhs), None)
+                    t = rhs[i] if rhs_is_types else next(
+                        (self.scope._get_type(x, force_current=force_current) for x in rhs), None)
                 case _:
                     continue
 
@@ -510,7 +526,8 @@ class NodeTransformerWithScope(BaseTransformer):
                     not force_current and (self.scope._in_outer_scope(obj) and (
                     # TODO: Combining nonlocals because I think it will technically
                     #   give better support than no support, but nonlocals needs further consideration
-                    (obj.Name in self.current_globals + self.current_nonlocals) or not self.scope._global._in_scope(obj))
+                    (obj.Name in self.current_globals + self.current_nonlocals) or not self.scope._global._in_scope(
+                obj))
             )
             )):
                 self.scope.Insert(obj)
@@ -571,6 +588,7 @@ class IndexExpressionsHelpTypeMaps(NodeTransformerWithScope):
             case MapType(Key=InterfaceType()):
                 x_type.Key._py_context.setdefault("elts", []).append(node.Index)
         return node
+
 
 class AppendSliceViaUnpacking(NodeTransformerWithScope):
     def visit_AssignStmt(self, node: AssignStmt):
@@ -702,6 +720,7 @@ class StringifyStringMember(NodeTransformerWithScope):
 
 class FileWritesAndErrors(NodeTransformerWithScope):
     REPEATABLE = False
+
     def visit_CallExpr(self, node: CallExpr):
         self.generic_visit(node)
         match node:
@@ -1109,6 +1128,7 @@ class AsyncTransformer(BaseTransformer):
 
 class YieldTransformer(NodeTransformerWithScope):
     REPEATABLE = False
+
     def visit_CallExpr(self, node: CallExpr):
         self.generic_visit(node)
         match node:
@@ -1130,7 +1150,6 @@ class YieldTransformer(NodeTransformerWithScope):
             finder=finder,
             skipper=lambda x: isinstance(x, FuncLit)
         )
-
 
         if any(stmts):
             # TODO: Multi-support
@@ -1164,6 +1183,7 @@ class YieldTransformer(NodeTransformerWithScope):
 
 class YieldRangeTransformer(NodeTransformerWithScope):
     REPEATABLE = False
+
     def visit_RangeStmt(self, node: RangeStmt, callback=False, callback_type=None, callback_parent=None):
         if not callback:
             self.generic_visit(node)
@@ -1450,6 +1470,7 @@ class IterMethods(NodeTransformerWithScope):
 
 class InitializeNamedParamMaps(NodeTransformerWithScope):
     REPEATABLE = False
+
     def visit_FuncDecl_or_FuncLit(self, node: FuncDecl | FuncLit):
         super().visit_FuncDecl_or_FuncLit(node)
         if not node.Type.Results:
@@ -1460,14 +1481,17 @@ class InitializeNamedParamMaps(NodeTransformerWithScope):
                     node.Body.List.insert(0, name.assign(Ident("make").call(field.Type), tok=token.ASSIGN))
         return node
 
+
 class RemoveGoCallReturns(BaseTransformer):
     """
     Hack to remove erroneously annotated function calls
     """
+
     def visit_GoStmt(self, node: GoStmt):
         self.generic_visit(node)
         node.Call.Fun.Type.Results = None
         return node
+
 
 class RemoveBadStmt(BaseTransformer):
     def visit_BadStmt(self, node: BadStmt):
@@ -1534,6 +1558,7 @@ class PySnippetSwitches(NodeTransformerWithScope):
                 node.Fun.Body.List[:] = stmts
         return node
 
+
 class NodeTransformerWithInterfaceTypes(NodeTransformerWithScope):
     # TODO: Optimize. This is way too f**ing slow
     def visit_InterfaceType(self, node: InterfaceType):
@@ -1588,10 +1613,12 @@ class NodeTransformerWithInterfaceTypes(NodeTransformerWithScope):
 
         return node
 
+
 class UntypedFunctionsTypedByCalls(NodeTransformerWithScope):
     def visit_CallExpr(self, node: CallExpr):
         node = self.generic_visit(node)
         scope = self.scope
+
         def exit_callback(*args, **kwargs):
             fun_type = node.Fun.basic_type or scope._get_type(node.Fun)
             match fun_type:
@@ -1609,8 +1636,10 @@ class UntypedFunctionsTypedByCalls(NodeTransformerWithScope):
                                 if arg_type and not isinstance(arg_type, InterfaceType):
                                     param.Type = arg_type
                                     continue
+
         self.exit_callbacks.append(exit_callback)
         return node
+
 
 class CallTypeInformation(NodeTransformerWithScope):
     def visit_CallExpr(self, node: CallExpr):
@@ -1646,7 +1675,6 @@ class CallTypeInformation(NodeTransformerWithScope):
                     elif a_int > b_int:
                         self.apply_to_scope([a], [b_type], rhs_is_types=True, force_current=True)
                         discoveries += 1
-
 
         if discoveries:
             stack = self.stack.copy()
@@ -1684,6 +1712,7 @@ class CallTypeInformation(NodeTransformerWithScope):
             return node
         parent = self.stack[-1]
         interface_scope = self.scope
+
         def exit_callback(*args, **kwargs):
             if isinstance(parent, Field):
                 for name in parent.Names:
@@ -1691,11 +1720,13 @@ class CallTypeInformation(NodeTransformerWithScope):
                     if t and not isinstance(t, InterfaceType):
                         parent.Type = t
                         break
+
         self.exit_callbacks.append(exit_callback)
         return node
 
     def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
         return
+
 
 class MergeAdjacentInits(BaseTransformer):
     def visit_File(self, node: File):
@@ -1703,18 +1734,19 @@ class MergeAdjacentInits(BaseTransformer):
         i = 0
         while i < (len(decls) - 1):
             cur = decls[i]
-            nxt = decls[i+1]
+            nxt = decls[i + 1]
             match cur, nxt:
                 case FuncDecl(Name=Ident(Name="init")), FuncDecl(Name=Ident(Name="init")):
                     cur.Body.List += nxt.Body.List
-                    del decls[i+1]
+                    del decls[i + 1]
                 # Also try to group variable declarations/imports above init methods
                 case FuncDecl(Name=Ident(Name="init")), GenDecl():
-                    decls[i], decls[i+1] = decls[i+1], decls[i]
+                    decls[i], decls[i + 1] = decls[i + 1], decls[i]
                     i += 1
                 case _:
                     i += 1
         return node
+
 
 class LoopThroughSetValuesNotKeys(NodeTransformerWithScope):
     def visit_RangeStmt(self, node: RangeStmt):
@@ -1756,7 +1788,6 @@ class RemoveUnnecessaryFunctionLiterals(NodeTransformerWithScope):
                     node.Body.List.pop()
                     node.Body.List += x.Body.List
         return node
-
 
 
 class TypeSwitchStatementsRedeclareWithType(NodeTransformerWithScope):

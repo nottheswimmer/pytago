@@ -1331,6 +1331,22 @@ class CallExpr(Expr):
         if not py_nosnippet:
             f = find_call_funclit(node)
             if f:
+                if isinstance(f, list):
+                    # Expressions with initializations cause problems, so attach it to the object here and deal with it in the initialization transformation
+                    initializations = []
+                    remaining = []
+                    for expr in f:
+                        match expr:
+                            case FuncLit(Body=BlockStmt(List=[AssignStmt(Lhs=[Ident(Name="PYTAGO_INIT")])])):
+                                initializations.append(expr)
+                            case _:
+                                remaining.append(expr)
+                    if initializations:
+                        for expr in remaining:
+                            expr._py_context.setdefault("initializations", []).extend(initializations)
+                        f = remaining
+                    if len(f) == 1:
+                        f = f[0]
                 return f
 
         _type_help = None
@@ -2287,7 +2303,7 @@ class File(GoAST):
     """list of all comments in the source file"""
     Comments: List[CommentGroup]
     """top-level declarations; or nil"""
-    Decls: List[Expr]
+    Decls: List[Decl]
     """associated documentation; or nil"""
     Doc: CommentGroup
     """imports in this file"""
