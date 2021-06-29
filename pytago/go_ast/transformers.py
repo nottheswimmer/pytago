@@ -425,11 +425,35 @@ class NodeTransformerWithScope(BaseTransformer):
     def visit_AssignStmt(self, node: AssignStmt):
         """Don't forget to super call this if you override it"""
         # Handle unpacking when both sides have multiple elements
-        # TODO: Handle when lhs has multiple elements and rhs has one.
         match node:
             case AssignStmt(Lhs=[CompositeLit(Elts=lhs)], Rhs=[CompositeLit(Elts=rhs)]):
                 node.Lhs = lhs
                 node.Rhs = rhs
+            case AssignStmt(Lhs=lhs, Rhs=[Expr() as rhs_elt]) if len(lhs) > 1:
+                rhs_elt_type = self.scope._get_type(rhs_elt)
+                match rhs_elt_type:
+                    case ArrayType():
+                        rhs = []
+                        # TODO: Add a length check that panics with a ValueError
+                        # TODO: Starred expressions
+                        if isinstance(rhs_elt, Ident):
+                            for i in range(len(lhs)):
+                                rhs.append(rhs_elt[BasicLit.from_int(i)])
+                            node.Rhs[:] = rhs
+                        else:
+                            s = Ident("s")
+                            for i in range(len(lhs)):
+                                rhs.append(s[BasicLit.from_int(i)])
+                            node.Rhs[:] = [CallExpr(Args=[rhs_elt], Fun=FuncLit(
+                                Type=FuncType(
+                                    Params=FieldList(
+                                        List=[Field(Type=rhs_elt_type, Names=[s])]
+                                    ),
+                                    Results=FieldList(List=[Field(Type=rhs_elt_type.Elt) for _ in range(len(rhs))])
+                                ),
+                                Body=BlockStmt(List=[ReturnStmt(Results=rhs)])
+                            ))]
+
         self.apply_eager_context(node.Lhs, node.Rhs)
         self.generic_visit(node)
         if node.Tok != token.DEFINE:

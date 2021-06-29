@@ -205,6 +205,9 @@ class Test(TestCase):
     def test_fileloop(self):
         self.assert_examples_match("fileloop")
 
+    def test_unpacking(self):
+        self.assert_examples_match("unpacking")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")
