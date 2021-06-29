@@ -44,8 +44,7 @@ curl --request POST 'http://127.0.0.1:8080/' \
 - [Go 1.16.x](https://golang.org/dl/)
 - [Python 3.10.x](https://www.python.org/downloads/release/python-3100b3/)
   - No, it will not work on 3.9. Search the code for "match."
-- `go get golang.org/x/tools/cmd/goimports`
-- `go get mvdan.cc/gofumpt`
+- `go get -u golang.org/x/tools/cmd/goimports mvdan.cc/gofumpt github.com/segmentio/golines`
 
 #### Installation
 
@@ -207,7 +206,14 @@ func main() {
 		text, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 		return strings.ReplaceAll(text, "\n", "")
 	}()
-	fmt.Println("So your name is", name, "and you are", age, "years old, and your description is", "\""+description+"\"")
+	fmt.Println(
+		"So your name is",
+		name,
+		"and you are",
+		age,
+		"years old, and your description is",
+		"\""+description+"\"",
+	)
 }
 ```
 ### randomness
@@ -1369,7 +1375,8 @@ func main() {
 	age := 24
 	fmt.Println(func() string {
 		var buf bytes.Buffer
-		err := template.Must(template.New("f").Parse("My name is {{.name}} and I am {{.age}} years old. Later this year I'll be {{.expr1}}!")).Execute(&buf, map[string]interface{}{"name": name, "age": age, "expr1": age + 1})
+		err := template.Must(template.New("f").Parse("My name is {{.name}} and I am {{.age}} years old. Later this year I'll be {{.expr1}}!")).
+			Execute(&buf, map[string]interface{}{"name": name, "age": age, "expr1": age + 1})
 		if err != nil {
 			panic(err)
 		}
@@ -1403,14 +1410,16 @@ func main() {
 	age := 24
 	fmt.Println(func() string {
 		var buf bytes.Buffer
-		err := template.Must(template.New("f").Parse("My name is {{.name}} and I am {{.age}} years old. Later this year I'll be {{.expr1}}!")).Execute(&buf, map[string]interface{}{"name": name, "age": age, "expr1": func() string {
-			var buf bytes.Buffer
-			err := template.Must(template.New("f").Parse("{{.expr1}}")).Execute(&buf, map[string]interface{}{"expr1": age + 1})
-			if err != nil {
-				panic(err)
-			}
-			return buf.String()
-		}()})
+		err := template.Must(template.New("f").Parse("My name is {{.name}} and I am {{.age}} years old. Later this year I'll be {{.expr1}}!")).
+			Execute(&buf, map[string]interface{}{"name": name, "age": age, "expr1": func() string {
+				var buf bytes.Buffer
+				err := template.Must(template.New("f").Parse("{{.expr1}}")).
+					Execute(&buf, map[string]interface{}{"expr1": age + 1})
+				if err != nil {
+					panic(err)
+				}
+				return buf.String()
+			}()})
 		if err != nil {
 			panic(err)
 		}
@@ -1566,7 +1575,9 @@ func main() {
 			}
 		}()
 		func() int {
-			n, err := f.WriteString("This file was created by x mode and then overwritten in w mode\n")
+			n, err := f.WriteString(
+				"This file was created by x mode and then overwritten in w mode\n",
+			)
 			if err != nil {
 				panic(err)
 			}
@@ -1713,7 +1724,9 @@ func main() {
 			}
 		}()
 		func() int {
-			n, err := f.Write([]byte("This file was created by xb mode and then overwritten in wb mode\n"))
+			n, err := f.Write(
+				[]byte("This file was created by xb mode and then overwritten in wb mode\n"),
+			)
 			if err != nil {
 				panic(err)
 			}
@@ -2178,7 +2191,8 @@ func main() {
 			defer func() {
 				if r := recover(); r != nil {
 					if err, ok := r.(error); ok {
-						if strings.HasPrefix(err.Error(), "IndexError") || strings.HasPrefix(err.Error(), "runtime error: index out of range") {
+						if strings.HasPrefix(err.Error(), "IndexError") ||
+							strings.HasPrefix(err.Error(), "runtime error: index out of range") {
 							fmt.Println("That index was out of bounds")
 							return
 						} else if strings.HasPrefix(err.Error(), "NotImplementedError") || (strings.HasPrefix(err.Error(), "RuntimeError") || strings.HasPrefix(err.Error(), "runtime error")) {
@@ -2348,7 +2362,14 @@ func (self *Welcome) greet() {
 }
 
 func main() {
-	welcome := NewWelcome("Hello World", []string{"This is a class!", "Support will be limited at first.", "Still, I hope you'll find them useful."})
+	welcome := NewWelcome(
+		"Hello World",
+		[]string{
+			"This is a class!",
+			"Support will be limited at first.",
+			"Still, I hope you'll find them useful.",
+		},
+	)
 	welcome.greet()
 }
 ```

@@ -44,8 +44,7 @@ curl --request POST 'http://127.0.0.1:8080/' \
 - [Go 1.16.x](https://golang.org/dl/)
 - [Python 3.10.x](https://www.python.org/downloads/release/python-3100b3/)
   - No, it will not work on 3.9. Search the code for "match."
-- `go get golang.org/x/tools/cmd/goimports`
-- `go get mvdan.cc/gofumpt`
+- `go get -u golang.org/x/tools/cmd/goimports mvdan.cc/gofumpt github.com/segmentio/golines`
 
 #### Installation
 

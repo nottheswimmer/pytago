@@ -52,7 +52,7 @@ def unparse(go_tree: GoAST, apply_transformations=True, debug=True):
         print(f"=== Start Code ===")
         print(code)
         print(f"=== End Code ===")
-    externally_formatted_code = _gofumpt(_goimport(code))
+    externally_formatted_code = _golines(_gofumpt(_goimport(code)))
     if debug:
         print(f"=== Start Externally Formatted Code ===")
         print(externally_formatted_code)
@@ -250,6 +250,13 @@ def _gofumpt(code: str) -> str:
 
 def _goimport(code: str) -> str:
     p = Popen(["goimports"], stdout=PIPE, stderr=PIPE, stdin=PIPE)
+    out, err = p.communicate(code.encode())
+    if err:
+        return code + "\n" + "\n".join("// " + x for x in err.decode().strip().splitlines())
+    return out.decode()
+
+def _golines(code: str) -> str:
+    p = Popen(["golines"], stdout=PIPE, stderr=PIPE, stdin=PIPE)
     out, err = p.communicate(code.encode())
     if err:
         return code + "\n" + "\n".join("// " + x for x in err.decode().strip().splitlines())

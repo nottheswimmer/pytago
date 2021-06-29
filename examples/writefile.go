@@ -63,7 +63,9 @@ func main() {
 			}
 		}()
 		func() int {
-			n, err := f.WriteString("This file was created by x mode and then overwritten in w mode\n")
+			n, err := f.WriteString(
+				"This file was created by x mode and then overwritten in w mode\n",
+			)
 			if err != nil {
 				panic(err)
 			}
@@ -210,7 +212,9 @@ func main() {
 			}
 		}()
 		func() int {
-			n, err := f.Write([]byte("This file was created by xb mode and then overwritten in wb mode\n"))
+			n, err := f.Write(
+				[]byte("This file was created by xb mode and then overwritten in wb mode\n"),
+			)
 			if err != nil {
 				panic(err)
 			}

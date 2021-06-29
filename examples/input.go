@@ -32,5 +32,12 @@ func main() {
 		text, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 		return strings.ReplaceAll(text, "\n", "")
 	}()
-	fmt.Println("So your name is", name, "and you are", age, "years old, and your description is", "\""+description+"\"")
+	fmt.Println(
+		"So your name is",
+		name,
+		"and you are",
+		age,
+		"years old, and your description is",
+		"\""+description+"\"",
+	)
 }

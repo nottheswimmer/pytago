@@ -113,7 +113,8 @@ WORKDIR $GOPATH
 
 RUN go get -u \
     golang.org/x/tools/cmd/goimports \
-    mvdan.cc/gofumpt
+    mvdan.cc/gofumpt \
+    github.com/segmentio/golines
 
 ENV PYTHONUNBUFFERED True
 ENV APP_HOME /app

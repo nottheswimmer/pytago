@@ -22,6 +22,13 @@ func (self *Welcome) greet() {
 }
 
 func main() {
-	welcome := NewWelcome("Hello World", []string{"This is a class!", "Support will be limited at first.", "Still, I hope you'll find them useful."})
+	welcome := NewWelcome(
+		"Hello World",
+		[]string{
+			"This is a class!",
+			"Support will be limited at first.",
+			"Still, I hope you'll find them useful.",
+		},
+	)
 	welcome.greet()
 }
