@@ -780,6 +780,15 @@ def go_json_dumps(m):  # pragma: no cover
     return string(b)
 
 
+obj = TypeVar("obj")
+@Bindable.add(r"json\.loads", bind_type=BindType.FUNC_LIT, results=['obj'])
+def go_json_loads(s: str) -> PytagoInterfaceType[obj]:
+    err = json.Unmarshal(bytes(s), '&' @ obj)
+    if err != nil:
+        panic(err)
+    return obj
+
+
 # Logging methods
 
 @Bindable.add(r"logging\.info", bind_type=BindType.EXPR)

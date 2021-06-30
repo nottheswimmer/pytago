@@ -211,6 +211,9 @@ class Test(TestCase):
     def test_cast_to_float(self):
         self.assert_examples_match("cast_to_float")
 
+    def test_jsondump(self):
+        self.assert_examples_match("jsondump")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")

@@ -1800,6 +1800,17 @@ class TypeSwitchStatementsRedeclareWithType(NodeTransformerWithScope):
         return node
 
 
+class RemoveConflictingImports(BaseTransformer):
+    REPEATABLE = False
+    def visit_GenDecl(self, node: GenDecl):
+        if len(node.Specs) == 1:
+            match node.Specs:
+                # If this is imported, encoding/json won't auto-import
+                case [ImportSpec(Path=BasicLit(Value='"json"'))]:
+                    return
+        return node
+
+
 ALL_TRANSFORMS = [
     #### STAGE 0 ####
     InsertUniqueInitializers,
@@ -1844,6 +1855,7 @@ ALL_TRANSFORMS = [
     NodeTransformerWithInterfaceTypes,
     TypeSwitchStatementsRedeclareWithType,
     RemoveUnnecessaryFunctionLiterals,
+    RemoveConflictingImports,
     RemoveGoCallReturns,  # Needs to be below scoping functions or they'll just get added back
     RemoveBadStmt,  # Should be last as these are used for scoping
     MergeAdjacentInits,
