@@ -826,6 +826,13 @@ class HandleTypeCoercion(NodeTransformerWithScope):
                 if y_type == GoBasicType.INT.ident:
                     node.Y = GoBasicType.FLOAT64.ident.call(node.Y)
                     y_type = GoBasicType.FLOAT64.ident
+            case token.MUL:
+                if x_type == GoBasicType.STRING.ident:
+                    return Ident("strings").sel("Repeat").call(node.X, node.Y.cast(y_type, GoBasicType.INT.ident))
+                if y_type == GoBasicType.STRING.ident:
+                    return Ident("strings").sel("Repeat").call(node.Y, node.X.cast(x_type, GoBasicType.INT.ident))
+
+
         if node.Op not in [token.PLACEHOLDER_IN, token.PLACEHOLDER_NOT_IN]:
             if x_type != y_type and x_type and y_type:
                 true = Ident('true')

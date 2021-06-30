@@ -1232,6 +1232,13 @@ def go_close(obj):
     if (err := obj.Close()) != nil:
         panic(err)
 
+# glob
+@Bindable.add(r"glob\.glob", bind_type=BindType.FUNC_LIT)
+def go_glob(pattern: str) -> list[str]:
+    matches, err = filepath.Glob(pattern)
+    if err != nil:
+        panic(err)
+    return matches
 
 def get_node_string(node: ast.AST):
     match node:

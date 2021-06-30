@@ -246,3 +246,6 @@ class Test(TestCase):
 
     # def test_algonewtonforwardinterpolation(self):
     #     self.assert_examples_match("algonewtonforwardinterpolation")
+
+    def test_globfiles(self):
+        self.assert_examples_match("globfiles")
