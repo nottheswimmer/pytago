@@ -6,5 +6,5 @@ import (
 )
 
 func main() {
-	fmt.Println(int(math.Pow(2, 8)))
+	fmt.Println(math.Pow(2, 8))
 }
