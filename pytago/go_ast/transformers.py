@@ -1,4 +1,5 @@
 import ast
+import copy
 import warnings
 from _ast import AST
 from typing import Optional
@@ -481,7 +482,7 @@ class NodeTransformerWithScope(BaseTransformer):
                                     # If we're assigning a new value to an ambiguous array and we know the type of
                                     # what we're assigning, then go ahead and type the array
                                     if not getattr(l_type.Elt, "permanent_interface", False):
-                                        l_type.Elt = r_elt
+                                        l_type.Elt = copy.deepcopy(r_elt)  # Deepcopy to avoid infinite recursion
                                 case ArrayType(Elt=e_elt), ArrayType(Elt=r_elt) if r_elt and not isinstance(r_elt,
                                                                                                             InterfaceType):
                                     if not compatible_types(r_elt, e_elt):
@@ -618,16 +619,6 @@ class ReplacePowWithMathPow(NodeTransformerWithScope):
             case BinaryExpr(Op=token.PLACEHOLDER_POW):
                 replacement = CallExpr(Args=[node.X, node.Y],
                                        Fun=SelectorExpr(X=v("math"), Sel=v("Pow")))
-                x_type = self.scope._get_type(node.X)
-                y_type = self.scope._get_type(node.Y)
-
-                try:
-                    x_basic = GoBasicType(x_type.Name)
-                    y_basic = GoBasicType(y_type.Name)
-                except (ValueError, AttributeError):
-                    return replacement
-                if x_basic.is_integer and y_basic.is_integer:
-                    return replacement.cast(GoBasicType.FLOAT64.ident, get_dominant_type(x_type, y_type))
                 return replacement
         return node
 
@@ -1693,14 +1684,14 @@ class CallTypeInformation(NodeTransformerWithScope):
                                                 for name in field.Names:
                                                     t = self.scope._get_type(name)
                                                     if t:
-                                                        field.Type = t
+                                                        field.Type = copy.deepcopy(t)
                                                         discoveries -= 1
                                                         break
                                         case StarExpr():
                                             for name in field.Names:
                                                 t = self.scope._get_type(name)
                                                 if t:
-                                                    field.Type = t
+                                                    field.Type = copy.deepcopy(t)
                                                     discoveries -= 1
                                                     break
         self.generic_visit(node)

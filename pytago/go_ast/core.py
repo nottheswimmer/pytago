@@ -1622,7 +1622,7 @@ class CallExpr(Expr):
                     case Ident(Name=_x), Ident(Name=_y):
                         dotted = _x + "." + _y
                         match dotted:
-                            case "rand.Float64":
+                            case "rand.Float64" | "math.Abs" | "math.Floor" | "math.Pow":
                                 return GoBasicType.FLOAT64.ident
                             case "rand.Intn":
                                 return GoBasicType.INT.ident
@@ -2094,7 +2094,7 @@ class Field(GoAST):
 
     @classmethod
     def from_Name(cls, node: ast.Name, **kwargs):
-        return cls(None, None, [], None, from_this(Ident, node), **kwargs)
+        return cls(None, None, [], None, _type_annotation_to_go_type(node), **kwargs)
 
     @classmethod
     def from_Subscript(cls, node: ast.Subscript, **kwargs):

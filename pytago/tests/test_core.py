@@ -218,6 +218,12 @@ class Test(TestCase):
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")
 
+    def test_algobisection(self):
+        self.assert_examples_match("algobisection")
+
+    def test_algointersection(self):
+        self.assert_examples_match("algointersection")
+
     # In development
 
     # def test_forelse(self):
@@ -237,3 +243,6 @@ class Test(TestCase):
     #
     # def test_index(self):
     #     self.assert_examples_match("index")
+
+    # def test_algonewtonforwardinterpolation(self):
+    #     self.assert_examples_match("algonewtonforwardinterpolation")

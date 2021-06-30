@@ -209,7 +209,7 @@ def go_zip(a: list, b: list):  # pragma: no cover
 
 
 @Bindable.add("abs", bind_type=BindType.EXPR)
-def go_abs(a: int):  # pragma: no cover
+def go_abs(a: float):  # pragma: no cover
     return math.Abs(a)
 
 

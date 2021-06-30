@@ -4115,6 +4115,149 @@ func main() {
 	fmt.Println(majorityElement([]int{2, 2, 1, 1, 1, 2, 2}))
 }
 ```
+### algobisection
+#### Python
+```python
+def bisection(function, a: float, b: float) -> float:
+    start = a
+    end = b
+    if function(a) == 0:  # one of the a or b is a root for the function
+        return a
+    elif function(b) == 0:
+        return b
+    elif (
+            function(a) * function(b) > 0
+    ):  # if none of these are root and they are both positive or negative,
+        raise ValueError("could not find root in given interval.")
+    else:
+        mid = start + (end - start) / 2.0
+        while abs(start - mid) > 10 ** -7:  # until precisely equals to 10^-7
+            if function(mid) == 0:
+                return mid
+            elif function(mid) * function(start) < 0:
+                end = mid
+            else:
+                start = mid
+            mid = start + (end - start) / 2.0
+        return mid
+
+
+def f(x: float):
+    return x ** 3 - 2 * x - 5
+
+
+def main():
+    print(bisection(f, 1, 1000))
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func bisection(function func(x float64) float64, a float64, b float64) float64 {
+	start := a
+	end := b
+	if function(a) == 0 {
+		return a
+	} else if function(b) == 0 {
+		return b
+	} else if function(a)*function(b) > 0 {
+		panic(fmt.Errorf("ValueError: %v", "could not find root in given interval."))
+	} else {
+		mid := start + (end-start)/2.0
+		for math.Abs(start-mid) > math.Pow(10, -7) {
+			if function(mid) == 0 {
+				return mid
+			} else if function(mid)*function(start) < 0 {
+				end = mid
+			} else {
+				start = mid
+			}
+			mid = start + (end-start)/2.0
+		}
+		return mid
+	}
+}
+
+func f(x float64) float64 {
+	return math.Pow(x, 3) - float64(2*x) - 5
+}
+
+func main() {
+	fmt.Println(bisection(f, 1, 1000))
+}
+```
+### algointersection
+#### Python
+```python
+import math
+
+
+def intersection(function, x0: float, x1: float) -> float:
+    x_n = x0
+    x_n1 = x1
+    while True:
+        if x_n == x_n1 or function(x_n1) == function(x_n):
+            raise ZeroDivisionError("float division by zero, could not find root")
+        x_n2 = x_n1 - (
+                function(x_n1) / ((function(x_n1) - function(x_n)) / (x_n1 - x_n))
+        )
+        if abs(x_n2 - x_n1) < 10 ** -5:
+            return x_n2
+        x_n = x_n1
+        x_n1 = x_n2
+
+
+def f(x: float) -> float:
+    return math.pow(x, 3) - (2 * x) - 5
+
+
+def main():
+    print(intersection(f, 3, 3.5))
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+func intersection(function func(x float64) float64, x0 float64, x1 float64) float64 {
+	x_n := x0
+	x_n1 := x1
+	for {
+		if x_n == x_n1 || function(x_n1) == function(x_n) {
+			panic(
+				fmt.Errorf("ZeroDivisionError: %v", "float division by zero, could not find root"),
+			)
+		}
+		x_n2 := x_n1 - function(x_n1)/((function(x_n1)-function(x_n))/(x_n1-x_n))
+		if math.Abs(x_n2-x_n1) < math.Pow(10, -5) {
+			return x_n2
+		}
+		x_n = x_n1
+		x_n1 = x_n2
+	}
+}
+
+func f(x float64) float64 {
+	return math.Pow(x, 3) - float64(2*x) - 5
+}
+
+func main() {
+	fmt.Println(intersection(f, 3, 3.5))
+}
+```
 ### index
 #### Python
 ```python
