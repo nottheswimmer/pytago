@@ -214,6 +214,15 @@ class Test(TestCase):
     def test_jsondump(self):
         self.assert_examples_match("jsondump")
 
+    def test_strdunder(self):
+        self.assert_examples_match("strdunder")
+
+    def test_globfiles(self):
+        self.assert_examples_match("globfiles")
+
+    def test_stringmultiply(self):
+        self.assert_examples_match("stringmultiply")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")
@@ -246,9 +255,3 @@ class Test(TestCase):
 
     # def test_algonewtonforwardinterpolation(self):
     #     self.assert_examples_match("algonewtonforwardinterpolation")
-
-    def test_globfiles(self):
-        self.assert_examples_match("globfiles")
-
-    def test_stringmultiply(self):
-        self.assert_examples_match("stringmultiply")

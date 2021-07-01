@@ -1030,6 +1030,16 @@ class UseConstructorIfAvailable(BaseTransformer):
                     node.Fun = self.declared_function_names[f"New{x}"]
         return node
 
+class DunderToInterface(BaseTransformer):
+    def visit_FuncDecl(self, node: FuncDecl):
+        self.generic_visit(node)
+        match node.Name:
+            case Ident(Name="__str__"):
+                node.Name = Ident("String")
+                node.Type.Results = FieldList(List=[Field(Type=GoBasicType.STRING.ident)])
+        return node
+
+
 
 class SpecialComparators(NodeTransformerWithScope):
     def visit_BinaryExpr(self, node: BinaryExpr):
@@ -1816,6 +1826,7 @@ ALL_TRANSFORMS = [
 
     #### STAGE 1 ####
     UseConstructorIfAvailable,
+    DunderToInterface,
     PrintToFmtPrintln,
     CapitalizeMathModuleCalls,
     ReplacePythonStyleAppends,

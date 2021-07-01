@@ -4067,6 +4067,158 @@ func main() {
 	}())
 }
 ```
+### strdunder
+#### Python
+```python
+class A:
+    a: str
+
+    def __init__(self, val):
+        self.a = val
+
+    def __str__(self):
+        return self.a
+
+
+def main():
+    val = A("ok")
+    print(val)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+type A struct {
+	a string
+}
+
+func NewA(val string) (self *A) {
+	self = new(A)
+	self.a = val
+	return
+}
+
+func (self *A) String() string {
+	return self.a
+}
+
+func main() {
+	val := NewA("ok")
+	fmt.Println(val)
+}
+```
+### globfiles
+#### Python
+```python
+import glob
+
+def main():
+    for py_file in glob.glob("./*.py"):
+        print("=" * 20, py_file, "=" * 20)
+        with open(py_file) as py_f:
+            for line in py_f:
+                print(line.rstrip())
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"unicode"
+)
+
+func main() {
+	for _, py_file := range func(pattern string) []string {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			panic(err)
+		}
+		return matches
+	}("./*.py") {
+		fmt.Println(strings.Repeat("=", 20), py_file, strings.Repeat("=", 20))
+		func() {
+			py_f := func() *os.File {
+				f, err := os.OpenFile(py_file, os.O_RDONLY, 0o777)
+				if err != nil {
+					panic(err)
+				}
+				return f
+			}()
+			defer func() {
+				if err := py_f.Close(); err != nil {
+					panic(err)
+				}
+			}()
+			if sc, line, err := bufio.NewReader(py_f), "", *new(error); true {
+				for {
+					line, err = sc.ReadString('\n')
+					if err != nil && (err == io.EOF && len(line) == 0 || err != io.EOF) {
+						break
+					}
+					fmt.Println(strings.TrimRightFunc(line, unicode.IsSpace))
+				}
+				if err != io.EOF {
+					panic(err)
+				}
+			}
+		}()
+	}
+}
+```
+### stringmultiply
+#### Python
+```python
+def main():
+    s = "1, 2, 3, 4"
+    x = s * 5
+    y = str({1, 2, 3, 4}) * 6
+    z = str([1, 2, 3, 4]) * 7
+    a = str({1: 2, 3: 4}) * 8
+    b = str((1, 2, 3, 4)) * 9
+    c = "1, 2, 3, 4" * 10
+    d = "  1, 2, 3, 4  ".strip() * 11
+    print(x, y, z, a, b, c, d)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+func main() {
+	s := "1, 2, 3, 4"
+	x := strings.Repeat(s, 5)
+	y := strings.Repeat(fmt.Sprintf("%v", map[interface{}]struct{}{1: {}, 2: {}, 3: {}, 4: {}}), 6)
+	z := strings.Repeat(fmt.Sprintf("%v", []int{1, 2, 3, 4}), 7)
+	a := strings.Repeat(fmt.Sprintf("%v", map[interface{}]interface{}{1: 2, 3: 4}), 8)
+	b := strings.Repeat(fmt.Sprintf("%v", [4]int{1, 2, 3, 4}), 9)
+	c := strings.Repeat("1, 2, 3, 4", 10)
+	d := strings.Repeat(strings.TrimSpace("  1, 2, 3, 4  "), 11)
+	fmt.Println(x, y, z, a, b, c, d)
+}
+```
 ### algomajorityelement
 #### Python
 ```python
@@ -4288,112 +4440,6 @@ func main() {
 		}
 		panic(errors.New("ValueError"))
 	}())
-}
-```
-### globfiles
-#### Python
-```python
-import glob
-
-def main():
-    for py_file in glob.glob("./*.py"):
-        print("=" * 20, py_file, "=" * 20)
-        with open(py_file) as py_f:
-            for line in py_f:
-                print(line.rstrip())
-
-if __name__ == '__main__':
-    main()
-```
-#### Go
-```go
-package main
-
-import (
-	"bufio"
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
-	"unicode"
-)
-
-func main() {
-	for _, py_file := range func(pattern string) []string {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			panic(err)
-		}
-		return matches
-	}("./*.py") {
-		fmt.Println(strings.Repeat("=", 20), py_file, strings.Repeat("=", 20))
-		func() {
-			py_f := func() *os.File {
-				f, err := os.OpenFile(py_file, os.O_RDONLY, 0o777)
-				if err != nil {
-					panic(err)
-				}
-				return f
-			}()
-			defer func() {
-				if err := py_f.Close(); err != nil {
-					panic(err)
-				}
-			}()
-			if sc, line, err := bufio.NewReader(py_f), "", *new(error); true {
-				for {
-					line, err = sc.ReadString('\n')
-					if err != nil && (err == io.EOF && len(line) == 0 || err != io.EOF) {
-						break
-					}
-					fmt.Println(strings.TrimRightFunc(line, unicode.IsSpace))
-				}
-				if err != io.EOF {
-					panic(err)
-				}
-			}
-		}()
-	}
-}
-```
-### stringmultiply
-#### Python
-```python
-def main():
-    s = "1, 2, 3, 4"
-    x = s * 5
-    y = str({1, 2, 3, 4}) * 6
-    z = str([1, 2, 3, 4]) * 7
-    a = str({1: 2, 3: 4}) * 8
-    b = str((1, 2, 3, 4)) * 9
-    c = "1, 2, 3, 4" * 10
-    d = "  1, 2, 3, 4  ".strip() * 11
-    print(x, y, z, a, b, c, d)
-
-
-if __name__ == '__main__':
-    main()
-```
-#### Go
-```go
-package main
-
-import (
-	"fmt"
-	"strings"
-)
-
-func main() {
-	s := "1, 2, 3, 4"
-	x := strings.Repeat(s, 5)
-	y := strings.Repeat(fmt.Sprintf("%v", map[interface{}]struct{}{1: {}, 2: {}, 3: {}, 4: {}}), 6)
-	z := strings.Repeat(fmt.Sprintf("%v", []int{1, 2, 3, 4}), 7)
-	a := strings.Repeat(fmt.Sprintf("%v", map[interface{}]interface{}{1: 2, 3: 4}), 8)
-	b := strings.Repeat(fmt.Sprintf("%v", [4]int{1, 2, 3, 4}), 9)
-	c := strings.Repeat("1, 2, 3, 4", 10)
-	d := strings.Repeat(strings.TrimSpace("  1, 2, 3, 4  "), 11)
-	fmt.Println(x, y, z, a, b, c, d)
 }
 ```
 
