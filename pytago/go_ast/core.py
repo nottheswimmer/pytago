@@ -858,6 +858,11 @@ class BadExpr(Expr):
         # A transformer can go in and add this to the Init of if statements and such
         return cls(_py_context={"NamedExpr": from_this(AssignStmt, node)}, **kwargs)
 
+    @classmethod
+    def from_Starred(cls, node: ast.Starred, **kwargs):
+        # Not properly implemented
+        return build_expr_list([node.value])[0]
+
 
 class BadStmt(Stmt):
     """A BadStmt node is a placeholder for statements containing syntax errors for which no
