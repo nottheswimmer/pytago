@@ -4357,6 +4357,45 @@ func main() {
 	}
 }
 ```
+### stringmultiply
+#### Python
+```python
+def main():
+    s = "1, 2, 3, 4"
+    x = s * 5
+    y = str({1, 2, 3, 4}) * 6
+    z = str([1, 2, 3, 4]) * 7
+    a = str({1: 2, 3: 4}) * 8
+    b = str((1, 2, 3, 4)) * 9
+    c = "1, 2, 3, 4" * 10
+    d = "  1, 2, 3, 4  ".strip() * 11
+    print(x, y, z, a, b, c, d)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+func main() {
+	s := "1, 2, 3, 4"
+	x := strings.Repeat(s, 5)
+	y := strings.Repeat(fmt.Sprintf("%v", map[interface{}]struct{}{1: {}, 2: {}, 3: {}, 4: {}}), 6)
+	z := strings.Repeat(fmt.Sprintf("%v", []int{1, 2, 3, 4}), 7)
+	a := strings.Repeat(fmt.Sprintf("%v", map[interface{}]interface{}{1: 2, 3: 4}), 8)
+	b := strings.Repeat(fmt.Sprintf("%v", [4]int{1, 2, 3, 4}), 9)
+	c := strings.Repeat("1, 2, 3, 4", 10)
+	d := strings.Repeat(strings.TrimSpace("  1, 2, 3, 4  "), 11)
+	fmt.Println(x, y, z, a, b, c, d)
+}
+```
 
 ## TODOs
 

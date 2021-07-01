@@ -249,3 +249,6 @@ class Test(TestCase):
 
     def test_globfiles(self):
         self.assert_examples_match("globfiles")
+
+    def test_stringmultiply(self):
+        self.assert_examples_match("stringmultiply")

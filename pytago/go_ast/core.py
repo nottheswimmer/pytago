@@ -1626,7 +1626,8 @@ class CallExpr(Expr):
                                 return GoBasicType.FLOAT64.ident
                             case "rand.Intn":
                                 return GoBasicType.INT.ident
-                            case "strings.Repeat":
+                            case "fmt.Sprintf" | "strings.Repeat" | "strings.TrimSpace" | "strings.TrimLeftFunc" | \
+                                "strings.TrimRightFunc" | "strings.TrimSuffix" | "strings.TrimPrefix":
                                 return GoBasicType.STRING.ident
                             case "strings.Fields" | "strings.Split":
                                 return ArrayType(Elt=GoBasicType.STRING.ident)
