@@ -1,1 +1,2 @@
+astroid==2.6.2
 -r requirements-web.txt

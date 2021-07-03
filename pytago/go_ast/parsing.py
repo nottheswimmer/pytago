@@ -211,7 +211,6 @@ def dump_json(node, annotate_fields=True, include_attributes=False, *, indent=No
         indent = ' ' * indent
     return json.dumps(_format(node)[0])
 
-
 def clean_go_tree(go_tree: File):
     from pytago.go_ast import InterfaceTypeCounter
 
@@ -223,7 +222,7 @@ def clean_go_tree(go_tree: File):
         start_count = 0
         end_count = -1
         repeats = -1
-        while end_count < start_count:
+        while (end_count < start_count):
             repeats += 1
             start_count = InterfaceTypeCounter.get_interface_count(go_tree)
             for tsfm in tsfms_by_stage[stage]:

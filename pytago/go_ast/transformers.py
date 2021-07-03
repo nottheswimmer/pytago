@@ -10,10 +10,15 @@ from pytago.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryE
     ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt, len_
 # Shortcuts
 from pytago.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS, \
-    GoStmt, TypeSwitchStmt, StarExpr, GenDecl, CaseClause, SwitchStmt, TypeAssertExpr
+    GoStmt, TypeSwitchStmt, StarExpr, GenDecl, TypeAssertExpr, DeclStmt
 
 v = Ident.from_str
 
+def safe_deepcopy(t):
+    """
+    Does nothing but easier to have in one place because copying errors come up sometimes
+    """
+    return copy.deepcopy(t)
 
 class InterfaceTypeCounter(ast.NodeVisitor):
     def __init__(self):
@@ -301,9 +306,17 @@ class NodeTransformerWithScope(BaseTransformer):
         return node
 
     def visit_ValueSpec(self, node: ValueSpec):
+        # if node.Values:
         self.apply_eager_context(node.Names, node.Values)
         self.generic_visit(node)
         self.apply_to_scope(node.Names, node.Values)
+        # Commented out because even though it makes sense it just stops the types from being
+        # applied retroactively at time of writing.
+        # else:
+        #     types = [node.Type] * len(node.Names)
+        #     self.apply_eager_context(node.Names, types, rhs_is_types=True)
+        #     self.generic_visit(node)
+        #     self.apply_to_scope(node.Names, types, rhs_is_types=True)
         return node
 
     def visit_FuncDecl(self, node: FuncDecl):
@@ -482,7 +495,7 @@ class NodeTransformerWithScope(BaseTransformer):
                                     # If we're assigning a new value to an ambiguous array and we know the type of
                                     # what we're assigning, then go ahead and type the array
                                     if not getattr(l_type.Elt, "permanent_interface", False):
-                                        l_type.Elt = copy.deepcopy(r_elt)  # Deepcopy to avoid infinite recursion
+                                        l_type.Elt = r_elt
                                 case ArrayType(Elt=e_elt), ArrayType(Elt=r_elt) if r_elt and not isinstance(r_elt,
                                                                                                             InterfaceType):
                                     if not compatible_types(r_elt, e_elt):
@@ -544,6 +557,22 @@ class NodeTransformerWithScope(BaseTransformer):
                 except IndexError:
                     pass
                 self.report_missing(expr, t)
+
+        nodeclare = False
+        for l in lhs:
+            try:
+                # TODO: Expect some issues with multi-assignments here.
+                #   Split them out if need be.
+                if l._src._linked.nodeclare:
+                    nodeclare = True
+                    t = self.scope._get_type(l)
+                    if t and not isinstance(t, InterfaceType):
+                        l._src._linked.nodeclare.Type = t
+            except AttributeError:
+                pass
+        if nodeclare:
+            return False
+
         return declared
 
     def report_missing(self, expr, val, extra_callbacks=None):
@@ -792,7 +821,7 @@ def _type_score(typ):
             "complex64",
             "complex128",
         ].index(str(typ.Name).lower())
-    except ValueError:
+    except (ValueError, AttributeError):
         return float('inf')
 
 
@@ -833,7 +862,8 @@ class HandleTypeCoercion(NodeTransformerWithScope):
                     return Ident("strings").sel("Repeat").call(node.Y, node.X.cast(x_type, GoBasicType.INT.ident))
 
 
-        if node.Op not in [token.PLACEHOLDER_IN, token.PLACEHOLDER_NOT_IN]:
+        if node.Op not in [token.PLACEHOLDER_IN, token.PLACEHOLDER_NOT_IN] \
+                and not isinstance(x_type, tuple) and not isinstance(y_type, tuple):  # TODO
             if x_type != y_type and x_type and y_type:
                 true = Ident('true')
                 false = Ident('false')
@@ -1701,15 +1731,14 @@ class CallTypeInformation(NodeTransformerWithScope):
                                                 for name in field.Names:
                                                     t = self.scope._get_type(name)
                                                     if t:
-                                                        field.Type = copy.deepcopy(t)
+                                                        field.Type = safe_deepcopy(t)
                                                         discoveries -= 1
                                                         break
                                         case StarExpr():
                                             for name in field.Names:
                                                 t = self.scope._get_type(name)
                                                 if t:
-                                                    field.Type = copy.deepcopy(t)
-                                                    discoveries -= 1
+                                                    field.Type = safe_deepcopy(t)
                                                     break
         self.generic_visit(node)
         return node
@@ -1819,6 +1848,96 @@ class RemoveConflictingImports(BaseTransformer):
         return node
 
 
+class ScopeFunctionVars(BaseTransformer):
+    REPEATABLE = False
+    def visit_FuncDecl(self, node: FuncDecl):
+        return self.visit_FuncDecl_or_FuncLit(node)
+
+    def visit_FuncLit(self, node: FuncLit):
+        return self.visit_FuncDecl_or_FuncLit(node)
+
+    def visit_FuncDecl_or_FuncLit(self, node: FuncDecl):
+        # TODO: Support recursive case for function literals
+        self.generic_visit(node)
+
+        if isinstance(node, FuncDecl):
+            name: str = node.Name.Name
+        else:
+            try:
+                name: str = node._src.name
+            except AttributeError:
+                name = None
+        try:
+            py_locals = node._src._linked.locals
+        except AttributeError:
+            return node
+        if not py_locals:
+            return node
+        potentially_expected_locals = set(x for x in py_locals.keys() if not (x.startswith("__") and x.endswith("__")))
+        expected_locals = set()
+        for local in potentially_expected_locals:
+            usages = node.outermost_scope_search(Ident(local), skip=1)
+            if not usages:
+                continue
+            if len(usages) == 1:  # May even need to make it "_"
+                continue
+            initial_scope, initial_example = usages[0]
+            for other_scope, other_example in usages[1:]:
+                # TODO: Currently, we'll add a special case here for withitem
+                #   to address a bug where they are always being declared
+                #   -- this will create a different bug where withitems can't be
+                #   used after their closures but that's less common than the bug this fixes
+                if other_example._py_context.get('withitem'):
+                    initial_scope, initial_example = other_scope, other_example
+                    continue
+
+                if other_scope != initial_scope:
+                    expected_locals.add(local)
+                    break
+
+        actual_locals = set()
+        if node.Type.Params:
+            actual_locals.update(y.Name for x in node.Type.Params.List for y in x.Names if x.Names)
+        if node.Type.Results:
+            actual_locals.update(y.Name for x in node.Type.Results.List for y in x.Names if x.Names if y.Name)
+        if name:
+            actual_locals.add(name)
+        for stmt in node.Body.List:
+            match stmt:
+                case AssignStmt():
+                    actual_locals.update(getattr(x, 'Name', None) for x in stmt.Lhs)
+                case DeclStmt(Decl=GenDecl(Specs=specs, Tok=token.VAR)):
+                    for spec in specs:
+                        if isinstance(spec, ValueSpec):
+                            actual_locals.update(getattr(x, 'Name', None) for x in spec.Names)
+                case RangeStmt():
+                    # TODO: Technically these shouldn't be counted but the average transpilation with loops
+                    #  is much worse without counting these
+                    try:
+                        actual_locals.add(stmt.Key.Name)
+                    except AttributeError:
+                        pass
+                    try:
+                        actual_locals.add(stmt.Value.Name)
+                    except AttributeError:
+                        pass
+                case ForStmt(Init=stmt):
+                    # TODO: Same as above
+                    if isinstance(stmt, AssignStmt):
+                        actual_locals.update(getattr(x, 'Name', None) for x in stmt.Lhs)
+        missing_locals = expected_locals - actual_locals
+        for missing_local in sorted(missing_locals, reverse=True):
+            name = Ident(missing_local)
+            specs = [ValueSpec(Names=[name], Type=InterfaceType(_py_context={"elts": [name],
+                                                                             "declared_for_scope": True}))]
+            node.Body.List.insert(0, DeclStmt(
+                Decl=GenDecl(Specs=specs, Tok=token.VAR)))
+            py_assignments = py_locals[missing_local]
+            for py_assignment in py_assignments:
+                setattr(py_assignment, "nodeclare", specs[0])
+        return node
+
+
 ALL_TRANSFORMS = [
     #### STAGE 0 ####
     InsertUniqueInitializers,
@@ -1833,6 +1952,8 @@ ALL_TRANSFORMS = [
     PythonToGoTypes,
     UnpackRange,
     RangeRangeToFor,
+    ScopeFunctionVars,
+    FileWritesAndErrors,
     SpecialComparators,  # First scope transformer
     IndexExpressionsHelpTypeMaps,
     AppendSliceViaUnpacking,
@@ -1850,7 +1971,6 @@ ALL_TRANSFORMS = [
     HandleTypeCoercion,
     RequestsToHTTP,
     HTTPErrors,
-    FileWritesAndErrors,
     HandleUnhandledErrorsAndDefers,
     AddTextTemplateImportForFStrings,
     AsyncTransformer,

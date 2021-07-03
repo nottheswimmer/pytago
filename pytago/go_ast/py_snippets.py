@@ -1,4 +1,5 @@
 import ast
+import importlib
 import inspect
 import re
 from collections import defaultdict
@@ -1260,7 +1261,7 @@ def get_string_node(s: str):
         return ast.Attribute(attr=attr, value=get_string_node(value))
     return ast.Name(id=s)
 
-
+# dotted_no_fallback = set()
 def find_call_funclit(node: ast.Call) -> 'go_ast.FuncLit':
     args = node.args
     kwargs = node.keywords
@@ -1288,6 +1289,64 @@ def find_call_funclit(node: ast.Call) -> 'go_ast.FuncLit':
                 go_ast = b.binded_go_ast(binding)
                 # BINDABLES[x].insert(i, b)
                 return go_ast
+
+
+    # TODO: Eventually, we will probably want to look at filling in references
+    #  to external packages and functions. This was an experiment with
+    #  that. However, there were many issues with the experiment, including..
+    #   1. They take precedence over some functionality implemented outside of py_snippets
+    #   2. The results are unusable without at minimum support for referencing literals
+    #   3. The syntax rules of pytago aren't advanced enough yet for arbitrary cases
+    #   4. The output is extremely verbose -- far too verbose to be inlined.
+    #   5. Potential security concerns for running pytago in a web environment
+    #     if literals from other packages can be returned.
+    #  These issues can be addressed in a variety of ways once the project matures
+    #  but for now, pytago isn't ready.
+
+    # if dotted in dotted_no_fallback:
+    #     return
+    #
+    # for i, c in enumerate(dotted):
+    #     if c == ".":
+    #         mod_name = dotted[:i]
+    #
+    #         if mod_name in dotted_no_fallback:
+    #             continue
+    #
+    #         attr_name = dotted[i+1:]
+    #
+    #         if (mod_name, attr_name) in dotted_no_fallback:
+    #             continue
+    #
+    #         try:
+    #             imported = importlib.import_module(mod_name)
+    #         except ImportError:
+    #             dotted_no_fallback.add((mod_name, attr_name))
+    #             continue
+    #
+    #         try:
+    #             attr = getattr(imported, attr_name)
+    #         except AttributeError:
+    #             dotted_no_fallback.add((mod_name, attr_name))
+    #             continue
+    #
+    #         if not callable(attr):
+    #             continue  # Literals?
+    #
+    #
+    #         b = Bindable(attr, dotted, BindType.FUNC_LIT)
+    #         try:
+    #             binding = b.bind(*args, kwargs=kwargs)
+    #         except TypeError as e:
+    #             continue
+    #
+    #         try:
+    #             go_ast = b.binded_go_ast(binding)
+    #         except TypeError:
+    #             continue
+    #         return go_ast
+
+
 
 
 if __name__ == '__main__':  # pragma: no cover

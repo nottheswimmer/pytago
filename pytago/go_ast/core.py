@@ -317,7 +317,14 @@ def from_method(node):
 
 T = TypeVar('T')
 def from_this(cls: Type[T], node) -> T:
-    return getattr(cls, from_method(node))(node)
+    result = getattr(cls, from_method(node))(node)
+    if isinstance(result, GoAST):
+        result._src = node
+    if isinstance(node, ast.AST):
+        if not hasattr(node, "_src"):
+            node._srcs = []
+        node._srcs.append(result)
+    return result
 
 _sort_key_cache = {}
 def sort_key_for_node(x_node):
@@ -345,8 +352,13 @@ def _build_x_list(x_types: list, x_name: str, nodes, **kwargs):
                     errors.append((x_type, e))
                     continue
                 if isinstance(result, list):
+                    for r in result:
+                        if isinstance(r, GoAST):
+                            setattr(r, "_src", x_node)
                     li += result
                 else:
+                    if isinstance(result, GoAST):
+                        setattr(result, "_src", x_node)
                     li.append(result)
                 break
         else:
@@ -462,6 +474,43 @@ class GoAST(ast.AST):
         visitor = Visitor()
         visitor.visit(self)
         return visitor.contains
+
+    # def search(self, item):
+    #     class Visitor(ast.NodeVisitor):
+    #         def __init__(self):
+    #             self.hits = []
+    #
+    #         def generic_visit(self, node):
+    #             if node == item:
+    #                 self.hits.append(node)
+    #             return super().generic_visit(node)
+    #
+    #     visitor = Visitor()
+    #     visitor.visit(self)
+    #     return visitor.hits
+
+    def outermost_scope_search(self, item, skip=0):
+        class Visitor(ast.NodeVisitor):
+            def __init__(self):
+                self.hits = []
+                self.skip = skip
+                self.scope = None
+
+            def generic_visit(self, node):
+                previous_scope = self.scope
+                if self.scope is None and isinstance(node, BlockStmt):
+                    if self.skip:
+                        self.skip -= 1
+                    else:
+                        self.scope = node
+                if node == item:
+                    self.hits.append((self.scope, node))
+                super().generic_visit(node)
+                self.scope = previous_scope
+
+        visitor = Visitor()
+        visitor.visit(self)
+        return visitor.hits
 
     def __repr__(self):
         from pytago.go_ast import parsing
@@ -778,6 +827,7 @@ class AssignStmt(Stmt):
         ctx = {}
         for rh_expr in rhs:
             ctx.update(rh_expr._py_context)
+            ctx["withitem"] = True
         lhs = build_expr_list([node.optional_vars], _type_help=rhs[0]._type(), _py_context=ctx)
         return cls(lhs, rhs, token.DEFINE, 0, **kwargs)
 
@@ -1525,7 +1575,7 @@ class CallExpr(Expr):
         args = build_expr_list([filename_expr])
         os = Ident.from_str('os')
         perm = os.sel('O_RDONLY')
-        _py_context = {'text_mode': 'b' not in mode}  # TODO: Care about text mode
+        _py_context = {'text_mode': 'b' not in mode}
         mode = mode.replace('b', '').replace('t', '')
         mode = ''.join(sorted(mode, reverse=True))
         match mode:
@@ -1569,7 +1619,7 @@ class CallExpr(Expr):
                         key = f"expr{expr_num}"
                         while key in used_keys:
                             expr_num += 1
-                            f"expr{expr_num}"
+                            key = f"expr{expr_num}"
                     template_string += "{{.%s}}" % key
                     used_keys.add(key)
                     value_elements.append(KeyValueExpr(Key=BasicLit(token.STRING, key), Value=fval))
@@ -1632,7 +1682,7 @@ class CallExpr(Expr):
                             case "rand.Intn":
                                 return GoBasicType.INT.ident
                             case "fmt.Sprintf" | "strings.Repeat" | "strings.TrimSpace" | "strings.TrimLeftFunc" | \
-                                "strings.TrimRightFunc" | "strings.TrimSuffix" | "strings.TrimPrefix":
+                                "strings.TrimRightFunc" | "strings.TrimSuffix" | "strings.TrimPrefix" | "input":
                                 return GoBasicType.STRING.ident
                             case "strings.Fields" | "strings.Split":
                                 return ArrayType(Elt=GoBasicType.STRING.ident)

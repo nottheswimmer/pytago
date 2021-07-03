@@ -223,6 +223,9 @@ class Test(TestCase):
     def test_stringmultiply(self):
         self.assert_examples_match("stringmultiply")
 
+    def test_scope(self):
+        self.assert_examples_match("scope")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")
