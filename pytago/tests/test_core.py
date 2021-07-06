@@ -226,6 +226,9 @@ class Test(TestCase):
     def test_scope(self):
         self.assert_examples_match("scope")
 
+    def test_forelse(self):
+        self.assert_examples_match("forelse")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")
@@ -238,8 +241,6 @@ class Test(TestCase):
 
     # In development
 
-    # def test_forelse(self):
-    #     self.assert_examples_match("forelse")
     #
     # def test_iterunpacking(self):
     #     self.assert_examples_match("iterunpacking")

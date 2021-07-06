@@ -4219,6 +4219,157 @@ func main() {
 	fmt.Println(x, y, z, a, b, c, d)
 }
 ```
+### scope
+#### Python
+```python
+import random
+
+
+def main():
+    if random.random() > 0.5:
+        a = 1
+    else:
+        a = 2
+
+    if random.random() > 0.5:
+        if random.random() > 0.5:
+            b = 1
+        else:
+            b = 2
+    else:
+        b = 3
+
+    def hello_world():
+        c = 3
+        print(c)
+
+    hello_world()
+    print(a, b)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"math/rand"
+	"time"
+)
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+func main() {
+	var a int
+	var b int
+	if rand.Float64() > 0.5 {
+		a = 1
+	} else {
+		a = 2
+	}
+	if rand.Float64() > 0.5 {
+		if rand.Float64() > 0.5 {
+			b = 1
+		} else {
+			b = 2
+		}
+	} else {
+		b = 3
+	}
+	hello_world := func() {
+		c := 3
+		fmt.Println(c)
+	}
+	hello_world()
+	fmt.Println(a, b)
+}
+```
+### forelse
+#### Python
+```python
+def main():
+    for x in range(4):
+        if x == 5:
+            break
+    else:
+        print("Well of course that didn't happen")
+
+    for x in range(7):
+        if x == 5:
+            break
+    else:
+        print("H-hey wait!")
+
+    i = 0
+    while i < 3:
+        print("Works with while too")
+        for x in range(3):
+            print("BTW don't worry about nested breaks")
+            break
+        if i == 10:
+            break
+        i += 1
+    else:
+        print("Yeah not likely")
+    print(i)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	var x int
+	if func() bool {
+		for x = 0; x < 4; x++ {
+			if x == 5 {
+				return false
+			}
+		}
+		return true
+	}() {
+		fmt.Println("Well of course that didn't happen")
+	}
+	if func() bool {
+		for x = 0; x < 7; x++ {
+			if x == 5 {
+				return false
+			}
+		}
+		return true
+	}() {
+		fmt.Println("H-hey wait!")
+	}
+	i := 0
+	if func() bool {
+		for i < 3 {
+			fmt.Println("Works with while too")
+			for x = 0; x < 3; x++ {
+				fmt.Println("BTW don't worry about nested breaks")
+				break
+			}
+			if i == 10 {
+				return false
+			}
+			i += 1
+		}
+		return true
+	}() {
+		fmt.Println("Yeah not likely")
+	}
+	fmt.Println(i)
+}
+```
 ### algomajorityelement
 #### Python
 ```python
@@ -4440,76 +4591,6 @@ func main() {
 		}
 		panic(errors.New("ValueError"))
 	}())
-}
-```
-### scope
-#### Python
-```python
-import random
-
-
-def main():
-    if random.random() > 0.5:
-        a = 1
-    else:
-        a = 2
-
-    if random.random() > 0.5:
-        if random.random() > 0.5:
-            b = 1
-        else:
-            b = 2
-    else:
-        b = 3
-
-    def hello_world():
-        c = 3
-        print(c)
-
-    hello_world()
-    print(a, b)
-
-
-if __name__ == '__main__':
-    main()
-```
-#### Go
-```go
-package main
-
-import (
-	"fmt"
-	"math/rand"
-	"time"
-)
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
-func main() {
-	var a int
-	var b int
-	if rand.Float64() > 0.5 {
-		a = 1
-	} else {
-		a = 2
-	}
-	if rand.Float64() > 0.5 {
-		if rand.Float64() > 0.5 {
-			b = 1
-		} else {
-			b = 2
-		}
-	} else {
-		b = 3
-	}
-	hello_world := func() {
-		c := 3
-		fmt.Println(c)
-	}
-	hello_world()
-	fmt.Println(a, b)
 }
 ```
 

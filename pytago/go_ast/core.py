@@ -436,8 +436,9 @@ class GoAST(ast.AST):
 
     _prefix = "ast."
 
-    def __init__(self, parents=None, **kwargs):
+    def __init__(self, parents=None, _py_context=None, **kwargs):
         super().__init__(**kwargs)
+        self._py_context = _py_context or {}
         self.parents = parents or []
         for field_name in self._fields:
             field = getattr(self, field_name, None)
@@ -518,9 +519,8 @@ class GoAST(ast.AST):
 
 
 class Expr(GoAST):
-    def __init__(self, *args, _type_help=None, _py_context=None, **kwargs):
+    def __init__(self, *args, _type_help=None, **kwargs):
         self._type_help = _type_help
-        self._py_context = _py_context or {}
         super().__init__(**kwargs)
 
     def __or__(self, Y: 'Expr') -> 'BinaryExpr':
@@ -1226,14 +1226,12 @@ class Object(GoAST):
                  Kind: ObjKind = None,
                  Name: str = None,
                  Type: Expr = None,
-                 _py_context: dict = None,
                  **kwargs) -> None:
         self.Data = Data
         self.Decl = Decl
         self.Kind = Kind
         self.Name = Name
         self.Type = Type
-        self._py_context = _py_context or {}
         super().__init__(**kwargs)
 
 
@@ -2442,15 +2440,22 @@ class ForStmt(Stmt):
         cond = build_expr_list([node.test])[0]
         match cond:
             case Ident(Name="true"):
-                return cls(Body=body)
+                loop = cls(Body=body)
             case BasicLit(Value=x) if not json.loads(x):
-                return cls(Body=body, Cond=Ident.from_str("false"))
+                loop = cls(Body=body, Cond=Ident.from_str("false"))
             case BasicLit(Kind=x) if x in [token.INT, token.STRING, token.FLOAT]:
-                return cls(Body=body)
+                loop = cls(Body=body)
             case Ident(Name="false") | Ident(Name="nil"):
-                return cls(Body=body, Cond=Ident.from_str("false"))
-
-        return cls(Body=body, Cond=cond)
+                loop = cls(Body=body, Cond=Ident.from_str("false"))
+            case _:
+                loop = cls(Body=body, Cond=cond)
+        if node.orelse:
+            loop._py_context["forelse"] = True
+            # The breaks of this loop can be replaced with a return False by a transformer
+            return IfStmt(Body=BlockStmt(List=build_stmt_list(node.orelse)),
+                          Cond=FuncLit(Body=BlockStmt(List=[loop, Ident("true").return_()]),
+                                       Type=FuncType(Results=FieldList(List=[Field(Type=GoBasicType.BOOL.ident)]))).call())
+        return loop
 
 
 class FuncType(Expr):
@@ -3107,6 +3112,13 @@ class RangeStmt(Stmt):
         key = Ident.from_str("_")
         value = build_expr_list([node.target])[0]
         x = build_expr_list([node.iter])[0]
+        if node.orelse:
+            for_body = cls(Body=body, Key=key, Tok=tok, Value=value, X=x, _py_context={**kwargs.get("_py_context", {}), "forelse": True},
+                           **kwargs)
+            # The breaks of this loop can be replaced with a return False by a transformer
+            return IfStmt(Body=BlockStmt(List=build_stmt_list(node.orelse)),
+                          Cond=FuncLit(Body=BlockStmt(List=[for_body, Ident("true").return_()]),
+                                       Type=FuncType(Results=FieldList(List=[Field(Type=GoBasicType.BOOL.ident)]))).call())
         return cls(Body=body, Key=key, Tok=tok, Value=value, X=x, **kwargs)
 
     @classmethod

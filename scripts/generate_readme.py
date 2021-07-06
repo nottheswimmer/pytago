@@ -10,7 +10,6 @@ README_DESTINATION = rel + "../README.md"
 TEST_FILE_PATH = rel + "../pytago/tests/test_core.py"
 
 DISABLED_EXAMPLES = {
-    "forelse",
     "iterunpacking",
     "dunders",
     "pop",

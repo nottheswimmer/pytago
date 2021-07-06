@@ -10,7 +10,7 @@ from pytago.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryE
     ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt, len_
 # Shortcuts
 from pytago.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS, \
-    GoStmt, TypeSwitchStmt, StarExpr, GenDecl, TypeAssertExpr, DeclStmt
+    GoStmt, TypeSwitchStmt, StarExpr, GenDecl, TypeAssertExpr, DeclStmt, BranchStmt
 
 v = Ident.from_str
 
@@ -680,7 +680,7 @@ class RangeRangeToFor(BaseTransformer):
                     case _:
                         post = AssignStmt(Lhs=[node.Value], Rhs=[step], Tok=token.ADD_ASSIGN)
                 cond = BinaryExpr(X=node.Value, Op=token.GTR if flipped else token.LSS, Y=stop)
-                return ForStmt(Body=node.Body, Cond=cond, Init=init, Post=post)
+                return ForStmt(Body=node.Body, Cond=cond, Init=init, Post=post, _py_context=node._py_context)
         return node
 
 
@@ -1938,6 +1938,30 @@ class ScopeFunctionVars(BaseTransformer):
         return node
 
 
+class ForElseBreaksReturnFalse(BaseTransformer):
+    def __init__(self):
+        super().__init__()
+        self.breaks_return_false = False
+
+    def visit_Loop(self, node):
+        breaks_return_false = self.breaks_return_false
+        self.breaks_return_false = getattr(node, "_py_context", {}).get("forelse", False)
+        self.generic_visit(node)
+        self.breaks_return_false = breaks_return_false
+        return node
+
+    def visit_RangeStmt(self, node: RangeStmt):
+        return self.visit_Loop(node)
+
+    def visit_ForStmt(self, node: ForStmt):
+        return self.visit_Loop(node)
+
+    def visit_BranchStmt(self, node: BranchStmt):
+        if node.Tok == token.BREAK and self.breaks_return_false:
+            return Ident("false").return_()
+        return node
+
+
 ALL_TRANSFORMS = [
     #### STAGE 0 ####
     InsertUniqueInitializers,
@@ -1985,6 +2009,7 @@ ALL_TRANSFORMS = [
     TypeSwitchStatementsRedeclareWithType,
     RemoveUnnecessaryFunctionLiterals,
     RemoveConflictingImports,
+    ForElseBreaksReturnFalse,
     RemoveGoCallReturns,  # Needs to be below scoping functions or they'll just get added back
     RemoveBadStmt,  # Should be last as these are used for scoping
     MergeAdjacentInits,
