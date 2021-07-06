@@ -232,6 +232,9 @@ class Test(TestCase):
     def test_slicemultiply(self):
         self.assert_examples_match("slicemultiply")
 
+    def test_printend(self):
+        self.assert_examples_match("printend")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")

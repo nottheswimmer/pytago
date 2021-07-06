@@ -1,4 +1,4 @@
-# pytago
+# ![pytago](https://gist.githubusercontent.com/nottheswimmer/34c530a80dc636a62ca2ebfca30af2a3/raw/e5b5d3fc3de90b6c7453d44998585f6b7376099f/pytago.svg)
 
 Pytago is a source-to-source transpiler that converts some Python into human-readable Go.
 

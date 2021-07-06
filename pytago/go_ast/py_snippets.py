@@ -37,12 +37,15 @@ class Bindable:
     def __init__(self, f: callable, name: str,
                  bind_type: BindType,
                  deref_args: Optional[List[str]]=None,
-                 results: Optional[List[str]]=None):
+                 results: Optional[List[str]]=None,
+                 cond: Optional[callable]=None
+                 ):
         self.f = f
         self.name = name
         self.bind_type = bind_type
         self.deref_args = deref_args or []
         self.results = results or []
+        self.cond = cond
 
     @property
     def src(self):
@@ -72,6 +75,16 @@ class Bindable:
             kwargs = {k.arg: k.value for k in kwargs}
         else:
             kwargs = {}
+
+        if self.cond:
+            # Raises a TypeError just like other binding if there's a failure
+            inspect.signature(self.cond).bind(*args, **kwargs)
+
+            # Explicitly raise a TypeError if the condition doesn't pass
+            if not self.cond(*args, **kwargs):
+                raise TypeError("Condition check failed")
+
+
         binding = self.sig.bind(*args, **kwargs)
         return binding
 
@@ -313,6 +326,22 @@ def go_pop(s: PytagoInterfaceType[s]) -> PytagoInterfaceType[popped]:  # pragma:
     popped = ('*' @ s)[i]
     s @= ('*' @ s)[:i]
     return popped
+
+
+def empty_end_cond(*args, end):
+    match end:
+        case ast.Constant(value=""):
+            return True
+    return False
+
+@Bindable.add(r"print", bind_type=BindType.EXPR, cond=empty_end_cond)
+def go_print(*args, end) -> PytagoInterfaceType[popped]:  # pragma: no cover
+    fmt.Print(args)
+
+
+@Bindable.add(r"print", bind_type=BindType.EXPR)
+def go_print(*args, end) -> PytagoInterfaceType[popped]:  # pragma: no cover
+    fmt.Print(args, end)
 
 
 # See strings methods for index

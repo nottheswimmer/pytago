@@ -240,6 +240,12 @@ def _type_annotation_to_go_type(node: ast.AST):
                     return InterfaceType()
                 case 'PytagoStarExpr':
                     return StarExpr()
+                case 'Any':
+                    return InterfaceType()
+                case 'Type':
+                    return Ident("reflect").sel("Type")  # TODO: Actually implement
+                case 'Callable':
+                    return FuncType()
                 case _:
                     return Ident(x)
         case ast.Subscript(value=value, slice=index):
@@ -261,6 +267,14 @@ def _type_annotation_to_go_type(node: ast.AST):
                     return InterfaceType(_py_context={"elts": [index]})
                 case StarExpr():
                     return StarExpr(X=index)
+                case FuncType():
+                    arg_types = index[0]
+                    return_type = index[1] if len(index) > 1 else None
+                    if return_type:
+                        return_type = FieldList(List=[Field(Type=return_type)])
+                    return FuncType(Params=arg_types, Results=return_type)
+                case SelectorExpr(X=Ident(Name="reflect"), Sel=Ident(Name="Type")):
+                    return InterfaceType(_py_context={"elts": [index]})  # TODO: Need like elt_types or something
                 case _:
                     raise NotImplementedError(value)
             return value
@@ -268,6 +282,8 @@ def _type_annotation_to_go_type(node: ast.AST):
             return tuple(_type_annotation_to_go_type(elt) for elt in elts)
         case ast.Attribute():
             return build_expr_list([node])[0]
+        case ast.List():
+            return FieldList(List=[Field(Type=_type_annotation_to_go_type(x)) for x in node.elts])
         case _:
             raise NotImplementedError(node)
 
@@ -351,6 +367,9 @@ def _build_x_list(x_types: list, x_name: str, nodes, **kwargs):
                 except NotImplementedError as e:
                     errors.append((x_type, e))
                     continue
+                except Exception as e:
+                    raise type(e)(f"Unhandled exception for {x_name} type in {x_types} with {method}: "
+                                     f"\n```\n{ast.unparse(x_node) if x_node else None}\n```") from e
                 if isinstance(result, list):
                     for r in result:
                         if isinstance(r, GoAST):
@@ -2160,6 +2179,10 @@ class Field(GoAST):
     def from_GoBasicType(cls, node: GoBasicType, **kwargs):
         return cls(Type=from_this(Ident, node.value), **kwargs)
 
+    @classmethod
+    def from_Constant(cls, node: ast.Constant, **kwargs):
+        return cls(Type=from_this(Ident, node.value), **kwargs)
+
     def _type(self):  # TODO: Delete?
         return self.Type or super()._type()
 
@@ -2216,6 +2239,10 @@ class FieldList(Expr):
     @classmethod
     def from_Subscript(cls, node: ast.Subscript, **kwargs):
         return cls(List=[from_this(Field, node)], **kwargs)
+
+    @classmethod
+    def from_Constant(cls, node: ast.Constant):
+        return cls(List=[from_this(Field, node)])
 
 
 class ImportSpec(GoAST):

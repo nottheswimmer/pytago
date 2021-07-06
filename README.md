@@ -1,4 +1,4 @@
-# pytago
+# ![pytago](https://gist.githubusercontent.com/nottheswimmer/34c530a80dc636a62ca2ebfca30af2a3/raw/e5b5d3fc3de90b6c7453d44998585f6b7376099f/pytago.svg)
 
 Pytago is a source-to-source transpiler that converts some Python into human-readable Go.
 
@@ -4411,6 +4411,45 @@ func main() {
 		return result
 	}(x, 3)
 	fmt.Println(len(x), x)
+}
+```
+### printend
+#### Python
+```python
+def fib(n):
+    a, b = 0, 1
+    while a < n:
+        print(a, end=' ')
+        a, b = b, a + b
+    print()
+
+
+def main():
+    fib(1000)
+    print("All done!", end='')
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func fib(n int) {
+	a, b := 0, 1
+	for a < int(n) {
+		fmt.Print(a, " ")
+		a, b = b, a+b
+	}
+	fmt.Println()
+}
+
+func main() {
+	fib(1000)
+	fmt.Print("All done!")
 }
 ```
 ### algomajorityelement
