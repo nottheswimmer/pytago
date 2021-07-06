@@ -1,6 +1,6 @@
 # pytago
 
-Transpiles some Python into human-readable Golang.
+Pytago is a source-to-source transpiler that converts some Python into human-readable Go.
 
 - [Try out the web demo](https://pytago.dev/)
 
