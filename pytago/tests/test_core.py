@@ -229,6 +229,9 @@ class Test(TestCase):
     def test_forelse(self):
         self.assert_examples_match("forelse")
 
+    def test_slicemultiply(self):
+        self.assert_examples_match("slicemultiply")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")

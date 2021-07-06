@@ -4370,6 +4370,49 @@ func main() {
 	fmt.Println(i)
 }
 ```
+### slicemultiply
+#### Python
+```python
+def main():
+    n = 3
+    x = [1, 2, 3] * n
+    x = x * 3
+    x *= 3
+    print(len(x), x)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import "fmt"
+
+func main() {
+	n := 3
+	x := func(repeated []int, n int) (result []int) {
+		for i := 0; i < n; i++ {
+			result = append(result, repeated...)
+		}
+		return result
+	}([]int{1, 2, 3}, n)
+	x = func(repeated []int, n int) (result []int) {
+		for i := 0; i < n; i++ {
+			result = append(result, repeated...)
+		}
+		return result
+	}(x, 3)
+	x = func(repeated []int, n int) (result []int) {
+		for i := 0; i < n; i++ {
+			result = append(result, repeated...)
+		}
+		return result
+	}(x, 3)
+	fmt.Println(len(x), x)
+}
+```
 ### algomajorityelement
 #### Python
 ```python

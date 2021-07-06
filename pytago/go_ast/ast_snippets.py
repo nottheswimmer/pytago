@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 
 import pytago.go_ast.core as ast
 
@@ -654,3 +654,122 @@ def file_loop(line, file_obj, file_body, is_text: bool):
               ],
             ),
           )
+
+
+def slice_multiply(elts, elt_type, n_repeats):
+    token = ast.token
+    return ast.CallExpr(
+  Fun=ast.FuncLit(
+    Type=ast.FuncType(
+      Params=ast.FieldList(
+        List=[
+          ast.Field(
+            Names=[
+              ast.Ident(
+                Name="repeated",
+              ),
+            ],
+            Type=ast.ArrayType(
+              Elt=elt_type,
+            ),
+          ),
+          ast.Field(
+            Names=[
+              ast.Ident(
+                Name="n",
+              ),
+            ],
+            Type=ast.Ident(
+              Name="int",
+            ),
+          ),
+        ],
+      ),
+      Results=ast.FieldList(
+        List=[
+          ast.Field(
+            Names=[
+              ast.Ident(
+                Name="result",
+              ),
+            ],
+            Type=ast.ArrayType(
+              Elt=elt_type,
+            ),
+          ),
+        ],
+      ),
+    ),
+    Body=ast.BlockStmt(
+      List=[
+        ast.ForStmt(
+          Init=ast.AssignStmt(
+            Lhs=[
+              ast.Ident(
+                Name="i",
+              ),
+            ],
+            Tok=token.DEFINE,
+            Rhs=[
+              ast.BasicLit.from_int(0),
+            ],
+          ),
+          Cond=ast.BinaryExpr(
+            X=ast.Ident(
+              Name="i",
+            ),
+            Op=token.LSS,
+            Y=ast.Ident(
+              Name="n",
+            ),
+          ),
+          Post=ast.IncDecStmt(
+            X=ast.Ident(
+              Name="i",
+            ),
+            Tok=token.INC,
+          ),
+          Body=ast.BlockStmt(
+            List=[
+              ast.AssignStmt(
+                Lhs=[
+                  ast.Ident(
+                    Name="result",
+                  ),
+                ],
+                Tok=token.ASSIGN,
+                Rhs=[
+                  ast.CallExpr(
+                    Fun=ast.Ident(
+                      Name="append",
+                    ),
+                    Args=[
+                      ast.Ident(
+                        Name="result",
+                      ),
+                      ast.Ident(
+                        Name="repeated",
+                      ),
+                    ],
+                    Ellipsis=-1,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        ast.ReturnStmt(
+          Results=[
+            ast.Ident(
+              Name="result",
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+  Args=[
+    elts,
+    n_repeats,
+  ],
+)

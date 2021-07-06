@@ -856,10 +856,12 @@ class HandleTypeCoercion(NodeTransformerWithScope):
                     node.Y = GoBasicType.FLOAT64.ident.call(node.Y)
                     y_type = GoBasicType.FLOAT64.ident
             case token.MUL:
-                if x_type == GoBasicType.STRING.ident:
-                    return Ident("strings").sel("Repeat").call(node.X, node.Y.cast(y_type, GoBasicType.INT.ident))
-                if y_type == GoBasicType.STRING.ident:
-                    return Ident("strings").sel("Repeat").call(node.Y, node.X.cast(x_type, GoBasicType.INT.ident))
+                for type_1, type_2, node_1, node_2 in (x_type, y_type, node.X, node.Y), (y_type, x_type, node.Y, node.X):
+                    if type_1 == GoBasicType.STRING.ident:
+                        return Ident("strings").sel("Repeat").call(node_1, node_2.cast(type_2, GoBasicType.INT.ident))
+                    match type_1:
+                        case ArrayType(Elt=elt_type):
+                            return ast_snippets.slice_multiply(node_1, elt_type, node_2)
 
 
         if node.Op not in [token.PLACEHOLDER_IN, token.PLACEHOLDER_NOT_IN] \
@@ -901,6 +903,18 @@ class HandleTypeCoercion(NodeTransformerWithScope):
                                     return a
                         return a.not_()
 
+        return node
+
+    def visit_AssignStmt(self, node: AssignStmt):
+        node = super().visit_AssignStmt(node)
+        match node:
+            case AssignStmt(Lhs=[X], Rhs=[Y], Tok=token.MUL_ASSIGN):
+                mole_in = BinaryExpr(Op=token.MUL, X=X, Y=Y)
+                mole_out = self.visit_BinaryExpr(mole_in)
+                if mole_in != mole_out:
+                    node.Tok = token.ASSIGN
+                    node.Rhs[:] = [mole_out]
+                    return node
         return node
 
 
