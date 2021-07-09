@@ -4,6 +4,8 @@ import warnings
 from _ast import AST
 from typing import Optional
 
+import dill
+
 from pytago.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryExpr, token, AssignStmt, BlockStmt, \
     CompositeLit, Field, Scope, Object, ObjKind, RangeStmt, ForStmt, BasicLit, IncDecStmt, UnaryExpr, IndexExpr, \
     GoBasicType, Stmt, IfStmt, ExprStmt, DeferStmt, FuncLit, FuncType, FieldList, ReturnStmt, ImportSpec, ArrayType, \
@@ -19,7 +21,7 @@ def safe_deepcopy(t):
     """
     Does nothing but easier to have in one place because copying errors come up sometimes
     """
-    return copy.deepcopy(t)
+    return dill.copy(t)
 
 class InterfaceTypeCounter(ast.NodeVisitor):
     def __init__(self):

@@ -451,7 +451,7 @@ def exception_with_traceback():
 
 
 class GoAST(ast.AST):
-    _py_module = None
+    # _py_module = None
     _go_module = None
     CONVERSION_ORDER = {}
     STORY = []
@@ -462,7 +462,7 @@ class GoAST(ast.AST):
         super().__init__(**kwargs)
         self._py_context = _py_context or {}
         self.parents = parents or []
-        self.py_module = self._py_module
+        # self.py_module = self._py_module
         self.go_module = self._go_module
         for field_name in self._fields:
             field = getattr(self, field_name, None)
@@ -2494,14 +2494,14 @@ class File(GoAST):
 
     @classmethod
     def from_Module(cls, node: ast.Module, **kwargs):
-        prev_py_module = GoAST._py_module
+        # prev_py_module = GoAST._py_module
         prev_go_module = GoAST._go_module
         GoAST._py_module = node
         go_module = cls([], [], None, [], Ident("main"), 1, None, [], **kwargs)
         GoAST._go_module = go_module
         go_module.Decls[:] = build_decl_list(node.body)
-        if prev_py_module is not None:
-            GoAST._py_module = prev_py_module
+        # if prev_py_module is not None:
+        #     GoAST._py_module = prev_py_module
         if prev_go_module is not None:
             GoAST._go_module = prev_go_module
         return go_module
