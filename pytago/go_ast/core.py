@@ -216,7 +216,7 @@ OP_COMPLIMENTS |= {v: k for k, v in OP_COMPLIMENTS.items()}
 class PY_DEREF_EXPR(): pass
 def _type_annotation_to_go_type(node: ast.AST):
     match node:
-        case ast.Name(id=x):
+        case ast.Name(id=x) | ast.Constant(value=x) if isinstance(x, str):
             match x:
                 case 'str':
                     return GoBasicType.STRING.ident
@@ -449,7 +449,10 @@ def exception_with_traceback():
         pretty_trace_list.append(t.rsplit('pytago', 1)[-1])
     return pretty_trace_list
 
+
 class GoAST(ast.AST):
+    _py_module = None
+    _go_module = None
     CONVERSION_ORDER = {}
     STORY = []
 
@@ -459,6 +462,8 @@ class GoAST(ast.AST):
         super().__init__(**kwargs)
         self._py_context = _py_context or {}
         self.parents = parents or []
+        self.py_module = self._py_module
+        self.go_module = self._go_module
         for field_name in self._fields:
             field = getattr(self, field_name, None)
             if isinstance(field, GoAST):
@@ -495,19 +500,19 @@ class GoAST(ast.AST):
         visitor.visit(self)
         return visitor.contains
 
-    # def search(self, item):
-    #     class Visitor(ast.NodeVisitor):
-    #         def __init__(self):
-    #             self.hits = []
-    #
-    #         def generic_visit(self, node):
-    #             if node == item:
-    #                 self.hits.append(node)
-    #             return super().generic_visit(node)
-    #
-    #     visitor = Visitor()
-    #     visitor.visit(self)
-    #     return visitor.hits
+    def search(self, item):
+        class Visitor(ast.NodeVisitor):
+            def __init__(self):
+                self.hits = []
+
+            def generic_visit(self, node):
+                if node == item:
+                    self.hits.append(node)
+                return super().generic_visit(node)
+
+        visitor = Visitor()
+        visitor.visit(self)
+        return visitor.hits
 
     def outermost_scope_search(self, item, skip=0):
         class Visitor(ast.NodeVisitor):
@@ -1090,29 +1095,12 @@ class BinaryExpr(Expr):
 
     @classmethod
     def from_left_op_right(cls, node_left, py_op, node_right, **kwargs):
-        match py_op:
-            case ast.Gt():
-                op = token.GTR
-            case ast.GtE():
-                op = token.GEQ
-            case ast.Lt():
-                op = token.LSS
-            case ast.LtE():
-                op = token.LEQ
-            case ast.Eq():
-                op = token.EQL
-            case ast.NotEq():
-                op = token.NEQ
-            case ast.Is():
-                op = token.PLACEHOLDER_IS
-            case ast.IsNot():
-                op = token.PLACEHOLDER_IS_NOT
-            case ast.In():
-                op = token.PLACEHOLDER_IN
-            case ast.NotIn():
-                op = token.PLACEHOLDER_NOT_IN
-            case _:
-                raise NotImplementedError(f"Unimplemented comparator: {py_op}")
+        op, func = py_op_to_go_op_and_py_dunder(py_op)
+        # TODO: Is it okay if these are Expr instances?
+        f = get_py_snippet(ast.Call(func=ast.Attribute(attr=func, value=node_left), args=node_right, keywords=[]))
+        if f:
+            return f
+
         X = node_left if isinstance(node_left, Expr) else build_expr_list([node_left])[0]
         Y = node_right if isinstance(node_right, Expr) else build_expr_list([node_right])[0]
         expr = cls(op, 0, X, Y, **kwargs)
@@ -1150,26 +1138,11 @@ class BinaryExpr(Expr):
 
     @classmethod
     def from_BinOp(cls, node: ast.BinOp, **kwargs):
-        py_op = node.op
-        match py_op:
-            case ast.Add(): op = token.ADD
-            case ast.Sub(): op = token.SUB
-            case ast.Mult(): op = token.MUL
-            case ast.Div(): op = token.QUO
-            case ast.Mod(): op = token.REM
-            case ast.And(): op = token.LAND
-            case ast.BitAnd(): op = token.AND
-            case ast.Or(): op = token.LOR
-            case ast.BitOr(): op = token.OR
-            case ast.BitXor(): op = token.XOR
-            case ast.LShift(): op = token.SHL
-            case ast.RShift(): op = token.SHR
-            case ast.Pow(): op = token.PLACEHOLDER_POW
-            case ast.FloorDiv(): op = token.PLACEHOLDER_FLOOR_DIV
-            # case ...:
-            #     op = token.AND_NOT
-            case _:
-                raise NotImplementedError(f"Unimplemented binop: {py_op}")
+        op, func = py_op_to_go_op_and_py_dunder(node.op)
+        f = get_py_snippet(ast.Call(func=ast.Attribute(attr=func, value=node.left), args=node.right, keywords=[]))
+        if f:
+            return f
+
         X = build_expr_list([node.left])[0]
         Y = build_expr_list([node.right])[0]
         return cls(op, 0, X, Y, **kwargs)
@@ -1181,6 +1154,90 @@ class BinaryExpr(Expr):
             return scope._get_type(self.X, **kwargs) or scope._get_type(self.Y, **kwargs) or super()._type(scope, **kwargs)
         return self.X._type(**kwargs) or self.Y._type(**kwargs) or super()._type(**kwargs)
 
+
+def py_op_to_go_op_and_py_dunder(py_op):
+    match py_op:
+        case ast.Add():
+            op = token.ADD; func = "__add__"
+        case ast.Sub():
+            op = token.SUB; func = "__sub__"
+        case ast.Mult():
+            op = token.MUL; func = "__mul__"
+        case ast.Div():
+            op = token.QUO; func = "__truediv__"
+        case ast.Mod():
+            op = token.REM; func = "__mod__"
+        case ast.And():
+            op = token.LAND; func = "__and__"
+        case ast.BitAnd():
+            op = token.AND; func = "__iand__"
+        case ast.Or():
+            op = token.LOR; func = "__or__"
+        case ast.BitOr():
+            op = token.OR; func = "__ior__"
+        case ast.BitXor():
+            op = token.XOR; func = "__ixor__"
+        case ast.LShift():
+            op = token.SHL; func = "__lshift__"
+        case ast.RShift():
+            op = token.SHR; func = "__rshift__"
+        case ast.Pow():
+            op = token.PLACEHOLDER_POW; func = "__pow__"
+        case ast.FloorDiv():
+            op = token.PLACEHOLDER_FLOOR_DIV; func = "__floordiv__"
+        case ast.Gt():
+            op = token.GTR; func = "__gt__"
+        case ast.GtE():
+            op = token.GEQ; func = "__ge__"
+        case ast.Lt():
+            op = token.LSS; func = "__lt__"
+        case ast.LtE():
+            op = token.LEQ; func = "__le__"
+        case ast.Eq():
+            op = token.EQL; func = "__eq__"
+        case ast.NotEq():
+            op = token.NEQ; func = "__neq__"
+        case ast.Is():
+            op = token.PLACEHOLDER_IS; func = "__pytago_is__"
+        case ast.IsNot():
+            op = token.PLACEHOLDER_IS_NOT; func = "__pytago_isnot__"
+        case ast.In():
+            op = token.PLACEHOLDER_IN; func = "__contains__"
+        case ast.NotIn():
+            op = token.PLACEHOLDER_NOT_IN; func = "__pytago_ncontains__"
+        case _:
+            raise NotImplementedError(f"Unimplemented op: {py_op}")
+    return op, func
+
+def go_op_to_go_py_dunder(go_op: token):
+    match go_op:
+        case token.ADD: func = "__add__"
+        case token.SUB: func = "__sub__"
+        case token.MUL: func = "__mul__"
+        case token.QUO: func = "__truediv__"
+        case token.REM: func = "__mod__"
+        case token.LAND: func = "__and__"
+        case token.AND: func = "__iand__"
+        case token.LOR: func = "__or__"
+        case token.OR: func = "__ior__"
+        case token.XOR: func = "__ixor__"
+        case token.SHL: func = "__lshift__"
+        case token.SHR: func = "__rshift__"
+        case token.PLACEHOLDER_POW: func = "__pow__"
+        case token.PLACEHOLDER_FLOOR_DIV: func = "__floordiv__"
+        case token.GTR: func = "__gt__"
+        case token.GEQ: func = "__ge__"
+        case token.LSS: func = "__lt__"
+        case token.LEQ: func = "__le__"
+        case token.EQL: func = "__eq__"
+        case token.NEQ: func = "__neq__"
+        case token.PLACEHOLDER_IS: func = "__pytago_is__"
+        case token.PLACEHOLDER_IS_NOT: func = "__pytago_isnot__"
+        case token.PLACEHOLDER_IN: func = "__contains__"
+        case token.PLACEHOLDER_NOT_IN: func = "__pytago_ncontains__"
+        case _:
+            raise NotImplementedError(f"Unimplemented op: {go_op}")
+    return func
 
 class BlockStmt(Stmt):
     """A BlockStmt node represents a braced statement list.
@@ -1347,6 +1404,49 @@ class BranchStmt(Stmt):
         return cls(Tok=token.BREAK)
 
 
+def get_py_snippet(node: ast.Call):
+    try:
+        py_nosnippet = node.func.py_nosnippet
+    except AttributeError:
+        py_nosnippet = False
+    match node.func:
+        case ast.Name(id='PYTAGO_RUNE'):
+            match node.args:
+                case [ast.Constant(value=v)] if isinstance(v, str) and len(v) == 1:
+                    bl = BasicLit.from_value(node="'" + json.dumps(v)[1:-1] + "'", t=token.CHAR)
+                    return bl
+                case _:
+                    raise NotImplementedError()
+        case ast.Call(ast.Name(id='PYTAGO_NOSNIPPET')):
+            match node.func.args:
+                case [ast.AST() as x]:
+                    node.func = x
+                    x.py_nosnippet = True
+                    py_nosnippet = True
+                case _:
+                    raise NotImplementedError()
+
+    if not py_nosnippet:
+        f = find_call_funclit(node)
+        if f:
+            if isinstance(f, list):
+                # Expressions with initializations cause problems, so attach it to the object here and deal with it in the initialization transformation
+                initializations = []
+                remaining = []
+                for expr in f:
+                    match expr:
+                        case FuncLit(Body=BlockStmt(List=[AssignStmt(Lhs=[Ident(Name="PYTAGO_INIT")])])):
+                            initializations.append(expr)
+                        case _:
+                            remaining.append(expr)
+                if initializations:
+                    for expr in remaining:
+                        expr._py_context.setdefault("initializations", []).extend(initializations)
+                    f = remaining
+                if len(f) == 1:
+                    f = f[0]
+            return f
+
 
 class CallExpr(Expr):
     """A CallExpr node represents an expression followed by an argument list."""
@@ -1379,47 +1479,9 @@ class CallExpr(Expr):
 
     @classmethod
     def from_Call(cls, node: ast.Call, _py_context=None):
-        try:
-            py_nosnippet = node.func.py_nosnippet
-        except AttributeError:
-            py_nosnippet = False
-        match node.func:
-            case ast.Name(id='PYTAGO_RUNE'):
-                match node.args:
-                    case [ast.Constant(value=v)] if isinstance(v, str) and len(v) == 1:
-                        bl = BasicLit.from_value(node="'" + json.dumps(v)[1:-1] + "'", t=token.CHAR)
-                        return bl
-                    case _:
-                        raise NotImplementedError()
-            case ast.Call(ast.Name(id='PYTAGO_NOSNIPPET')):
-                match node.func.args:
-                    case [ast.AST() as x]:
-                        node.func = x
-                        x.py_nosnippet = True
-                        py_nosnippet = True
-                    case _:
-                        raise NotImplementedError()
-
-        if not py_nosnippet:
-            f = find_call_funclit(node)
-            if f:
-                if isinstance(f, list):
-                    # Expressions with initializations cause problems, so attach it to the object here and deal with it in the initialization transformation
-                    initializations = []
-                    remaining = []
-                    for expr in f:
-                        match expr:
-                            case FuncLit(Body=BlockStmt(List=[AssignStmt(Lhs=[Ident(Name="PYTAGO_INIT")])])):
-                                initializations.append(expr)
-                            case _:
-                                remaining.append(expr)
-                    if initializations:
-                        for expr in remaining:
-                            expr._py_context.setdefault("initializations", []).extend(initializations)
-                        f = remaining
-                    if len(f) == 1:
-                        f = f[0]
-                return f
+        f = get_py_snippet(node)
+        if f:
+            return f
 
         _type_help = None
         match node:
@@ -1712,6 +1774,12 @@ class CallExpr(Expr):
                     return GoBasicType(x).ident or super()._type(scope, **kwargs)
                 except ValueError:
                     pass
+
+        if self.Fun._type_help:
+            results = [x.Type for x in self.Fun._type_help.Results.List]
+            if len(results) == 1:
+                return results[0]
+            return results
 
         if kwargs.get("interface_ok"):
             return InterfaceType(_py_context={"elts": [self]})
@@ -2426,8 +2494,17 @@ class File(GoAST):
 
     @classmethod
     def from_Module(cls, node: ast.Module, **kwargs):
-        decls = build_decl_list(node.body)
-        return cls([], decls, None, [], Ident("main"), 1, None, [], **kwargs)
+        prev_py_module = GoAST._py_module
+        prev_go_module = GoAST._go_module
+        GoAST._py_module = node
+        go_module = cls([], [], None, [], Ident("main"), 1, None, [], **kwargs)
+        GoAST._go_module = go_module
+        go_module.Decls[:] = build_decl_list(node.body)
+        if prev_py_module is not None:
+            GoAST._py_module = prev_py_module
+        if prev_go_module is not None:
+            GoAST._go_module = prev_go_module
+        return go_module
 
     def add_import(self, node: ImportSpec):
         self.Imports.append(node)
@@ -2654,6 +2731,11 @@ class FuncLit(Expr):
     def _type(self, scope: Optional['Scope']=None, interface_ok=False, **kwargs):
         return self.Type or super()._type(scope, interface_ok, **kwargs)
 
+def py_dunder_to_go_name(name):
+    if name == "__str__":
+        return 'String'
+    return name[2:-2].title()
+
 class GenDecl(Decl):
     """A GenDecl node (generic declaration node) represents an import, constant, type or
     variable declaration. A valid Lparen position (Lparen.IsValid()) indicates a
@@ -2703,6 +2785,8 @@ class GenDecl(Decl):
         # Returns a list of declarations
         fields_dict = {}
         methods = []
+        st = StructType(FieldList(List=[]))
+        self_ident = Ident.from_str(node.name, _type_help=st)
         for obj in node.body:
             match obj:
                 case ast.AnnAssign():
@@ -2717,15 +2801,22 @@ class GenDecl(Decl):
                 case ast.Assign():
                     ... # TODO
                 case ast.FunctionDef():
-                    methods.append(obj)
                     func_def = build_stmt_list([obj])[0]
                     f = func_def.Rhs[0]
                     try:
-                        self_name = f.Params.List[0].Names[0].Name
+                        self_name = f.Type.Params.List[0].Names[0].Name
                     except IndexError:  # staticmethod
                         self_name = "static"
                     except AttributeError:  # Function literal
                         self_name = ""
+                    methods.append((obj, self_name))
+                    # Inform all "self" references in the method that they refer to the class
+                    # TODO: Nested case?
+                    self_references = f.search(Ident(self_name))
+                    for si in self_references:
+                        si._type_help = st
+
+
                     def _matcher(_node: 'ast.AST'):
                         match _node:
                             case AssignStmt(Lhs=[SelectorExpr(X=Ident(Name=x))]):
@@ -2745,11 +2836,15 @@ class GenDecl(Decl):
                     # Real assignments in the body not yet supported...
                     raise NotImplementedError(node, obj)
         fields = list(fields_dict.values())
-        self_ident = Ident.from_str(node.name)
-        specs = [TypeSpec(Name=self_ident, Type=StructType(FieldList(List=fields)))]
+        st.Fields.List[:] = fields
+        specs = [TypeSpec(Name=self_ident, Type=st)]
         decls = [cls(Tok=token.TYPE, Specs=specs, **kwargs)]
-        method_decls = build_decl_list(methods)
-        for method in method_decls:
+        method_decls = build_decl_list([method for method, _ in methods])
+        for method, (_, self_name) in zip(method_decls, methods):
+            self_references = method.search(Ident(self_name))
+            for si in self_references:
+                si._type_help = st
+
             try:
                 recv = FieldList(List=[method.Type.Params.List[0]])
                 recv.List[0].Type = StarExpr(X=self_ident)
@@ -2761,6 +2856,12 @@ class GenDecl(Decl):
                         method.Body.List.append(ReturnStmt())
                         method.Name = Ident.from_str(f"New{node.name}")
                         method.Type.Results = recv
+                    case x if isinstance(x, str) and x.startswith('__') and x.endswith('__') and len(x) > 4:
+                        method.Name.Name = py_dunder_to_go_name(method.Name.Name)
+                        method.Recv = recv
+                        match x:
+                            case '__str__':
+                                method.Type.Results = FieldList(List=[Field(Type=GoBasicType.STRING.ident)])
                     case _:
                         method.Recv = recv
             except IndexError:
@@ -3224,6 +3325,36 @@ class SelectorExpr(Expr):
         attr = build_expr_list([node.attr])[0]
         x = build_expr_list([node.value])[0]
         return cls(Sel=attr, X=x, **kwargs)
+    
+    def _type(self, scope: Optional['Scope'] = None, interface_ok=False, **kwargs):
+
+        # Try to sus out classes and type their attributes
+        x_type = scope._get_type(self.X, interface_ok, **kwargs) if scope else self.X._type(interface_ok, **kwargs)
+        if isinstance(x_type, StarExpr):
+            x_type = x_type.X
+            star_type = x_type._type(interface_ok, **kwargs)
+            if isinstance(star_type, StructType):
+                x_type = star_type
+            else:
+                for p in x_type.parents:
+                    match p:
+                        case TypeSpec(Name=x_type, Type=StructType() as s_type):
+                            x_type = s_type
+                            break
+        if isinstance(x_type, Ident):
+            for decl in getattr(getattr(x_type, "go_module", None), "Decls", []):
+                match decl:
+                    case GenDecl(Specs=[TypeSpec(Name=name, Type=t)]):
+                        if name == x_type:
+                            x_type = t
+                            break
+        if isinstance(x_type, StructType):
+            for field in getattr(x_type.Fields, 'List', []):
+                for name in field.Names:
+                    if name == self.Sel:
+                        return field.Type
+
+        return super(SelectorExpr, self)._type(scope, interface_ok, **kwargs)
 
 
 class SendStmt(Stmt):

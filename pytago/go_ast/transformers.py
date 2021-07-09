@@ -10,7 +10,8 @@ from pytago.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryE
     ast_snippets, MapType, ValueSpec, Expr, BadStmt, SendStmt, len_
 # Shortcuts
 from pytago.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS, \
-    GoStmt, TypeSwitchStmt, StarExpr, GenDecl, TypeAssertExpr, DeclStmt, BranchStmt
+    GoStmt, TypeSwitchStmt, StarExpr, GenDecl, TypeAssertExpr, DeclStmt, BranchStmt, \
+    go_op_to_go_py_dunder, py_dunder_to_go_name
 
 v = Ident.from_str
 
@@ -512,7 +513,6 @@ class NodeTransformerWithScope(BaseTransformer):
         return node
 
     def apply_to_scope(self, lhs: list[Expr], rhs: list[Expr], rhs_is_types=False, force_current=False):
-        # TODO: This was only built to handle one type, but zipping is much better sometimes
         ctx = {}
         for x in rhs:
             if isinstance(x, tuple):
@@ -1073,16 +1073,6 @@ class UseConstructorIfAvailable(BaseTransformer):
                 if f"New{x}" in self.declared_function_names:
                     node.Fun = self.declared_function_names[f"New{x}"]
         return node
-
-class DunderToInterface(BaseTransformer):
-    def visit_FuncDecl(self, node: FuncDecl):
-        self.generic_visit(node)
-        match node.Name:
-            case Ident(Name="__str__"):
-                node.Name = Ident("String")
-                node.Type.Results = FieldList(List=[Field(Type=GoBasicType.STRING.ident)])
-        return node
-
 
 
 class SpecialComparators(NodeTransformerWithScope):
@@ -1778,6 +1768,29 @@ class CallTypeInformation(NodeTransformerWithScope):
     def generic_missing_type_callback(self, node: Expr, val: Expr, type_: Expr):
         return
 
+def is_user_defined_class_type(node_type):
+    # TODO: Better logic for detecting if something is a user-defined class object or not
+    match node_type:
+        case StarExpr(X=Ident()):
+            return True
+    return False
+
+
+class DundersToMethodCalls(NodeTransformerWithScope):
+    def visit_BinaryExpr(self, node: BinaryExpr):
+        self.generic_visit(node)
+        for x, y in (node.X, node.Y), (node.Y, node.X):
+            if is_user_defined_class_type(self.scope._get_type(x)):
+                py_dunder = go_op_to_go_py_dunder(node.Op)
+                go_name = py_dunder_to_go_name(py_dunder)
+                y_type = self.scope._get_type(y)
+                # TODO: or y_type == None is a hack to address repeated dunder usage failing to assign type
+                if is_user_defined_class_type(y_type) or y_type == None:
+                    y = StarExpr(X=y)
+                return x.sel(go_name).call(y)
+        return node
+
+
 
 class MergeAdjacentInits(BaseTransformer):
     def visit_File(self, node: File):
@@ -1983,7 +1996,7 @@ ALL_TRANSFORMS = [
 
     #### STAGE 1 ####
     UseConstructorIfAvailable,
-    DunderToInterface,
+    DundersToMethodCalls,
     PrintToFmtPrintln,
     CapitalizeMathModuleCalls,
     ReplacePythonStyleAppends,

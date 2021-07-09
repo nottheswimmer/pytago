@@ -235,6 +235,9 @@ class Test(TestCase):
     def test_printend(self):
         self.assert_examples_match("printend")
 
+    def test_structdunders(self):
+        self.assert_examples_match("structdunders")
+
     # Algorithms
     def test_algomajorityelement(self):
         self.assert_examples_match("algomajorityelement")

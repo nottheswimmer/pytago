@@ -12,7 +12,7 @@ class NoProxy(Proxy):
     __slots__ = '__target__', '__factory__', '__deepcopy__'
 
     def __init__(self, *args, **kwargs):
-        super(NoProxy, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         try:
             self.__wrapped__   # Deactivate proxy if possible
             self.__deepcopy__ = getattr(self.__wrapped__, '__deepcopy__', None)
@@ -145,34 +145,42 @@ def build_source_tree(source, *args, **kwargs) -> ast.Module:
 # Debugging
 if __name__ == '__main__':  # pragma: no cover
     print(python_to_go(r"""
-ADMINS = ["Michael"]
+class Number:
+    def __init__(self, x):
+        self.x = x
 
+    def __add__(self, other: 'Number'):
+        return Number(self.x + other.x)
 
-class Player:
-    name: str
-    level: int
-    health: int
+    def __mul__(self, other: 'Number'):
+        return Number(self.x * other.x)
 
     def __str__(self):
-        return f"{self.name} (Level {self.level})"
+        return str(self.x)
 
-    def __init__(self, name, level, health):
-        self.name = name
-        self.level = level
-        self.health = health
+
+class ComplexNumber:
+    def __init__(self, real, imag):
+        self.real = real
+        self.imag = imag
+
+#    def __add__(self, other: 'ComplexNumber'):
+#        return ComplexNumber(self.real + other.real, self.imag + other.imag)
+
+    def __str__(self):
+        return str(self.real) + "+" + str(self.imag) + "i"
 
 
 def main():
-    name = input("Welcome! What is your name?\n> ")
-    if name in ADMINS:
-        level = 999
-        health = 10000
-    else:
-        level = 1
-        health = 10
-
-    player = Player(name, level, health)
-    print("Welcome,", player)
+    five = Number(5)
+    six = Number(6)
+    eleven = five + six
+    print(eleven)
+    fifty_five = eleven * five
+    print(fifty_five)
+    i = ComplexNumber(Number(0), Number(-1))
+    n = ComplexNumber(Number(3), Number(-6))
+    # print(i + n)
 
 
 if __name__ == '__main__':
