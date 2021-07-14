@@ -1231,6 +1231,7 @@ def go_time_sleep(duration: int):  # pragma: no cover
 
 reversal = {}
 
+
 # exit / quit / os.exit
 @Bindable.add(r"exit", bind_type=BindType.EXPR)
 def go_exit():  # pragma: no cover
@@ -1269,6 +1270,34 @@ def go_glob(pattern: str) -> list[str]:
     if err != nil:
         panic(err)
     return matches
+
+# time
+
+@Bindable.add(r"time\.time", bind_type=BindType.EXPR)
+def go_time():  # pragma: no cover
+    return float64(time.Now().UnixNano())/1e+9
+
+
+@Bindable.add(r"time\.time_ns", bind_type=BindType.EXPR)
+def go_time():  # pragma: no cover
+    return time.Now().UnixNano()
+
+
+def is_time_dot_time(expr):
+    match expr:
+        case ast.Call(func=ast.Attribute(attr='time', value=ast.Name(id='time'))):
+            return True
+    return False
+
+# time.ctime(time.time()) -> time.Now()
+@Bindable.add(r"time\.ctime", bind_type=BindType.EXPR, cond=is_time_dot_time)
+def go_time(expr):  # pragma: no cover
+    return time.Now().Format("Mon Jan 02 15:04:05 2006")
+
+@Bindable.add(r"time\.ctime", bind_type=BindType.EXPR)
+def go_time(expr):  # pragma: no cover
+    return time.Unix(expr, 0).Format("Mon Jan 02 15:04:05 2006")
+
 
 def get_node_string(node: ast.AST):
     match node:

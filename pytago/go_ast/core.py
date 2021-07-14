@@ -1766,7 +1766,14 @@ class CallExpr(Expr):
                             case "strings.Fields" | "strings.Split":
                                 return ArrayType(Elt=GoBasicType.STRING.ident)
                             case "bytes.Fields":
-                                return ast.CompositeLit(Type=ast.ArrayType(Elt=ast.Ident(Name=GoBasicType.BYTE.ident)))
+                                return CompositeLit(Type=ArrayType(Elt=GoBasicType.BYTE.ident))
+                    case *_, Ident(Name=_z):
+                        dotted = "*." + _z
+                        match dotted:
+                            case '*.Format':
+                                return GoBasicType.STRING.ident
+                            case '*.UnixNano':
+                                return GoBasicType.INT64.ident
 
             # Basic types
             case Ident(Name=x):
@@ -3044,7 +3051,7 @@ class IndexExpr(Expr):
     @classmethod
     def from_Subscript(cls, node: ast.Subscript, **kwargs):
         match node.slice:
-            case ast.Constant() | ast.UnaryOp() | ast.Name() | ast.Call() | ast.BinOp() | ast.Tuple():
+            case ast.Constant() | ast.UnaryOp() | ast.Name() | ast.Call() | ast.BinOp() | ast.Tuple() | ast.Subscript():
                 index = build_expr_list([node.slice])[0]
             case _:
                 raise NotImplementedError((node, node.slice))
