@@ -4773,6 +4773,38 @@ func main() {
 	}())
 }
 ```
+### timecode
+#### Python
+```python
+import time
+
+
+def main():
+    print(time.time())
+    print(time.time_ns())
+    print(time.ctime(time.time()))
+    print(time.ctime(1000000000))
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	fmt.Println(float64(time.Now().UnixNano()) / 1000000000.0)
+	fmt.Println(time.Now().UnixNano())
+	fmt.Println(time.Now().Format("Mon Jan 02 15:04:05 2006"))
+	fmt.Println(time.Unix(1000000000, 0).Format("Mon Jan 02 15:04:05 2006"))
+}
+```
 
 ## TODOs
 
