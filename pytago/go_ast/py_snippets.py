@@ -1298,6 +1298,11 @@ def go_time(expr):  # pragma: no cover
 def go_time(expr):  # pragma: no cover
     return time.Unix(expr, 0).Format("Mon Jan 02 15:04:05 2006")
 
+# Types
+@Bindable.add(r"type", bind_type=BindType.EXPR)
+def go_type(expr):  # pragma: no cover
+    return reflect.TypeOf(expr)
+
 
 def get_node_string(node: ast.AST):
     match node:

@@ -214,40 +214,47 @@ OP_COMPLIMENTS = {
 OP_COMPLIMENTS |= {v: k for k, v in OP_COMPLIMENTS.items()}
 
 class PY_DEREF_EXPR(): pass
+
+
+def _type_str_to_go_type(x: str):
+    match x:
+        case 'str':
+            return GoBasicType.STRING.ident
+        case 'int':
+            return GoBasicType.INT.ident
+        case 'float':
+            return GoBasicType.FLOAT64.ident
+        case 'complex':
+            return GoBasicType.COMPLEX128.ident
+        case 'bytes' | 'bytearray':
+            return ArrayType(Elt=GoBasicType.BYTE.ident, Len=Ellipsis() if x in ['bytearray'] else None)
+        case 'list' | 'tuple' | 'List' | 'Tuple':
+            return ArrayType(Len=Ellipsis() if x in ['tuple', 'Tuple'] else None)
+        case 'dict' | 'Dict' | 'DefaultDict' | 'OrderedDict' | 'TypedDict' | 'Mapping' | 'MutableMapping':
+            return MapType()
+        case 'set' | 'frozenset' | 'Set' | 'FrozenSet' | 'MutableSet':
+            return MapType(Value=StructType())
+        case 'bool':
+            return Ident('bool')
+        case 'PytagoInterfaceType':
+            return InterfaceType()
+        case 'PytagoStarExpr':
+            return StarExpr()
+        case 'Any':
+            return InterfaceType()
+        case 'Type':
+            return Ident("reflect").sel("Type")  # TODO: Actually implement
+        case 'Callable':
+            return FuncType()
+        case _:
+            return Ident(x)
+
+
 def _type_annotation_to_go_type(node: ast.AST):
     match node:
         case ast.Name(id=x) | ast.Constant(value=x) if isinstance(x, str):
-            match x:
-                case 'str':
-                    return GoBasicType.STRING.ident
-                case 'int':
-                    return GoBasicType.INT.ident
-                case 'float':
-                    return GoBasicType.FLOAT64.ident
-                case 'complex':
-                    return GoBasicType.COMPLEX128.ident
-                case 'bytes' | 'bytearray':
-                    return ArrayType(Elt=GoBasicType.BYTE.ident)
-                case 'list' | 'tuple' | 'List' | 'Tuple':
-                    return ArrayType()
-                case 'dict' | 'Dict' | 'DefaultDict' | 'OrderedDict' | 'TypedDict' | 'Mapping' | 'MutableMapping':
-                    return MapType()
-                case 'set' | 'frozenset' | 'Set' | 'FrozenSet' | 'MutableSet':
-                    return MapType(Value=StructType())
-                case 'bool':
-                    return Ident('bool')
-                case 'PytagoInterfaceType':
-                    return InterfaceType()
-                case 'PytagoStarExpr':
-                    return StarExpr()
-                case 'Any':
-                    return InterfaceType()
-                case 'Type':
-                    return Ident("reflect").sel("Type")  # TODO: Actually implement
-                case 'Callable':
-                    return FuncType()
-                case _:
-                    return Ident(x)
+            if go_type := _type_str_to_go_type(x):
+                return go_type
         case ast.Subscript(value=value, slice=index):
             value = _type_annotation_to_go_type(value)
             index = _type_annotation_to_go_type(index)
@@ -1767,6 +1774,8 @@ class CallExpr(Expr):
                                 return ArrayType(Elt=GoBasicType.STRING.ident)
                             case "bytes.Fields":
                                 return CompositeLit(Type=ArrayType(Elt=GoBasicType.BYTE.ident))
+                            case "reflect.TypeOf":
+                                return Ident("Type")
                     case *_, Ident(Name=_z):
                         dotted = "*." + _z
                         match dotted:
@@ -1774,6 +1783,8 @@ class CallExpr(Expr):
                                 return GoBasicType.STRING.ident
                             case '*.UnixNano':
                                 return GoBasicType.INT64.ident
+                            case '*.Kind':
+                                return Ident("Kind")
 
             # Basic types
             case Ident(Name=x):

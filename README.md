@@ -4805,6 +4805,165 @@ func main() {
 	fmt.Println(time.Unix(1000000000, 0).Format("Mon Jan 02 15:04:05 2006"))
 }
 ```
+### typecall
+#### Python
+```python
+class Custom1:
+    def __init__(self):
+        pass
+
+
+class Custom2:
+    def __init__(self, x):
+        self.x = x
+
+
+def main():
+    b = False
+    i = 12
+    f = 4.2
+    s = "bla bla"
+    sb = b"bla bla"
+    s1 = {1, 2, 3}
+    s2 = {"a", "b", "c"}
+    d1 = {"hi": 1}
+    d2 = {"hi": "hi"}
+    l1 = [1, 2, 3]
+    l2 = ["a", "b", "c"]
+    t1 = (1, 2, 3)
+    t2 = (1, 2)
+    c1 = Custom1()
+    c2 = Custom2(1)
+    c3 = Custom2(2)
+    fx = lambda x: print(x)
+    fxy = lambda x, y: print(x, y)
+
+    print("type(b) =", type(b))
+    print("type(i) =", type(i))
+    print("type(f) =", type(f))
+    print("type(s) =", type(s))
+    print("type(sb) =", type(sb))
+    print("type(d1) =", type(d1))
+    print("type(d2) =", type(d2))
+    print("type(l1) =", type(l1))
+    print("type(l2) =", type(l2))
+    print("type(t1) =", type(t1))
+    print("type(t2) =", type(t2))
+    print("type(c1) =", type(c1))
+    print("type(c2) =", type(c2))
+    print("type(s1) =", type(s1))
+    print("type(s2) =", type(s2))
+    print("type(c3) =", type(c3))
+    print("type(fx) =", type(fx))
+    print("type(fxy) =", type(fxy))
+    print("type(d1) == type(d2)?", type(d1) == type(d2))
+    print("type(l1) == type(l2)?", type(l1) == type(l2))
+    print("type(t1) == type(t2)?", type(t1) == type(t2))
+    print("type(l1) == type(t1)?", type(l1) == type(t1))
+    print("type(c1) == type(c2)?", type(c1) == type(c2))
+    print("type(c2) == type(c3)?", type(c2) == type(c3))
+    print("type(fx) == type(fxy)?", type(fx) == type(fxy))
+    print("type(s) == str?", type(s) == str)
+    print("type(sb) == bytes?", type(sb) == bytes)
+    print("type(i) == int?", type(i) == int)
+    print("type(f) == float?", type(f) == float)
+    print("type(l1) == list?", type(l1) == list)
+    print("type(t1) == tuple?", type(t1) == tuple)
+    print("type(s1) == type(s2)?", type(s1) == type(s2))
+    print("type(c1) == Custom1", type(c1) == Custom1)
+    print("type(c2) == Custom2", type(c2) == Custom2)
+    print("type(c2) == Custom1", type(c2) == Custom1)
+
+
+if __name__ == '__main__':
+    main()
+```
+#### Go
+```go
+package main
+
+import (
+	"fmt"
+	"reflect"
+)
+
+type Custom1 struct{}
+
+func NewCustom1() (self *Custom1) {
+	self = new(Custom1)
+	return
+}
+
+type Custom2 struct {
+	x int
+}
+
+func NewCustom2(x int) (self *Custom2) {
+	self = new(Custom2)
+	self.x = x
+	return
+}
+
+func main() {
+	b := false
+	i := 12
+	f := 4.2
+	s := "bla bla"
+	sb := []byte("bla bla")
+	s1 := map[int]struct{}{1: {}, 2: {}, 3: {}}
+	s2 := map[string]struct{}{"a": {}, "b": {}, "c": {}}
+	d1 := map[string]int{"hi": 1}
+	d2 := map[string]string{"hi": "hi"}
+	l1 := []int{1, 2, 3}
+	l2 := []string{"a", "b", "c"}
+	t1 := [3]int{1, 2, 3}
+	t2 := [2]int{1, 2}
+	c1 := NewCustom1()
+	c2 := NewCustom2(1)
+	c3 := NewCustom2(2)
+	fx := func(x interface{}) {
+		fmt.Println(x)
+	}
+	fxy := func(x interface{}, y interface{}) {
+		fmt.Println(x, y)
+	}
+	fmt.Println("type(b) =", reflect.TypeOf(b))
+	fmt.Println("type(i) =", reflect.TypeOf(i))
+	fmt.Println("type(f) =", reflect.TypeOf(f))
+	fmt.Println("type(s) =", reflect.TypeOf(s))
+	fmt.Println("type(sb) =", reflect.TypeOf(sb))
+	fmt.Println("type(d1) =", reflect.TypeOf(d1))
+	fmt.Println("type(d2) =", reflect.TypeOf(d2))
+	fmt.Println("type(l1) =", reflect.TypeOf(l1))
+	fmt.Println("type(l2) =", reflect.TypeOf(l2))
+	fmt.Println("type(t1) =", reflect.TypeOf(t1))
+	fmt.Println("type(t2) =", reflect.TypeOf(t2))
+	fmt.Println("type(c1) =", reflect.TypeOf(c1))
+	fmt.Println("type(c2) =", reflect.TypeOf(c2))
+	fmt.Println("type(s1) =", reflect.TypeOf(s1))
+	fmt.Println("type(s2) =", reflect.TypeOf(s2))
+	fmt.Println("type(c3) =", reflect.TypeOf(c3))
+	fmt.Println("type(fx) =", reflect.TypeOf(fx))
+	fmt.Println("type(fxy) =", reflect.TypeOf(fxy))
+	fmt.Println("type(d1) == type(d2)?", reflect.TypeOf(d1).Kind() == reflect.TypeOf(d2).Kind())
+	fmt.Println("type(l1) == type(l2)?", reflect.TypeOf(l1).Kind() == reflect.TypeOf(l2).Kind())
+	fmt.Println("type(t1) == type(t2)?", reflect.TypeOf(t1).Kind() == reflect.TypeOf(t2).Kind())
+	fmt.Println("type(l1) == type(t1)?", reflect.TypeOf(l1).Kind() == reflect.TypeOf(t1).Kind())
+	fmt.Println("type(c1) == type(c2)?", reflect.TypeOf(c1) == reflect.TypeOf(c2))
+	fmt.Println("type(c2) == type(c3)?", reflect.TypeOf(c2) == reflect.TypeOf(c3))
+	fmt.Println("type(fx) == type(fxy)?", reflect.TypeOf(fx).Kind() == reflect.TypeOf(fxy).Kind())
+	fmt.Println("type(s) == str?", reflect.TypeOf(s).Kind() == reflect.String)
+	fmt.Println("type(sb) == bytes?", reflect.TypeOf(sb).Kind() == reflect.Slice)
+	fmt.Println("type(i) == int?", reflect.TypeOf(i).Kind() == reflect.Int)
+	fmt.Println("type(f) == float?", reflect.TypeOf(f).Kind() == reflect.Float64)
+	fmt.Println("type(l1) == list?", reflect.TypeOf(l1).Kind() == reflect.Slice)
+	fmt.Println("type(t1) == tuple?", reflect.TypeOf(t1).Kind() == reflect.Array)
+	fmt.Println("type(s1) == type(s2)?", reflect.TypeOf(s1).Kind() == reflect.TypeOf(s2).Kind())
+	fmt.Println("type(c1) == Custom1", reflect.TypeOf(c1) == reflect.TypeOf(new(Custom1)))
+	fmt.Println("type(c2) == Custom2", reflect.TypeOf(c2) == reflect.TypeOf(new(Custom2)))
+	fmt.Println("type(c2) == Custom1", reflect.TypeOf(c2) == reflect.TypeOf(new(Custom1)))
+}
+```
 
 ## TODOs
 

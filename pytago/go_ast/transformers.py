@@ -1,5 +1,4 @@
 import ast
-import copy
 import warnings
 from _ast import AST
 from typing import Optional
@@ -13,7 +12,7 @@ from pytago.go_ast import CallExpr, Ident, SelectorExpr, File, FuncDecl, BinaryE
 # Shortcuts
 from pytago.go_ast.core import _find_nodes, GoAST, ChanType, StructType, InterfaceType, BadExpr, OP_COMPLIMENTS, \
     GoStmt, TypeSwitchStmt, StarExpr, GenDecl, TypeAssertExpr, DeclStmt, BranchStmt, \
-    go_op_to_go_py_dunder, py_dunder_to_go_name
+    go_op_to_go_py_dunder, py_dunder_to_go_name, _type_str_to_go_type
 
 v = Ident.from_str
 
@@ -1877,6 +1876,83 @@ class RemoveConflictingImports(BaseTransformer):
         return node
 
 
+class RemoveBadReturns(BaseTransformer):
+    """
+    Mostly exists because I noticed some lambdas were doing weird stuff like returning print statements
+    """
+    STAGE = 2
+    REPEATABLE = False
+
+    def __init__(self):
+        super().__init__()
+        self.returns_allowed = True
+
+    def visit_FuncDecl(self, node: FuncDecl):
+        return self.visit_FuncDecl_or_FuncLit(node)
+
+    def visit_FuncLit(self, node: FuncLit):
+        return self.visit_FuncDecl_or_FuncLit(node)
+
+    def visit_FuncDecl_or_FuncLit(self, node: FuncDecl | FuncLit):
+        returns_allowed = self.returns_allowed
+        self.returns_allowed = not (node.Type.Results is None or len(node.Type.Results.List) == 0)
+        node = self.generic_visit(node)
+        self.returns_allowed = returns_allowed
+        return  node
+
+    def visit_ReturnStmt(self, node: ReturnStmt):
+        node = self.generic_visit(node)
+        if node and not self.returns_allowed:
+            if len(node.Results) == 0:
+                return node
+            if len(node.Results) == 1:
+                return ExprStmt(X=node.Results[0])
+            return BlockStmt(List=[ExprStmt(X=x) for x in node.Results])
+        return node
+
+class ComparingTypesComparesKinds(NodeTransformerWithScope):
+    # Multiple passes will break comparisons of custom structs by turning
+    #  `fmt.Println("type(c2) == Custom1", reflect.TypeOf(c2) == reflect.TypeOf(new(Custom1)))`
+    #  into
+    #  `fmt.Println("type(c2) == Custom1", reflect.TypeOf(c2).Kind() == reflect.TypeOf(new(Custom1)).Kind())`
+    REPEATABLE = False
+
+    def visit_BinaryExpr(self, node: BinaryExpr):
+        self.generic_visit(node)
+        x, y = node.X, node.Y
+        for x, x_name, y, y_name in ((x, 'X', y, 'Y'), (y, 'Y', x, 'X')):
+            match x:
+                case CallExpr(Fun=SelectorExpr(X=Ident(Name="reflect"), Sel=Ident(Name="TypeOf"))):
+                    x_type = self.scope._get_type(x.Args[0])
+                    udc = is_user_defined_class_type(x_type)
+                    match y:
+                        case CallExpr(Fun=SelectorExpr(X=Ident(Name="reflect"), Sel=Ident(Name="TypeOf"))) if not udc:
+                            setattr(node, x_name, getattr(node, x_name).sel("Kind").call())
+                            setattr(node, y_name, getattr(node, y_name).sel("Kind").call())
+                            return node
+                        case Ident(Name=x):
+                            t = _type_str_to_go_type(x)
+                            if t and t.is_basic_type:
+                                setattr(node, x_name, getattr(node, x_name).sel("Kind").call())
+                                setattr(node, y_name, Ident("reflect").sel(t.Name.title()))
+                                return node
+                            elif isinstance(t, ArrayType):
+                                setattr(node, x_name, getattr(node, x_name).sel("Kind").call())
+                                if t.Len:
+                                    setattr(node, y_name, Ident("reflect").sel("Array"))
+                                    return node
+                                setattr(node, y_name, Ident("reflect").sel("Slice"))
+                                return node
+                            elif isinstance(t, MapType):
+                                setattr(node, x_name, getattr(node, x_name).sel("Kind").call())
+                                setattr(node, y_name, Ident("reflect").sel("Map"))
+                                return node
+                            else:
+                                setattr(node, y_name, Ident("reflect").sel("TypeOf").call(Ident("new").call(t)))
+
+        return node
+
+
 class ScopeFunctionVars(BaseTransformer):
     REPEATABLE = False
     def visit_FuncDecl(self, node: FuncDecl):
@@ -2008,6 +2084,7 @@ ALL_TRANSFORMS = [
     ScopeFunctionVars,
     FileWritesAndErrors,
     SpecialComparators,  # First scope transformer
+    ComparingTypesComparesKinds,
     IndexExpressionsHelpTypeMaps,
     AppendSliceViaUnpacking,
     YieldTransformer,  # May need to be above other scope transformers because jank,
@@ -2044,5 +2121,6 @@ ALL_TRANSFORMS = [
     MergeAdjacentInits,
 
     #### STAGE 2 ####
+    RemoveBadReturns,
     RemoveIfNameEqualsMain
 ]

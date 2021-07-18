@@ -271,3 +271,6 @@ class Test(TestCase):
 
     def test_timecode(self):
         self.assert_examples_match("timecode")
+
+    def test_typecall(self):
+        self.assert_examples_match("typecall")
