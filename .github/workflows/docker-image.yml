@@ -1,0 +1,29 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: docker
+    env:
+      tag_minor: "1.0"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build the Docker image
+      run: |
+        docker pull voiski/pytago:${tag_minor} || true
+        docker build . --cache-from voiski/pytago:${tag_minor} --tag voiski/pytago:${tag_minor}.${GITHUB_RUN_ID}
+    - name: Login to Docker Hub
+      uses: docker/login-action@v1
+      with:
+        username: voiski
+        password: ${{ secrets.VOISKI_DOCKER_HUB }}
+    - name: Publish Docker image
+      run: |
+        docker tag voiski/pytago:${tag_minor}.${GITHUB_RUN_ID} voiski/pytago:${tag_minor}
+        docker push voiski/pytago:${tag_minor}
