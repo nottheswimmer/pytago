@@ -27,5 +27,5 @@ jobs:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Publish Docker image
       run: |
-        docker tag ${tag_patch} ${tag_minor} ${latest}
+        docker tag ${tag_patch} ${tag_minor} ${tag_latest}
         docker push ${{ github.repository }} --all-tags
