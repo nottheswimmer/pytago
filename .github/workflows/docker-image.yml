@@ -13,6 +13,7 @@ jobs:
     env:
       tag_minor: "${{ github.repository }}:1.0"
       tag_patch: "${{ github.repository }}:1.0.${{ github.run_number }}"
+      tag_latest: "${{ github.repository }}:latest"
     steps:
     - uses: actions/checkout@v2
     - name: Build the Docker image
@@ -26,5 +27,5 @@ jobs:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Publish Docker image
       run: |
-        docker tag ${tag_patch} ${tag_minor}
+        docker tag ${tag_patch} ${tag_minor} ${latest}
         docker push ${{ github.repository }} --all-tags
