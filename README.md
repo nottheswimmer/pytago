@@ -16,17 +16,9 @@ There are two "officially" supported ways to use Pytago:
 
 - [Docker](https://docs.docker.com/get-docker/)
 
-#### Installation
-
+#### Installation and Usage
 ```
-git clone https://github.com/nottheswimmer/pytago/
-cd pytago
-docker build -t pytago .
-```
-
-#### Usage
-```
-docker run -p 8080:8080 -e PORT=8080 -it pytago
+docker run -p 8080:8080 -e PORT=8080 -it nottheswimmer/pytago
 
 # User interface
 open http://127.0.0.1:8080/
