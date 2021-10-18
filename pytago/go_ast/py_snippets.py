@@ -1218,7 +1218,7 @@ def go_random_shuffle(seq):  # pragma: no cover
 
 @Bindable.add(r"random\.uniform", bind_type=BindType.FUNC_LIT)
 def go_random_uniform(a: float, b: float):  # pragma: no cover
-    return rand.Float64() * (b - a) + b
+    return rand.Float64() * (b - a) + a
     def PYTAGO_INIT(): rand.Seed(time.Now().UnixNano())
 
 # TODO: Exhaustive list of all dunders, .methods, builtins, etc implemented here...

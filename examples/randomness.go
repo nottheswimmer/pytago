@@ -27,7 +27,7 @@ func main() {
 	})
 	fmt.Println(items)
 	u := func(a float64, b float64) float64 {
-		return rand.Float64()*(b-a) + b
+		return rand.Float64()*(b-a) + a
 	}(200, 500)
 	fmt.Println(u)
 	if rand.Float64() > 0.5 {
