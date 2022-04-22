@@ -40,6 +40,8 @@ def main():
 
     examples = glob.glob(EXAMPLES_PATH + "/*")
     examples.sort(key=example_sort_key)
+
+    # It's assumed that Python examples appear then Go examples
     for i, example in enumerate(examples):
         example_name = split(example)[-1].removesuffix(".py").removesuffix(".go")
         if example_name in DISABLED_EXAMPLES:
@@ -52,15 +54,17 @@ def main():
             assert example.endswith(".go")
         with open(example) as f:
             if is_python:
-                parts.append("""#### Python""")
+                parts.append("\n<table><tr><th>Python</th><th>Go</th></tr><tr><td>\n")
             else:
-                parts.append("""#### Go""")
+                parts.append("</td><td>\n")
             parts.append('```' + ("python" if is_python else "go"))
             for line in f.read().splitlines(keepends=False):
                 if is_python and line.strip().startswith('#'):
                     continue
                 parts.append(line)
             parts.append("```")
+            if not is_python:
+                parts.append('</td></tr></table>\n')
     example_code = '\n'.join(parts)
     with open(README_DESTINATION, "w") as f:
         t = TEMPLATE.replace('{% usage %}', get_usage_string())
