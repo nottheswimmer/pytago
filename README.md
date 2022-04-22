@@ -1029,6 +1029,8 @@ func add(a int, b int) int {
 ```python
 def main():
     print(2 ** 8)
+    x = [2, 4]
+    print(x[0] ** x[1])
 
 
 if __name__ == '__main__':
@@ -1045,6 +1047,8 @@ import (
 
 func main() {
 	fmt.Println(math.Pow(2, 8))
+	x := []int{2, 4}
+	fmt.Println(math.Pow(float64(x[0]), float64(x[1])))
 }
 ```
 ### variables

@@ -918,6 +918,39 @@ class HandleTypeCoercion(NodeTransformerWithScope):
                     return node
         return node
 
+    def visit_CallExpr(self, node: CallExpr):
+        self.generic_visit(node)
+        match node.Fun:
+            case SelectorExpr(X=Ident(Name="math")):
+                # Coerce all arguments to float64
+                types = []
+                for i, arg in enumerate(node.Args):
+                    i_type = self.scope._get_type(arg)
+                    if not i_type == GoBasicType.FLOAT64.ident:
+                        types.append(i_type)
+                        # If the argument isn't a basic literal or a negative basic literal,
+                        # coerce it to a float64
+                        match arg:
+                            case BasicLit():
+                                pass
+                            case UnaryExpr(Op=token.SUB, X=BasicLit()):
+                                pass
+                            case _:
+                                node.Args[i] = GoBasicType.FLOAT64.ident.call(arg)
+        return node
+
+
+class RemoveDuplicateCoercion(NodeTransformerWithScope):
+    def visit_CallExpr(self, node: CallExpr):
+        self.generic_visit(node)
+        match node.Fun:
+            case Ident(Name=basic_type) if basic_type in (gbt.value for gbt in GoBasicType):
+                # If the argument is a call to the same basic type, remove the coercion
+                if len(node.Args) == 1 and isinstance(node.Args[0], CallExpr):
+                    call = node.Args[0]
+                    if call.Fun == node.Fun:
+                        return call
+        return node
 
 class RequestsToHTTP(NodeTransformerWithScope):
     def visit_CallExpr(self, node: CallExpr):
@@ -2099,6 +2132,7 @@ ALL_TRANSFORMS = [
     NegativeIndexesSubtractFromLen,
     StringifyStringMember,
     HandleTypeCoercion,
+    RemoveDuplicateCoercion,
     RequestsToHTTP,
     HTTPErrors,
     HandleUnhandledErrorsAndDefers,
