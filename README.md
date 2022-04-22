@@ -17,10 +17,23 @@ There are two "officially" supported ways to use Pytago:
 - [Docker](https://docs.docker.com/get-docker/)
 
 #### Installation and Usage
+
+##### Running pre-built container
 ```
 docker run -p 8080:8080 -e PORT=8080 -it nottheswimmer/pytago
+```
 
-# User interface
+##### Building from source (Alternative)
+```
+git clone https://github.com/nottheswimmer/pytago/
+cd pytago
+docker build -t pytago .
+docker run -p 8080:8080 -e PORT=8080 -it pytago
+```
+
+##### Usage
+```
+# Open the user interface
 open http://127.0.0.1:8080/
 
 # API
@@ -33,11 +46,15 @@ curl --request POST 'http://127.0.0.1:8080/' \
 
 #### Prerequisites
 
-- [Go 1.16.x](https://golang.org/dl/)
+- [Go 1.18.x](https://golang.org/dl/)
 - [Python 3.10.x](https://www.python.org/downloads/release/python-3100b3/)
-  - No, it will not work on 3.9. Search the code for "match."
-- `go get -u golang.org/x/tools/cmd/goimports mvdan.cc/gofumpt github.com/segmentio/golines`
-
+  - No, it will not work on 3.9 due to the (heavy) usage of match statements.
+- Required libraries for post-processing:
+  ```
+  go install golang.org/x/tools/cmd/goimports@latest
+  go install mvdan.cc/gofumpt@latest
+  go install github.com/segmentio/golines@latest
+  ```
 #### Installation
 
 ##### via pip

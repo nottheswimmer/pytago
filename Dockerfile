@@ -1,4 +1,4 @@
-FROM python:3.10.0b2-alpine3.13
+FROM python:3.10.4-alpine3.14
 
 ### COPYPASTA ###
 RUN apk add --no-cache \
@@ -11,7 +11,7 @@ RUN [ ! -e /etc/nsswitch.conf ] && echo 'hosts: files dns' > /etc/nsswitch.conf
 
 ENV PATH /usr/local/go/bin:$PATH
 
-ENV GOLANG_VERSION 1.16.5
+ENV GOLANG_VERSION 1.18.1
 
 RUN set -eux; \
 	apk add --no-cache --virtual .build-deps \
@@ -49,8 +49,8 @@ RUN set -eux; \
 	esac; \
 	\
 # https://github.com/golang/go/issues/38536#issuecomment-616897960
-	url='https://dl.google.com/go/go1.16.5.src.tar.gz'; \
-	sha256='7bfa7e5908c7cc9e75da5ddf3066d7cbcf3fd9fa51945851325eebc17f50ba80'; \
+	url='https://dl.google.com/go/go1.18.1.src.tar.gz'; \
+	sha256='efd43e0f1402e083b73a03d444b7b6576bb4c539ac46208b63a916b69aca4088'; \
 	\
 	wget -O go.tgz.asc "$url.asc"; \
 	wget -O go.tgz "$url"; \
@@ -111,10 +111,10 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 WORKDIR $GOPATH
 ### /COPYPASTA ###
 
-RUN go get -u \
-    golang.org/x/tools/cmd/goimports \
-    mvdan.cc/gofumpt \
-    github.com/segmentio/golines
+RUN go install golang.org/x/tools/cmd/goimports@latest
+RUN go install mvdan.cc/gofumpt@latest
+RUN go install github.com/segmentio/golines@latest
+
 
 ENV PYTHONUNBUFFERED True
 ENV APP_HOME /app

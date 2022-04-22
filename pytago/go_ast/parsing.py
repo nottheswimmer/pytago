@@ -4,7 +4,7 @@ import tempfile
 from collections import defaultdict
 from subprocess import Popen, PIPE
 
-from pytago.go_ast import GoAST, ALL_TRANSFORMS, File, get_list_type
+from pytago.go_ast import GoAST, ALL_TRANSFORMS, File, get_list_type, token
 
 
 def unparse(go_tree: GoAST, apply_transformations=True, debug=True):
@@ -122,6 +122,8 @@ def dump(node, annotate_fields=True, include_attributes=False, *, indent=None):
             if not node:
                 return f'[]{list_type} {{}}', True
             return f'[]{list_type} {{%s%s}}' % (prefix, sep.join(_format(x, level)[0] for x in node)), False
+        elif isinstance(node, token):
+            return f"token.{node.name}", True
         # Prefer json.dumps over repr
         try:
             return json.dumps(node, ensure_ascii=False), True
@@ -240,7 +242,7 @@ def _gorun(filename: str) -> str:
 
 
 def _gofumpt(code: str) -> str:
-    p = Popen(["gofumpt", "-s"], stdout=PIPE, stderr=PIPE, stdin=PIPE)
+    p = Popen(["gofumpt"], stdout=PIPE, stderr=PIPE, stdin=PIPE)
     out, err = p.communicate(code.encode())
     if err:
         return code + "\n" + "\n".join("// " + x for x in err.decode().strip().splitlines())

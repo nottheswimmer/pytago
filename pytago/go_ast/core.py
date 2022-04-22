@@ -2214,11 +2214,11 @@ class Field(GoAST):
     Comment: CommentGroup
     """associated documentation; or nil"""
     Doc: CommentGroup
-    """field/method/parameter names; or nil"""
+    """field/method/(type) parameter names; or nil"""
     Names: List[Ident]
     """field tag; or nil"""
     Tag: BasicLit
-    """field/method/parameter type"""
+    """field/method/parameter type; or nil"""
     Type: Expr
 
     def __init__(self,
@@ -2274,7 +2274,7 @@ class Field(GoAST):
 
 
 class FieldList(Expr):
-    """A FieldList represents a list of Fields, enclosed by parentheses or braces.
+    """A FieldList represents a list of Fields, enclosed by parentheses, curly braces, or square brackets.
 
     receiver (methods); or nil (functions)
 
@@ -2287,11 +2287,11 @@ class FieldList(Expr):
     list of field declarations
     """
     _fields = ("List",)
-    """position of closing parenthesis/brace, if any"""
+    """position of closing parenthesis/brace/bracket, if any"""
     Closing: int
     """field list; or nil"""
     List: List[Field]
-    """position of opening parenthesis/brace, if any"""
+    """position of opening parenthesis/brace/bracket, if any"""
     Opening: int
 
     def __init__(self,
@@ -2588,9 +2588,11 @@ class FuncType(Expr):
     Pointer types are represented via StarExpr nodes. A FuncType node represents a function
     type.
     """
-    _fields = ("Params", "Results")
+    _fields = ("TypeParams", "Params", "Results")
     """position of 'func' keyword (token.NoPos if there is no 'func')"""
     Func: int
+    """type parameters; or nil"""
+    TypeParams: FieldList
     """(incoming) parameters; non-nil"""
     Params: FieldList
     """(outgoing) results; or nil"""
@@ -2600,8 +2602,10 @@ class FuncType(Expr):
                  Func: int = 0,
                  Params: FieldList = None,
                  Results: FieldList = None,
+                 TypeParams: FieldList = None,
                  **kwargs) -> None:
         self.Func = Func
+        self.TypeParams = TypeParams
         self.Params = Params
         self.Results = Results
         super().__init__(**kwargs)
@@ -3097,11 +3101,11 @@ class IndexExpr(Expr):
 class InterfaceType(Expr):
     """An InterfaceType node represents an interface type."""
     _fields = ("Incomplete", "Methods")
-    """true if (source) methods are missing in the Methods list"""
+    """true if (source) methods or types are missing in the Methods list"""
     Incomplete: bool
     """position of 'interface' keyword"""
     Interface: int
-    """list of methods"""
+    """list of embedded interfaces, methods, or types"""
     Methods: FieldList
 
     def __init__(self,
