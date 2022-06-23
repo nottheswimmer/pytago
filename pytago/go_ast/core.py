@@ -593,6 +593,9 @@ class Expr(GoAST):
     def __neg__(self) -> 'UnaryExpr':
         return UnaryExpr(Op=token.SUB, X=self)
 
+    def __invert__(self) -> 'UnaryExpr':
+        return UnaryExpr(Op=token.XOR, X=self)
+
     def or_(self, Y: 'Expr') -> 'BinaryExpr':
         """
         Shorthand way to describe the binary expression self || Y
@@ -3705,6 +3708,7 @@ class UnaryExpr(Expr):
             case ast.USub(): op = token.SUB
             case ast.UAdd(): op = ast.UAdd
             case ast.Not(): op = token.NOT
+            case ast.Invert(): op = token.XOR
             case _: raise NotImplementedError((node, node.op))
         X = build_expr_list([node.operand])[0]
         return cls(Op=op, X=X, **kwargs)
