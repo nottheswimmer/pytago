@@ -593,8 +593,6 @@ class Expr(GoAST):
     def __neg__(self) -> 'UnaryExpr':
         return UnaryExpr(Op=token.SUB, X=self)
 
-    def __invert__(self) -> 'UnaryExpr':
-        return UnaryExpr(Op=token.XOR, X=self)
 
     def or_(self, Y: 'Expr') -> 'BinaryExpr':
         """
