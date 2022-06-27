@@ -5139,6 +5139,34 @@ func main() {
 ```
 </td></tr></table>
 
+### bitwisenot
+
+<table><tr><th>Python</th><th>Go</th></tr><tr><td>
+
+```python
+def main():
+	yeah = 9
+	yeah &= ~0x3
+	print(yeah)
+
+if __name__ == '__main__':
+    main()
+```
+</td><td>
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	yeah := 9
+	yeah &= ^3
+	fmt.Println(yeah)
+}
+```
+</td></tr></table>
+
 ### index
 
 <table><tr><th>Python</th><th>Go</th></tr><tr><td>

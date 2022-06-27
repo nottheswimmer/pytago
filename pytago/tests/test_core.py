@@ -248,6 +248,9 @@ class Test(TestCase):
     def test_algointersection(self):
         self.assert_examples_match("algointersection")
 
+    def test_bitwisenot(self):
+        self.assert_examples_match("bitwisenot")
+
     # In development
 
     #
