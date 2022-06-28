@@ -46,6 +46,7 @@ def main():
         example_name = split(example)[-1].removesuffix(".py").removesuffix(".go")
         if example_name in DISABLED_EXAMPLES:
             continue
+        print(example_name)
         is_python = i % 2 == 0
         if is_python:
             assert example.endswith(".py")
