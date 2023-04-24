@@ -54,6 +54,7 @@ curl --request POST 'http://127.0.0.1:8080/' \
   go install golang.org/x/tools/cmd/goimports@latest
   go install mvdan.cc/gofumpt@latest
   go install github.com/segmentio/golines@latest
+  export PATH="$PATH:$HOME/go/bin"
   ```
 #### Installation
 
